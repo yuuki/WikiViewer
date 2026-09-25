@@ -39,10 +39,21 @@ public enum VaultEntryKind: Sendable, Equatable {
     case note
     case asset(ViewerSchema.AssetKind)
 
+    /// Directory names never indexed besides hidden ones: tool output that
+    /// can hold thousands of Markdown files which are not notes.
+    static let ignoredDirectoryNames: Set<String> = ["node_modules"]
+
+    /// True for a directory name the walker skips without descending.
+    public static func isIgnoredDirectory(_ name: some StringProtocol) -> Bool {
+        name.hasPrefix(".") || ignoredDirectoryNames.contains(String(name))
+    }
+
     /// Classifies a vault-relative path. Returns nil for files the viewer
-    /// ignores (dotfiles, `.obsidian/`, canvases, unknown types).
+    /// ignores (dotfiles, `.obsidian/`, `node_modules/`, canvases, unknown types).
     public static func classify(_ relativePath: String) -> VaultEntryKind? {
-        for component in relativePath.split(separator: "/") where component.hasPrefix(".") {
+        let components = relativePath.split(separator: "/")
+        if components.last?.hasPrefix(".") == true { return nil }
+        for component in components.dropLast() where isIgnoredDirectory(component) {
             return nil
         }
         let ext = VaultPath.fileExtension(of: relativePath)
@@ -62,7 +73,8 @@ public enum VaultWalker {
     /// Walks the vault (or a subfolder) collecting metadata of indexable
     /// files. Uses fts(3) with FTS_PHYSICAL so symlinks are never followed
     /// (a symlink could otherwise point outside the vault), and skips hidden
-    /// directories such as `.obsidian` and `.trash` without descending.
+    /// directories such as `.obsidian` and `.trash`, and `node_modules`,
+    /// without descending.
     public static func walk(vault: URL, subpath: String? = nil) throws -> [VaultEntry] {
         let rootPath = vault.canonicalPath
         let start = subpath.map { rootPath + "/" + $0 } ?? rootPath
@@ -81,7 +93,7 @@ public enum VaultWalker {
             let name = VaultPath.fileName(of: fullPath)
             switch info {
             case FTS_D:
-                if entry.pointee.fts_level > 0, name.hasPrefix(".") {
+                if entry.pointee.fts_level > 0, VaultEntryKind.isIgnoredDirectory(name) {
                     fts_set(fts, entry, FTS_SKIP)
                 }
             case FTS_F:

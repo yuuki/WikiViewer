@@ -16,6 +16,24 @@ import WikiShared
         #expect(try await indexer.publish() == nil, "nothing to publish")
     }
 
+    @Test func nodeModulesIsNeverIndexed() async throws {
+        let env = try Env(copyFixture: true)
+        try env.write("node_modules/pkg/README.md", "# Package\n")
+        try env.write("Projects/node_modules/dep/CHANGELOG.md", "# Changes\n")
+        let indexer = try Indexer(configuration: env.config)
+        _ = try await indexer.reconcile()
+        try env.write("node_modules/pkg/NEW.md", "# Added later\n")
+        let stats = try await indexer.process(paths: ["node_modules/pkg/NEW.md", "node_modules"])
+        #expect(stats.notesWritten == 0)
+        try await indexer.query { (db: Database) throws in
+            #expect(try Int.fetchOne(db, sql: "SELECT count(*) FROM notes WHERE path LIKE '%node_modules%'") == 0)
+            #expect(try Int.fetchOne(db, sql: "SELECT count(*) FROM folders WHERE path LIKE '%node_modules%'") == 0)
+        }
+        #expect(VaultEntryKind.classify("node_modules/pkg/README.md") == nil)
+        #expect(VaultEntryKind.classify("a/node_modules/b.png") == nil)
+        #expect(VaultEntryKind.classify("node_modules.md") == .note, "only a directory of that name is ignored")
+    }
+
     @Test func newNoteResolvesDanglingLinksWithoutReparsingSources() async throws {
         let env = try Env(copyFixture: true)
         let indexer = try Indexer(configuration: env.config)
