@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7EC247D0306562A900E06DB2 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7EC247D2306562A900E06DB2 /* GRDB */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		7EC247B4306562A700E06DB2 /* WikiViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WikiViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -22,6 +26,7 @@
 		7EC247B1306562A700E06DB2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				7EC247D0306562A900E06DB2 /* GRDB in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -60,6 +65,9 @@
 				7EC247B6306562A700E06DB2 /* WikiViewer */,
 			);
 			name = WikiViewer;
+			packageProductDependencies = (
+				7EC247D2306562A900E06DB2 /* GRDB */,
+			);
 			productName = WikiViewer;
 			productReference = 7EC247B4306562A700E06DB2 /* WikiViewer.app */;
 			productType = "com.apple.product-type.application";
@@ -88,6 +96,9 @@
 			);
 			mainGroup = 7EC247AB306562A700E06DB2;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7EC247D1306562A900E06DB2 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7EC247B5306562A700E06DB2 /* Products */;
 			projectDirPath = "";
@@ -339,6 +350,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7EC247D1306562A900E06DB2 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.11.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7EC247D2306562A900E06DB2 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7EC247D1306562A900E06DB2 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7EC247AC306562A700E06DB2 /* Project object */;
 	validationLevel = 1;
