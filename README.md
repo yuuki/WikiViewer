@@ -101,3 +101,7 @@ re-index; generation numbers still never go backwards.
 ```sh
 scripts/bench.sh 20000 50000 100000   # synthetic vaults, never your real vault
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE). Third-party dependencies keep their own licenses (listed in ARCHITECTURE.md).
