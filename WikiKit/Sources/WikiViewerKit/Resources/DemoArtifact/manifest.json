@@ -1,0 +1,26 @@
+{
+  "assetCount" : 3,
+  "assets" : {
+    "directory" : "assets",
+    "layout" : "sha256/2",
+    "totalBytes" : 79233
+  },
+  "builder" : "wikiindex/1",
+  "chunks" : {
+    "byteSize" : 231,
+    "chunkSize" : 131072,
+    "count" : 3,
+    "path" : "generations/viewer-000001.chunks",
+    "sha256" : "3416f211c30770d4c53bcbada024b7446e11b3858abed0958282a03d1e1edda4"
+  },
+  "createdAt" : "2026-09-25T02:13:49Z",
+  "database" : {
+    "byteSize" : 294912,
+    "path" : "generations/viewer-000001.sqlite",
+    "sha256" : "84d207f02e61feb553e774bd855aa11d3fa0e8838c377f643aee271959855675"
+  },
+  "formatVersion" : 1,
+  "generation" : 1,
+  "noteCount" : 11,
+  "schemaVersion" : 1
+}

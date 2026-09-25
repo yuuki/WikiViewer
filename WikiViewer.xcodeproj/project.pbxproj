@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		7EC247D0306562A900E06DB2 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7EC247D2306562A900E06DB2 /* GRDB */; };
+		7EC247E0306562B000E06DB2 /* WikiViewerKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7EC247E1306562B000E06DB2 /* WikiViewerKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				7EC247D0306562A900E06DB2 /* GRDB in Frameworks */,
+				7EC247E0306562B000E06DB2 /* WikiViewerKit in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -67,6 +69,7 @@
 			name = WikiViewer;
 			packageProductDependencies = (
 				7EC247D2306562A900E06DB2 /* GRDB */,
+				7EC247E1306562B000E06DB2 /* WikiViewerKit */,
 			);
 			productName = WikiViewer;
 			productReference = 7EC247B4306562A700E06DB2 /* WikiViewer.app */;
@@ -98,6 +101,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				7EC247D1306562A900E06DB2 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				7EC247E2306562B000E06DB2 /* XCLocalSwiftPackageReference "WikiKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7EC247B5306562A700E06DB2 /* Products */;
@@ -280,7 +284,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
@@ -324,7 +328,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
@@ -351,6 +355,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		7EC247E2306562B000E06DB2 /* XCLocalSwiftPackageReference "WikiKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = WikiKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		7EC247D1306562A900E06DB2 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -367,6 +378,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7EC247D1306562A900E06DB2 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		7EC247E1306562B000E06DB2 /* WikiViewerKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7EC247E2306562B000E06DB2 /* XCLocalSwiftPackageReference "WikiKit" */;
+			productName = WikiViewerKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
