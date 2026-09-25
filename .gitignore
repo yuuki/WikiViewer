@@ -8,3 +8,13 @@ build/
 
 # macOS
 .DS_Store
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# Benchmark / scratch output
+bench-work/
+
+# Some global gitignores exclude "tags" (ctags); this is source code.
+!WikiViewer/Features/Tags/
