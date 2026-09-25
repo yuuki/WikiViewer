@@ -1,15 +1,24 @@
 # WikiViewer
 
-A fast, native, read-only iOS viewer for a very large Obsidian vault
-(designed for 50k–100k notes). Obsidian Desktop + Obsidian Sync on a Mac mini
-stay the source of truth; a host-side indexer (`wikiindex`) reads the local
-vault strictly read-only and publishes immutable SQLite snapshots that the
-iPhone downloads, validates and opens read-only.
+A fast, native, read-only iOS viewer for a very large Obsidian vault.
 
-- Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
-- Measurements: [BENCHMARKS.md](BENCHMARKS.md)
-- Security: [THREAT_MODEL.md](THREAT_MODEL.md)
-- Status / decisions: [TASKS.md](TASKS.md)
+**Why.** With a vault of 20k+ notes (heading for 100k), Obsidian Mobile's web
+view grows past 1.5–2.4 GiB and is killed by iOS. The phone does not need to
+edit; it needs to read quickly and offline.
+
+**What.** Obsidian Desktop and Obsidian Sync on a Mac mini remain the source
+of truth. A host-side indexer (`wikiindex`) reads the vault without ever
+writing to it, and publishes immutable, fully indexed SQLite snapshots. The
+iPhone app downloads a snapshot, verifies it, and answers every screen with a
+small indexed query. Its memory depends on what is on screen, not on the size
+of the vault.
+
+| Document | Contents |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Design: goals, key decisions and their trade-offs, guarantees, limitations |
+| [THREAT_MODEL.md](THREAT_MODEL.md) | What is protected, from what, and how the design responds |
+| [BENCHMARKS.md](BENCHMARKS.md) | Measured numbers at 20k, 50k and 100k notes, and how to reproduce them |
+| [TASKS.md](TASKS.md) | Decisions log, status, deferred work |
 
 ## Build and test
 
