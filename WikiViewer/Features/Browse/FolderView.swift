@@ -138,13 +138,30 @@ struct FolderRow: View {
     let folder: FolderSummary
 
     var body: some View {
-        HStack {
-            Label(folder.name, systemImage: "folder")
-            Spacer()
-            Text("\(folder.noteCount + folder.folderCount + folder.assetCount)")
-                .font(.footnote.monospacedDigit())
-                .foregroundStyle(.secondary)
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(folder.name)
+                if let contents {
+                    contents
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } icon: {
+            Image(systemName: "folder")
         }
+    }
+
+    /// "12 notes · 2 folders · 3 attachments": a bare total said nothing
+    /// about what it counted.
+    private var contents: Text? {
+        var parts: [Text] = []
+        if folder.noteCount > 0 { parts.append(Text("^[\(folder.noteCount) note](inflect: true)")) }
+        if folder.folderCount > 0 { parts.append(Text("^[\(folder.folderCount) folder](inflect: true)")) }
+        if folder.assetCount > 0 { parts.append(Text("^[\(folder.assetCount) attachment](inflect: true)")) }
+        guard var text = parts.first else { return nil }
+        for part in parts.dropFirst() { text = Text("\(text) · \(part)") }
+        return text
     }
 }
 
