@@ -61,6 +61,37 @@ $BIN verify --publish "<PUBLISH>"
 - One state directory belongs to one publish directory. To publish to a new
   location, use a new `<STATE>`.
 
+### Excluding folders
+
+Hidden folders (`.obsidian`, `.trash`, …) and `node_modules` are never
+indexed. To leave out other folders, pass `--exclude` (repeatable) or keep the
+patterns in a file and pass `--exclude-file`:
+
+```sh
+cat > "<STATE>/exclude.txt" <<'EOT'
+# One pattern per line. A line starting with "#" is a comment.
+# A folder named "Private" at any depth:
+Private
+# Only the top-level "Templates" folder:
+/Templates
+# A path from the vault root:
+Archive/2024
+# * and ? match within one folder name:
+Daily/*-draft
+EOT
+$BIN build --vault "<VAULT>" --state "<STATE>" --publish "<PUBLISH>" \
+  --exclude-file "<STATE>/exclude.txt"
+```
+
+Patterns name folders only and match case-insensitively. Everything inside an
+excluded folder is excluded, including images. Links to excluded notes show as
+unresolved in the app.
+
+The patterns are read when the indexer starts. After editing them, run `build`
+again or restart `watch`. The next generation drops notes in newly excluded
+folders and adds notes in folders that are no longer excluded. Older retained
+generations keep their content until they are garbage collected.
+
 To keep the snapshot up to date, run `watch` instead of `build`. See the
 LaunchAgent example in [README.md](README.md#publishing-your-vault-mac-mini).
 

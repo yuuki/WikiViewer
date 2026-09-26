@@ -19,6 +19,10 @@ public struct IndexerConfiguration: Sendable {
     public var imageMaxDimension: Int = 2048
     /// JPEG quality for derivatives (0…1).
     public var jpegQuality: Double = 0.82
+    /// Folders that are never indexed or published (see VaultFilter.swift).
+    /// Changing it takes effect on the next reconciliation: newly excluded
+    /// files are removed from the builder, newly included ones are indexed.
+    public var filter = VaultFilter()
     /// Maximum note size that is indexed; larger files are skipped with a warning.
     public var maximumNoteBytes: Int = 8 * 1024 * 1024
     /// Maximum asset size that is hashed / processed.

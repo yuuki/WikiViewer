@@ -103,7 +103,7 @@ public actor Indexer {
     public func reconcile(subpath: String? = nil) async throws -> ReconcileStats {
         var stats = ReconcileStats()
         let walkStart = Clock.now()
-        let entries = try VaultWalker.walk(vault: configuration.vault, subpath: subpath)
+        let entries = try VaultWalker.walk(vault: configuration.vault, subpath: subpath, filter: configuration.filter)
         let stored = try builder.fileStates()
         stats.walkSeconds = Clock.seconds(since: walkStart)
         stats.filesSeen = entries.count
@@ -153,7 +153,7 @@ public actor Indexer {
             if seen.insert(path).inserted { expanded.append(path) }
             // … current contents if it is a directory now …
             if let info = VaultWalker.meta(vault: configuration.vault, relativePath: path), info.isDirectory {
-                for entry in try VaultWalker.walk(vault: configuration.vault, subpath: path) where seen.insert(entry.path).inserted {
+                for entry in try VaultWalker.walk(vault: configuration.vault, subpath: path, filter: configuration.filter) where seen.insert(entry.path).inserted {
                     expanded.append(entry.path)
                 }
             }
@@ -200,7 +200,7 @@ public actor Indexer {
         var notes: [String] = []
         var images: [String] = []
         for path in batch {
-            if case .asset(.image) = VaultEntryKind.classify(path) { images.append(path) } else { notes.append(path) }
+            if case .asset(.image) = VaultEntryKind.classify(path, filter: configuration.filter) { images.append(path) } else { notes.append(path) }
         }
         let notesOutcomes = await boundedMap(notes, limit: configuration.parseConcurrency)
         let imageOutcomes = await boundedMap(images, limit: configuration.imageConcurrency)
@@ -241,7 +241,9 @@ public actor Indexer {
     }
 
     private static func readOne(path: String, configuration: IndexerConfiguration, store: AssetStore, builder: BuilderDatabase) -> Outcome {
-        guard let kind = VaultEntryKind.classify(path) else { return .deleted(path: path) }
+        // Excluded paths count as deleted, so a newly excluded folder is
+        // removed from the builder on the next reconcile.
+        guard let kind = VaultEntryKind.classify(path, filter: configuration.filter) else { return .deleted(path: path) }
         switch kind {
         case .note:
             switch StableReader.read(vault: configuration.vault, relativePath: path, maximumBytes: configuration.maximumNoteBytes) {
