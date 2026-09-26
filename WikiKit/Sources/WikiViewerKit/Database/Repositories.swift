@@ -234,6 +234,28 @@ public struct LinkRepository: Sendable {
         }
     }
 
+    /// Longest context line returned by `backlinkContext`.
+    public static let maxContextCharacters = 300
+
+    /// The source line of the first link from `sourceID` to `targetID`, to
+    /// show a backlink in context. Reads one note body (links: primary key).
+    public func backlinkContext(from sourceID: Int64, to targetID: Int64) async throws -> String? {
+        try await database.reader.read { db in
+            guard let line = try Int.fetchOne(db, sql: "SELECT line FROM links WHERE source_note_id = ? AND target_note_id = ? ORDER BY ordinal LIMIT 1", arguments: [sourceID, targetID]),
+                  let body = try String.fetchOne(db, sql: "SELECT body FROM notes WHERE id = ?", arguments: [sourceID]) else { return nil }
+            // Split on "\n" scalars, like the scanner that recorded the line.
+            var index = 0
+            for text in body.unicodeScalars.split(separator: "\n", omittingEmptySubsequences: false) {
+                if index == line {
+                    let trimmed = String(text).trimmingCharacters(in: .whitespaces)
+                    return trimmed.count > Self.maxContextCharacters ? String(trimmed.prefix(Self.maxContextCharacters)) + "…" : trimmed
+                }
+                index += 1
+            }
+            return nil
+        }
+    }
+
     public func headings(of noteID: Int64) async throws -> [HeadingInfo] {
         try await database.reader.read { db in
             try Row.fetchAll(db, sql: "SELECT ordinal, level, text, heading_key, line FROM headings WHERE note_id = ? ORDER BY ordinal LIMIT 5000", arguments: [noteID]).map {

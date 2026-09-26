@@ -363,31 +363,84 @@ struct BacklinksSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Linked mentions (\(model.backlinkTotalLabel))")
                 .font(.headline)
+                .accessibilityAddTraits(.isHeader)
             if model.backlinks.isEmpty {
                 Text("No other notes link here.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             ForEach(model.backlinks) { backlink in
-                NavigationLink(value: Route.note(path: backlink.note.path, anchor: nil)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(backlink.note.title)
-                        Text(backlink.note.folderPath.isEmpty ? "/" : backlink.note.folderPath)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
+                BacklinkRow(backlink: backlink, targetID: model.detail?.id, session: session)
                 Divider()
             }
             if model.backlinksHaveMore {
-                Button("Show more") {
+                Button("Show More Mentions") {
                     Task { await model.loadMoreBacklinks(session: session) }
                 }
-                .font(.footnote)
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity)
             }
         }
+    }
+}
+
+/// One linking note, with the line that links here (loaded when shown).
+struct BacklinkRow: View {
+    let backlink: Backlink
+    let targetID: Int64?
+    let session: LibrarySession
+    @State private var context: String?
+
+    var body: some View {
+        NavigationLink(value: Route.note(path: backlink.note.path, anchor: nil)) {
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(backlink.note.title)
+                        .font(.body.weight(.medium))
+                    if let context, !context.isEmpty {
+                        Text(context)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    if !backlink.note.folderPath.isEmpty {
+                        Text("\(Image(systemName: "folder")) \(backlink.note.folderPath)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.forward")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .task(id: backlink.note.id) {
+            guard let targetID else { return }
+            let line = try? await session.links.backlinkContext(from: backlink.note.id, to: targetID)
+            context = line.map(Self.readable)
+        }
+    }
+
+    /// Shows links as their text: "[[a/b#c|Label]]" → "Label", "[[a/b]]" → "b".
+    static func readable(_ line: String) -> String {
+        var text = line
+        if let wiki = try? Regex(#"!?\[\[([^\]|]*)(?:\|([^\]]*))?\]\]"#) {
+            text = text.replacing(wiki) { match in
+                if let label = match.output[2].substring, !label.isEmpty { return String(label) }
+                let target = match.output[1].substring.map(String.init) ?? ""
+                let page = target.split(separator: "#").first.map(String.init) ?? target
+                return page.split(separator: "/").last.map(String.init) ?? page
+            }
+        }
+        // Leading list, quote and heading markers.
+        while let first = text.first, "-*+>#".contains(first) {
+            text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        return text
     }
 }
 

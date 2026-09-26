@@ -82,6 +82,11 @@ import WikiShared
         let betaBacklinks = try await session.links.backlinks(to: beta)
         let fromHome = try #require(betaBacklinks.items.first { $0.note.path == "Home.md" })
         #expect(fromHome.linkCount == 3, "[[Beta#Goals]], [[Beta#^decision-1]], [Beta as markdown](Projects/Beta.md)")
+        // Context: the line holding the first link, lines counted after frontmatter.
+        #expect(try await session.links.backlinkContext(from: try await id("Projects/Alpha.md"), to: home)
+                == "Alpha is the first project. It links back to [[Home]] and to [[Beta]].")
+        #expect(try await session.links.backlinkContext(from: try await id("Code.md"), to: home) == "Real link after code: [[Home]]")
+        #expect(try await session.links.backlinkContext(from: home, to: try await id("Code.md")) == nil, "no such link")
         let missing = try await session.links.notesLinkingToMissing("Nonexistent Note")
         #expect(missing.map(\.path) == ["Home.md"])
     }
