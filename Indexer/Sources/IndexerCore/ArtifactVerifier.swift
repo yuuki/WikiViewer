@@ -13,12 +13,14 @@ import WikiShared
 public struct VerificationReport: Sendable, CustomStringConvertible {
     public var manifest: ArtifactManifest
     public var checkedBlobs: Int
+    public var checkedPacks: Int = 0
     public var tables: [String: Int]
 
     public var description: String {
         var lines = [
             "OK generation \(manifest.generation) (schema \(manifest.schemaVersion), format \(manifest.formatVersion))",
             "   database \(manifest.database.path) \(manifest.database.byteSize) bytes sha256 \(manifest.database.sha256)",
+            "   pack parts \(checkedPacks) verified",
             "   notes \(manifest.noteCount), asset blobs \(manifest.assetCount) (\(manifest.assets.totalBytes) bytes, \(checkedBlobs) verified)",
         ]
         for (name, count) in tables.sorted(by: { $0.key < $1.key }) {
@@ -63,6 +65,7 @@ public enum ArtifactVerifier {
             try handle?.close()
             if !wholeFilePublished { dbURL = out }
         }
+        let checkedPacks = try verifyPacks(manifest, publishDirectory: publishDirectory)
         let (sha, size) = try Digest.sha256Hex(fileAt: dbURL)
         guard size == manifest.database.byteSize else { throw IndexerError.integrityCheckFailed("size \(size) != \(manifest.database.byteSize)") }
         guard sha == manifest.database.sha256 else { throw IndexerError.integrityCheckFailed("sha256 mismatch") }
@@ -97,6 +100,51 @@ public enum ArtifactVerifier {
                 checked += 1
             }
         }
-        return VerificationReport(manifest: manifest, checkedBlobs: checked, tables: tables)
+        return VerificationReport(manifest: manifest, checkedBlobs: checked, checkedPacks: checkedPacks, tables: tables)
+    }
+
+    /// Every pack part exists, matches its digest and decodes; a keyframe of
+    /// the current generation must also rebuild the database exactly.
+    static func verifyPacks(_ manifest: ArtifactManifest, publishDirectory: URL) throws -> Int {
+        guard let packs = manifest.packs else { return 0 }
+        func load(_ part: ArtifactManifest.PackIndex.Part, targetSize: Int64) throws -> PagePack.Part {
+            let data = try Data(contentsOf: publishDirectory.appendingPathComponent(part.path))
+            guard Int64(data.count) == part.byteSize, Digest.sha256Hex(data) == part.sha256 else {
+                throw IndexerError.integrityCheckFailed("pack \(part.path)")
+            }
+            return try PagePack.decodePart(data, expectedBlockSize: packs.blockSize, expectedTargetSize: targetSize)
+        }
+        var checked = 0
+        for delta in packs.deltas {
+            var blocks = 0
+            for part in delta.parts {
+                let decoded = try load(part, targetSize: manifest.database.byteSize)
+                guard decoded.xor else { throw IndexerError.integrityCheckFailed("delta pack \(part.path) is not XOR") }
+                try decoded.forEachEntry { _, _ in blocks += 1 }
+                checked += 1
+            }
+            guard blocks == delta.blockCount else { throw IndexerError.integrityCheckFailed("delta block count") }
+        }
+        if let keyframe = packs.keyframe {
+            var whole = keyframe.generation == manifest.generation ? SHA256Stream() : nil
+            var nextBlock = 0
+            for part in keyframe.parts {
+                let decoded = try load(part, targetSize: keyframe.byteSize)
+                guard !decoded.xor else { throw IndexerError.integrityCheckFailed("keyframe pack \(part.path) is XOR") }
+                try decoded.forEachEntry { index, payload in
+                    guard index == nextBlock else { throw IndexerError.integrityCheckFailed("keyframe block \(index) missing or out of order") }
+                    whole?.update(payload)
+                    nextBlock += 1
+                }
+                checked += 1
+            }
+            guard Int64(nextBlock) == (keyframe.byteSize + Int64(packs.blockSize) - 1) / Int64(packs.blockSize) else {
+                throw IndexerError.integrityCheckFailed("keyframe block count")
+            }
+            if let whole, whole.finalize() != manifest.database.sha256 {
+                throw IndexerError.integrityCheckFailed("keyframe does not rebuild the database")
+            }
+        }
+        return checked
     }
 }

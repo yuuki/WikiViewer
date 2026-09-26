@@ -61,15 +61,31 @@ opened read-only; nothing is ever written into it.
 
 **Transport options**
 
+Every generation is published with a small *delta pack* per recent
+generation (only the changed database pages, compressed, in one file) and,
+from time to time, a compressed *keyframe* for devices that start from
+nothing. A phone downloads one delta pack per update — about 40 KiB after a
+one-note edit at 20k notes — and falls back to 128 KiB chunks when no pack
+applies. While the app is open it follows the source (see below); in the
+background iOS may refresh it too.
+
 - *iCloud Drive / Files folder:* point `--publish` at a folder in iCloud
   Drive (e.g. `~/Library/Mobile Documents/com~apple~CloudDocs/WikiViewer`),
-  use `--chunks-only` so each generation uploads only changed 128 KiB chunks,
-  then on the iPhone choose Settings → Update Source → Choose Folder… and pick
-  that folder. No iCloud entitlement is required.
-- *HTTP(S):* serve the publish directory with any static HTTPS server (or
-  `wikiindex serve --publish DIR --bind 0.0.0.0` behind HTTPS, e.g. Tailscale)
-  and enter its URL in Settings. Plain HTTP to LAN hosts is not enabled in the
-  app (App Transport Security).
+  use `--chunks-only` so the whole database is never re-uploaded, then on the
+  iPhone choose Settings → Update Source → Choose Folder… and pick that
+  folder. No iCloud entitlement is required. The open app checks the folder
+  every 30 s and retries while iCloud is still syncing a generation.
+- *HTTP(S):* serve the publish directory with `wikiindex serve --publish DIR`
+  behind HTTPS (e.g. Tailscale) — or any static HTTPS server — and enter its
+  URL in Settings. `wikiindex serve` keeps connections alive and answers the
+  app's long poll as soon as a generation is published, so an open app
+  updates within a second or two; a plain static server is polled every 20 s.
+  Plain HTTP to LAN hosts is not enabled in the app (App Transport Security).
+
+`watch` publishes a small edit (up to 5 files) 3 s after the vault goes
+quiet and a larger batch after 20 s (`--quick-quiet`, `--quick-files`,
+`--quiet`). Changes under `.obsidian/` and other never-indexed folders do not
+delay publication.
 
 **Run as a LaunchAgent** (in the logged-in user's session, next to Obsidian —
 ImageIO needs the GUI session for hardware JPEG decoding). Save as

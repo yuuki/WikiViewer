@@ -51,12 +51,27 @@ public struct IndexerConfiguration: Sendable {
     /// chunks-only publication avoids re-uploading the whole database (e.g.
     /// to iCloud Drive) on every generation.
     public var publishFullDatabase = true
+    /// Also publish page-level packs (see PackPublisher.swift).
+    public var publishPacks = true
+    /// Recent generations a delta pack is published from.
+    public var packDeltaBases = 3
+    /// A delta larger than this fraction of the database is not published.
+    public var packDeltaLimitRatio = 0.5
+    /// Publish a new keyframe once more than this fraction of the current
+    /// generation's chunks is missing from the published one.
+    public var keyframeRefreshRatio = 0.2
 
     // Daemon scheduling.
     /// Wait this long after the last file-system event before parsing.
     public var debounce: Duration = .milliseconds(750)
     /// Publish only after the vault has been quiet this long…
     public var quietPeriod: Duration = .seconds(20)
+    /// A small change (at most `quickPublishMaxFiles` files, no
+    /// reconciliation) is published after this shorter quiet period, so a
+    /// single edit reaches the phone in seconds while a Sync burst is still
+    /// batched by `quietPeriod`.
+    public var quickQuietPeriod: Duration = .seconds(3)
+    public var quickPublishMaxFiles = 5
     /// …but never delay a publication longer than this after the first change.
     public var maximumPublicationDelay: Duration = .seconds(300)
     /// Periodic metadata reconciliation (correctness path).

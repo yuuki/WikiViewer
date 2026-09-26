@@ -30,13 +30,20 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(Tab.settings)
         }
-        .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, library.source != nil else { return }
-            // Background freshness check at most every 15 minutes.
-            if let last = library.lastCheck, Date().timeIntervalSince(last) < 15 * 60 { return }
-            Task { await library.checkForUpdates() }
+        // While the app is in the foreground, keep the snapshot current:
+        // check on activation, then follow the source (long poll or polling).
+        // Leaving the foreground cancels the task.
+        .task(id: WatchKey(active: scenePhase == .active, source: library.source)) {
+            guard scenePhase == .active, library.source != nil else { return }
+            await library.watchForUpdates()
         }
     }
+}
+
+/// Restarts the update watcher when the app becomes active or the source changes.
+private struct WatchKey: Equatable {
+    var active: Bool
+    var source: SourceConfiguration?
 }
 
 /// One tab: a NavigationStack whose routes are path-based, so they stay

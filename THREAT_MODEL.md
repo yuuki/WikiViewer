@@ -56,7 +56,12 @@ Residual risks:
 **Corrupt, partial or tampered artifacts.** An update is installed only after
 all of the following checks pass:
 - size;
-- SHA-256 of the whole database and of every chunk;
+- SHA-256 of the whole database and of every chunk — or, when the database
+  was patched from an installed generation with a delta pack, SHA-256 of
+  every chunk the pack touched against the chunk list named by the manifest
+  (the other chunks are byte-for-byte the already verified base);
+- SHA-256 and size of every pack part before it is decoded; decoding is
+  bounded (at most 8 MiB per part) and rejects truncated or malformed parts;
 - SQLite's integrity check;
 - the schema version, and a schema identical to the one the app expects.
 
@@ -68,6 +73,8 @@ remains available as a fallback. Tests cover each of these cases:
 - a truncated or oversized download;
 - a partially synced folder;
 - a corrupt database with a matching hash;
+- a corrupt pack, and a well-formed pack that writes wrong pages under a
+  forged manifest (both fall back to chunks and still verify);
 - an altered schema;
 - interrupted staging.
 
@@ -98,12 +105,18 @@ key kept on the Mac and never in this repository.
   real use, put it behind HTTPS on a private network. The app does not permit
   plain HTTP to LAN hosts.
 - **On device:** snapshots live in the app container and are excluded from
-  device backups, because they can be downloaded again.
+  device backups, because they can be downloaded again. Background app
+  refresh uses the same source and the same checks as a foreground update.
+- **On the Mac:** to compute delta packs, the state directory keeps copies of
+  the last three published databases. They are as sensitive as the builder
+  database and are replaced as new generations are published.
 
 **Resource exhaustion.** Everything the phone accepts from a transport has a
-size limit, including manifests, chunk lists and images. An update needs free
-space before it starts. Downloads stop as soon as they exceed the announced
-size. The development HTTP server limits connections and request time.
+size limit, including manifests, chunk lists, pack parts and images. An update
+needs free space before it starts. Downloads stop as soon as they exceed the
+announced size. The development HTTP server limits connections, request time
+and idle time of persistent connections; a long-poll request is held for at
+most 55 seconds and only re-reads the manifest while it waits.
 
 **Two indexers on the same state.** Only one indexer can use a state directory
 at a time. This prevents races on generation numbers and cleanup.

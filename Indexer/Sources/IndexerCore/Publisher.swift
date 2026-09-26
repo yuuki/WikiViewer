@@ -7,7 +7,8 @@
 //    builder.sqlite ──backup──▶ .tmp/viewer-N.sqlite.partial
 //        post-process (clear builder-only rows, journal_mode=DELETE, meta,
 //        incremental_vacuum, ANALYZE) ─▶ quick_check ─▶ close ─▶ fsync
-//        ─▶ SHA-256 ─▶ rename to generations/viewer-N.sqlite ─▶ fsync dir
+//        ─▶ SHA-256 + chunks ─▶ page packs ─▶ rename to generations/viewer-N.sqlite
+//        ─▶ fsync dir
 //        ─▶ manifest.json.tmp ─▶ fsync ─▶ rename to manifest.json (LAST)
 //
 //  A failure at any step leaves the previous manifest.json (and therefore the
@@ -26,6 +27,10 @@ public struct PublishResult: Sendable {
     public var missingBlobs: Int
     /// Chunks that did not exist in the store before (≈ delta size).
     public var newChunks: Int
+    /// Bytes of each published delta pack, by base generation, and of a
+    /// keyframe written by this publication.
+    public var deltaPackBytes: [Int64: Int64] = [:]
+    public var keyframeBytes: Int64?
 }
 
 /// Test hook to simulate crashes / corruption at specific points.
@@ -74,6 +79,7 @@ public final class Publisher: Sendable {
     }
 
     var chunkStoreURL: URL { publishDir.appendingPathComponent("chunks", isDirectory: true) }
+    var packs: PackPublisher { PackPublisher(configuration: configuration) }
 
     /// Splits the finished snapshot into content-addressed chunks (writing
     /// only chunks not already in the store) and computes the whole-file
@@ -92,7 +98,11 @@ public final class Publisher: Sendable {
             for dir in touchedDirectories { try? fsyncPath(dir) }
         }
         while true {
-            guard let chunk = try handle.read(upToCount: configuration.chunkSize), !chunk.isEmpty else { break }
+            // FileHandle.read returns an autoreleased buffer: without a pool
+            // per chunk, every chunk of the database stays alive until the
+            // publication ends (measured: 108 MiB at 20k notes).
+            let read = try autoreleasepool { try handle.read(upToCount: configuration.chunkSize) }
+            guard let chunk = read, !chunk.isEmpty else { break }
             whole.update(chunk)
             let digest = Digest.sha256Hex(chunk)
             digests.append(digest)
@@ -218,6 +228,18 @@ public final class Publisher: Sendable {
         let size = chunkList.totalBytes
         try fsyncPath(chunkStoreURL)
 
+        // Page packs are an optimization: if they cannot be built, the
+        // generation is still published with chunks.
+        var packBuild: (PackPublisher.Pending, PackPublisher.Stats)?
+        if configuration.publishPacks {
+            do {
+                packBuild = try packs.build(database: partial, list: chunkList, sha256: sha, generation: generation)
+                try fsyncPath(packs.packStoreURL)
+            } catch {
+                Log.warning("publish: page packs failed, publishing chunks only: \(error)")
+            }
+        }
+
         if failpoint == .beforeDatabaseRename {
             throw PublisherError(description: "failpoint beforeDatabaseRename")
         }
@@ -233,6 +255,10 @@ public final class Publisher: Sendable {
         try Data(blobNames.joined(separator: "\n").utf8).write(to: sidecarTmp)
         try fsyncPath(sidecarTmp)
         try atomicRename(sidecarTmp, to: sidecarURL(generation))
+        let packSidecarTmp = tmpDir.appendingPathComponent(fileName + ".packs.tmp")
+        try Data(PackPublisher.partNames(packBuild?.0.index).joined(separator: "\n").utf8).write(to: packSidecarTmp)
+        try fsyncPath(packSidecarTmp)
+        try atomicRename(packSidecarTmp, to: packSidecarURL(generation))
         let final = generationsDir.appendingPathComponent(fileName)
         if configuration.publishFullDatabase {
             try atomicRename(partial, to: final)
@@ -246,7 +272,7 @@ public final class Publisher: Sendable {
         }
 
         // 6. Manifest last.
-        let manifest = ArtifactManifest(
+        var manifest = ArtifactManifest(
             generation: generation,
             createdAt: createdAt,
             database: .init(path: ArtifactManifest.databasePath(generation: generation), byteSize: size, sha256: sha),
@@ -260,8 +286,15 @@ public final class Publisher: Sendable {
                 sha256: Digest.sha256Hex(chunkListData),
                 chunkSize: chunkList.chunkSize,
                 count: chunkList.digests.count
-            )
+            ),
+            packs: packBuild?.0.index
         )
+        if manifest.packs != nil, manifest.withoutInvalidPacks().packs == nil {
+            // Never let packs block a publication.
+            Log.warning("publish: pack index failed validation; publishing chunks only")
+            manifest.packs = nil
+            packBuild = nil
+        }
         try manifest.validate()
         let manifestTmp = tmpDir.appendingPathComponent("manifest.json.tmp")
         try manifest.encoded().write(to: manifestTmp)
@@ -272,6 +305,17 @@ public final class Publisher: Sendable {
         Log.debug("publish: \(newChunks) new of \(chunkList.digests.count) chunks")
 
         try builder.setState("last_generation", String(generation))
+        var result = PublishResult(manifest: manifest, databaseURL: final, seconds: 0, missingBlobs: missingBlobs.count, newChunks: newChunks)
+        if let (pending, stats) = packBuild {
+            do {
+                try packs.commit(pending)
+            } catch {
+                Log.warning("publish: could not record pack state: \(error)")
+            }
+            result.deltaPackBytes = Dictionary(stats.deltas.map { ($0.base, $0.bytes) }, uniquingKeysWith: { a, _ in a })
+            result.keyframeBytes = stats.keyframeBytes
+            Log.debug("publish: packs \(stats.deltas.map { "Δ\($0.base): \($0.blocks) blocks \($0.bytes) B" }.joined(separator: ", "))\(stats.keyframeBytes.map { ", keyframe \($0) B" } ?? "")")
+        }
         if !missingBlobs.isEmpty {
             Log.warning("publish: \(missingBlobs.count) asset blob(s) missing from the store; their assets will be reprocessed")
             try builder.writer.write { db in
@@ -288,7 +332,8 @@ public final class Publisher: Sendable {
             Log.warning("publish: garbage collection failed: \(error)")
         }
 
-        return PublishResult(manifest: manifest, databaseURL: final, seconds: Clock.seconds(since: start), missingBlobs: missingBlobs.count, newChunks: newChunks)
+        result.seconds = Clock.seconds(since: start)
+        return result
     }
 
     /// Opens the file read-only and runs the integrity checks a reader would.
@@ -353,6 +398,7 @@ public final class Publisher: Sendable {
                 generationsDir.appendingPathComponent(ArtifactManifest.databaseFileName(generation: gen)),
                 publishDir.appendingPathComponent(ArtifactManifest.chunkListPath(generation: gen)),
                 sidecarURL(gen),
+                packSidecarURL(gen),
             ] {
                 try? FileManager.default.removeItem(at: url)
             }
@@ -395,6 +441,7 @@ public final class Publisher: Sendable {
                 generationsDir.appendingPathComponent(ArtifactManifest.databaseFileName(generation: gen)),
                 publishDir.appendingPathComponent(ArtifactManifest.chunkListPath(generation: gen)),
                 sidecarURL(gen),
+                packSidecarURL(gen),
             ] {
                 try? fm.removeItem(at: url)
             }
@@ -435,13 +482,26 @@ public final class Publisher: Sendable {
             referencedChunks.formUnion(text.split(separator: "\n").dropFirst().map(String.init))
         }
         let removedChunks = sweep(chunkStoreURL, keep: referencedChunks) { Digest.isValidHex($0) }
-        if removedBlobs + removedChunks > 0 {
-            Log.info("gc: removed \(removedBlobs) asset blob(s), \(removedChunks) chunk(s)")
+
+        // Pack parts referenced by retained generations' pack sidecars.
+        var referencedPacks = Set<String>()
+        for gen in keep {
+            guard let text = try? String(contentsOf: packSidecarURL(gen), encoding: .utf8) else { continue }
+            referencedPacks.formUnion(text.split(separator: "\n").map(String.init))
+        }
+        let removedPacks = sweep(packs.packStoreURL, keep: referencedPacks) { Digest.isValidHex($0) }
+        if removedBlobs + removedChunks + removedPacks > 0 {
+            Log.info("gc: removed \(removedBlobs) asset blob(s), \(removedChunks) chunk(s), \(removedPacks) pack(s)")
         }
     }
 
     func sidecarURL(_ generation: Int64) -> URL {
         generationsDir.appendingPathComponent("viewer-\(ArtifactManifest.paddedGeneration(generation)).assets")
+    }
+
+    /// Pack parts (digests) referenced by a generation's manifest.
+    func packSidecarURL(_ generation: Int64) -> URL {
+        generationsDir.appendingPathComponent("viewer-\(ArtifactManifest.paddedGeneration(generation)).packs")
     }
 
     /// Deletes files in `<root>/<2 hex>/` whose names are collectable, not in

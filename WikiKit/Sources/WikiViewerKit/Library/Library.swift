@@ -216,6 +216,61 @@ public final class Library {
         await runUpdate()
     }
 
+    /// Keeps the library current while the app is in the foreground; returns
+    /// when the calling task is cancelled (e.g. the app leaves the
+    /// foreground). Checks once, then waits for the source to announce a
+    /// newer generation — at once over an HTTP long poll against
+    /// `wikiindex serve`, otherwise by polling the manifest — and updates.
+    /// A failed update (e.g. an iCloud Drive folder that is only partly
+    /// synced) is retried with exponential backoff instead of waiting for the
+    /// next launch.
+    public func watchForUpdates() async {
+        await checkForUpdates()
+        var failures = isFailed ? 1 : 0
+        while !Task.isCancelled {
+            if failures > 0 {
+                guard (try? await Task.sleep(for: Self.retryDelay(afterFailures: failures))) != nil else { return }
+            }
+            guard let source = currentSource else {
+                guard (try? await Task.sleep(for: Self.folderPollInterval)) != nil else { return }
+                continue
+            }
+            let current = await store.currentGeneration()?.generation ?? 0
+            do {
+                let data = try await source.waitForManifest(after: current, interval: Self.pollInterval(for: source))
+                try Task.checkCancellation()
+                // Only a different generation is worth an update (it may be
+                // lower after the publisher was reset or the source changed).
+                if failures > 0 || (try? ArtifactManifest.decode(data).generation) != current {
+                    await runUpdate()
+                }
+                failures = isFailed ? failures + 1 : 0
+            } catch is CancellationError {
+                return
+            } catch {
+                if Task.isCancelled { return }
+                failures += 1
+            }
+        }
+    }
+
+    private var isFailed: Bool {
+        if case .failed = updateStatus { return true }
+        return false
+    }
+
+    nonisolated static let folderPollInterval: Duration = .seconds(30)
+    nonisolated static let httpPollInterval: Duration = .seconds(20)
+
+    nonisolated static func pollInterval(for source: any ArtifactSource) -> Duration {
+        source is HTTPArtifactSource ? httpPollInterval : folderPollInterval
+    }
+
+    /// 5 s, 10 s, 20 s, … capped at 5 minutes.
+    nonisolated static func retryDelay(afterFailures failures: Int) -> Duration {
+        .seconds(min(5 * (1 << min(max(failures - 1, 0), 6)), 300))
+    }
+
     /// Runs one update at a time. If an update for the same source is in
     /// flight, waits for it; if the source changed since it started, cancels
     /// it and then checks the new source.
@@ -236,7 +291,13 @@ public final class Library {
         let task = Task { await performUpdate() }
         updateTask = task
         updateSourceID = sourceID
-        await task.value
+        // Cancelling the caller (background refresh expiring, the app leaving
+        // the foreground) cancels the update; the current generation stays.
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
         if updateTask == task {
             updateTask = nil
             updateSourceID = nil

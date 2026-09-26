@@ -55,7 +55,17 @@ $BIN verify --publish "<PUBLISH>"
 - Later runs are incremental and publish only when something changed. Pass
   `--force` to publish anyway.
 - Add `--chunks-only` when publishing to iCloud Drive. Each new generation then
-  uploads only the changed 128 KiB chunks.
+  uploads only small delta packs and the changed 128 KiB chunks, never the
+  whole database.
+- Every generation also gets *delta packs*: the changed database pages since
+  each of the last 3 generations, compressed into one file each (split into
+  8 MiB parts only for large changes). The phone downloads one of them per
+  update instead of many chunks. To compute them,
+  `<STATE>/pack-bases/` keeps a copy of the last 3 databases (APFS clones where
+  possible; up to 3× the database size on disk). A compressed *keyframe* of
+  the whole database is republished when more than 20% of it has changed, for
+  phones that start from nothing. `--pack-bases N` changes the number of
+  deltas, `--no-packs` turns packs off.
 - Notes with invalid YAML frontmatter are still indexed. The indexer prints a
   warning for each one.
 - One state directory belongs to one publish directory. To publish to a new
@@ -97,6 +107,12 @@ generations keep their content until they are garbage collected.
 
 To keep the snapshot up to date, run `watch` instead of `build`. See the
 LaunchAgent example in [README.md](README.md#publishing-your-vault-mac-mini).
+`watch` publishes an edit of up to 5 notes about 3 seconds after the vault goes
+quiet, and a larger batch (such as an Obsidian Sync burst) after 20 seconds.
+
+The app follows the source while it is open. When it is closed, iOS may also
+refresh it in the background if **Settings → General → Background App
+Refresh** is on; iOS decides how often.
 
 ## 4. Get the snapshot to the app
 
@@ -125,6 +141,12 @@ The iPhone can lag behind the Mac by several minutes. If the folder on the
 phone shows only `assets`, open the Files app, go to iCloud Drive →
 WikiViewer, and pull down to refresh.
 
+While the app is open it re-reads the manifest every 30 seconds. If iCloud has
+delivered a new manifest but not yet all of its files, the update fails
+quietly and is retried after 5, 10, 20… seconds, so it completes once the
+sync does. Of the two options, iCloud Drive has the higher latency: Apple
+decides when files are uploaded and downloaded.
+
 ### Option B: HTTPS over Tailscale
 
 App Transport Security blocks plain HTTP to LAN hosts, so serve over HTTPS.
@@ -151,6 +173,11 @@ curl -sI https://<HOST>.<TAILNET>.ts.net/manifest.json   # expect 200
 
 In the app, enter `https://<HOST>.<TAILNET>.ts.net` under **Settings →
 Update Source** and tap **Use**.
+
+While the app is open it keeps a request to `wikiindex serve` waiting
+(`manifest.json?wait=N`, up to 25 s at a time); the server answers as soon as a
+new generation is published, so the app starts downloading within about a
+second. `tailscale serve` passes these requests through unchanged.
 
 `tailscale serve` only proxies. It stops working when `wikiindex serve` stops.
 To stop exposing the snapshot:

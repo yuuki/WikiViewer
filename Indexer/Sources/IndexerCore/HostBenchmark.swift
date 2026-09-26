@@ -39,6 +39,11 @@ public enum HostBenchmark {
         public var singleUpdateNewChunks = 0
         public var burstPublishSeconds = 0.0
         public var burstNewChunks = 0
+        /// Page packs: the first keyframe, and the delta pack from the
+        /// previous generation after the single update and after the burst.
+        public var keyframeBytes: Int64?
+        public var singleUpdateDeltaPackBytes: Int64?
+        public var burstDeltaPackBytes: Int64?
     }
 
     public static func run(vault: URL, work: URL, updates: Int, imageMax: Int) async throws {
@@ -58,6 +63,9 @@ public enum HostBenchmark {
         | burst publish | \(s(result.burstPublishSeconds)) |
         | delta after single update | \(result.singleUpdateNewChunks) of \(result.chunkCount) chunks (\(result.chunkSize / 1024) KiB) |
         | delta after burst | \(result.burstNewChunks) of \(result.chunkCount) chunks |
+        | keyframe pack (compressed database) | \(result.keyframeBytes.map(mb) ?? "n/a") |
+        | delta pack after single update | \(result.singleUpdateDeltaPackBytes.map { String(format: "%.1f KiB", Double($0) / 1024) } ?? "n/a") |
+        | delta pack after burst | \(result.burstDeltaPackBytes.map(mb) ?? "n/a") |
         | reconcile after 100 missed edits | \(s(result.missedEventsReconcileSeconds)) |
         | new note resolving dangling links | \(s(result.newNoteResolvesSeconds)) (\(result.newNoteResolvedLinks) links) |
         | viewer.sqlite size | \(mb(result.viewerDatabaseBytes)) |
@@ -99,6 +107,7 @@ public enum HostBenchmark {
         t = Clock.now()
         guard let initial = try await indexer.publish() else { throw IndexerError.publicationFailed("nothing published") }
         r.initialPublishSeconds = Clock.seconds(since: t)
+        r.keyframeBytes = initial.keyframeBytes
 
         t = Clock.now()
         let noop = try await indexer.reconcile()
@@ -125,6 +134,7 @@ public enum HostBenchmark {
         let singlePublish = try await indexer.publish()
         r.singleUpdatePublishSeconds = Clock.seconds(since: t)
         r.singleUpdateNewChunks = singlePublish?.newChunks ?? -1
+        r.singleUpdateDeltaPackBytes = singlePublish?.deltaPackBytes[initial.manifest.generation]
 
         let burst = Array(notePaths.prefix(updates))
         for (i, path) in burst.enumerated() { try edit(path, i + 1) }
@@ -136,6 +146,9 @@ public enum HostBenchmark {
         let burstPublish = try await indexer.publish()
         r.burstPublishSeconds = Clock.seconds(since: t)
         r.burstNewChunks = burstPublish?.newChunks ?? -1
+        if let previous = singlePublish?.manifest.generation {
+            r.burstDeltaPackBytes = burstPublish?.deltaPackBytes[previous]
+        }
 
         // Simulate lost watcher events: edit without telling the indexer.
         for (i, path) in notePaths.suffix(100).enumerated() { try edit(path, 10_000 + i) }

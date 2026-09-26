@@ -46,6 +46,22 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   instead of by title, to keep every page bounded for hub notes / huge tags.
 - D14 Builder runs with `secure_delete=ON`; published snapshots never carry
   removed note text in free space.
+- D15 Page-level packs (`WikiShared/PagePack.swift`) on top of chunks: per
+  publication one delta pack from each of the last 3 generations (changed
+  pages XOR old page, LZFSE, parts ≤ 8 MiB raw) and a compressed keyframe
+  renewed when > 20% of chunks are missing from it. Chunks stay the unit of
+  verification; packs are an optimization with fallback to chunks.
+- D16 Delta install = APFS clone of the base generation + in-place page
+  writes; verification hashes only chunks the pack touched (others equal the
+  device-computed chunk list of the verified base). quick_check still runs.
+- D17 Update latency: the open app follows the source (HTTP long poll against
+  `wikiindex serve`, 20–30 s polling otherwise) with exponential-backoff
+  retries; BGAppRefreshTask for closed-app refresh (Info.plist merged from
+  `Config/WikiViewer-Info.plist`: `fetch` background mode + task id — no
+  entitlement). One shared URLSession with per-task size-limit delegates.
+- D18 Host: FSEvents for never-indexed paths (`.obsidian/`, excluded folders)
+  do not count as activity; ≤ 5-file edits publish after 3 s of quiet,
+  bursts/reconciliations after 20 s. `wikiindex serve` keeps connections alive.
 
 ## Phase A — repository baseline
 - [x] Inspect repo, Xcode project, targets, git status
@@ -129,6 +145,27 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [x] Diff audit: only local package reference + SWIFT_VERSION 6.0 changed in
       the Xcode project; no signing/bundle/team/entitlement changes
 - [x] Final build/test/benchmark pass
+
+## Phase M — sync latency and transfer size
+- [x] Page packs: format, publisher (deltas + keyframe, private bases, GC),
+      manifest `packs`, `verify` checks packs
+- [x] Updater: delta on APFS clone with incremental chunk verification,
+      keyframe + chunks for empty devices, fallback to chunks on any failure
+- [x] HTTP: shared URLSession (connection reuse), server keep-alive, long poll
+- [x] App: foreground watcher with backoff, no 15-minute throttle, background
+      app refresh
+- [x] Indexer: ignore never-indexed paths, quick quiet period for small edits
+- [x] Host memory: chunk reads in `writeChunks` were retained until the end of
+      publication (autoreleased buffers); keyframe reads use one pread buffer
+- [x] Review fixes: pack limits can never block publication (host drops an
+      invalid index, reader ignores it); cancellation reaches the update task
+      and is never turned into a chunk fallback; URLSession completion before
+      continuation; server sends exactly the opened file's length
+- [x] Tests: PagePackTests, PackTransportTests, HTTPSyncTests,
+      QuickPublicationTests (incl. an open Library following HTTP publications)
+- [-] APNs push from the Mac to wake the phone on publication: needs an Apple
+      Developer push key and a way to register device tokens with the Mac;
+      background refresh + foreground long poll cover most of the benefit.
 
 ## Deferred (explicit)
 - [-] Manifest signing (Ed25519). Hash validation is mandatory and implemented;

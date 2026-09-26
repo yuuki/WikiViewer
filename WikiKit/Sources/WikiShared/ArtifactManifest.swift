@@ -13,7 +13,10 @@ import Foundation
 /// Layout of a published directory:
 ///
 ///     manifest.json
-///     generations/viewer-000042.sqlite
+///     generations/viewer-000042.sqlite   (optional with chunks + packs)
+///     generations/viewer-000042.chunks
+///     chunks/ab/ab12…ef                  (content-addressed 128 KiB chunks)
+///     packs/ab/ab12…ef                   (content-addressed page packs)
 ///     assets/ab/ab12…ef.jpg
 public struct ArtifactManifest: Codable, Sendable, Equatable {
     public var formatVersion: Int
@@ -30,6 +33,101 @@ public struct ArtifactManifest: Codable, Sendable, Equatable {
     /// Chunk list for delta transport. When present, `database.path` may be
     /// absent from the published directory (chunks-only publication).
     public var chunks: ChunkListEntry?
+    /// Page-level delta packs (see PagePack.swift). Optional: a reader that
+    /// finds no usable pack falls back to chunks or the whole database.
+    public var packs: PackIndex?
+
+    public struct PackIndex: Codable, Sendable, Equatable {
+        /// Block size of every pack (the database page size).
+        public var blockSize: Int
+        /// A whole database, for devices with nothing to patch.
+        public var keyframe: Keyframe?
+        /// Deltas from earlier generations' databases to this one.
+        public var deltas: [Delta]
+
+        public init(blockSize: Int, keyframe: Keyframe?, deltas: [Delta]) {
+            self.blockSize = blockSize
+            self.keyframe = keyframe
+            self.deltas = deltas
+        }
+
+        public struct Keyframe: Codable, Sendable, Equatable {
+            /// Generation whose database the keyframe holds. It may be older
+            /// than the manifest's: a device then reuses the keyframe's chunks
+            /// and fetches only the chunks that changed since.
+            public var generation: Int64
+            public var byteSize: Int64
+            public var sha256: String
+            public var parts: [Part]
+
+            public init(generation: Int64, byteSize: Int64, sha256: String, parts: [Part]) {
+                self.generation = generation
+                self.byteSize = byteSize
+                self.sha256 = sha256
+                self.parts = parts
+            }
+        }
+
+        public struct Delta: Codable, Sendable, Equatable {
+            /// Whole-file SHA-256 and size of the base database.
+            public var baseSHA256: String
+            public var baseByteSize: Int64
+            /// Changed blocks carried by the parts.
+            public var blockCount: Int
+            public var parts: [Part]
+
+            public init(baseSHA256: String, baseByteSize: Int64, blockCount: Int, parts: [Part]) {
+                self.baseSHA256 = baseSHA256
+                self.baseByteSize = baseByteSize
+                self.blockCount = blockCount
+                self.parts = parts
+            }
+
+            public var byteSize: Int64 { parts.reduce(0) { $0 + $1.byteSize } }
+        }
+
+        public struct Part: Codable, Sendable, Equatable {
+            /// Always `packs/<first 2 hex>/<sha256>`.
+            public var path: String
+            public var byteSize: Int64
+            public var sha256: String
+
+            public init(path: String, byteSize: Int64, sha256: String) {
+                self.path = path
+                self.byteSize = byteSize
+                self.sha256 = sha256
+            }
+        }
+
+        public static let maximumDeltas = 16
+        public static let maximumParts = 1024
+
+        func isValid(for manifest: ArtifactManifest) -> Bool {
+            guard PagePack.allowedBlockSizes.contains(blockSize), deltas.count <= Self.maximumDeltas else { return false }
+            if let chunks = manifest.chunks, chunks.chunkSize % blockSize != 0 { return false }
+            func valid(_ parts: [Part]) -> Bool {
+                !parts.isEmpty && parts.count <= Self.maximumParts && parts.allSatisfy { part in
+                    PagePack.relativePath(for: part.sha256) == part.path
+                        && part.byteSize > PagePack.headerSize && part.byteSize <= PagePack.maximumPartFileBytes
+                }
+            }
+            if let keyframe {
+                guard keyframe.generation > 0, keyframe.generation <= manifest.generation,
+                      Digest.isValidHex(keyframe.sha256),
+                      keyframe.byteSize > 0, keyframe.byteSize <= ArtifactManifest.maximumDatabaseSize,
+                      valid(keyframe.parts) else { return false }
+                if keyframe.generation == manifest.generation,
+                   keyframe.sha256 != manifest.database.sha256 || keyframe.byteSize != manifest.database.byteSize {
+                    return false
+                }
+            }
+            return deltas.allSatisfy { delta in
+                Digest.isValidHex(delta.baseSHA256) && delta.baseSHA256 != manifest.database.sha256
+                    && delta.baseByteSize > 0 && delta.baseByteSize <= ArtifactManifest.maximumDatabaseSize
+                    && delta.blockCount > 0 && valid(delta.parts)
+            }
+        }
+    }
 
     public struct ChunkListEntry: Codable, Sendable, Equatable {
         /// Always `generations/viewer-<generation>.chunks`.
@@ -89,7 +187,8 @@ public struct ArtifactManifest: Codable, Sendable, Equatable {
         assetCount: Int,
         assets: AssetStoreInfo,
         builder: String,
-        chunks: ChunkListEntry? = nil
+        chunks: ChunkListEntry? = nil,
+        packs: PackIndex? = nil
     ) {
         self.formatVersion = formatVersion
         self.schemaVersion = schemaVersion
@@ -101,6 +200,7 @@ public struct ArtifactManifest: Codable, Sendable, Equatable {
         self.assets = assets
         self.builder = builder
         self.chunks = chunks
+        self.packs = packs
     }
 
     public static func databasePath(generation: Int64) -> String {
@@ -138,6 +238,7 @@ public struct ArtifactManifest: Codable, Sendable, Equatable {
         case invalidCounts
         case invalidAssetStore
         case invalidChunkList
+        case invalidPacks
 
         public var description: String {
             switch self {
@@ -150,6 +251,7 @@ public struct ArtifactManifest: Codable, Sendable, Equatable {
             case .invalidCounts: "Invalid note or asset count"
             case .invalidAssetStore: "Invalid asset store description"
             case .invalidChunkList: "Invalid chunk list description"
+            case .invalidPacks: "Invalid pack description"
             }
         }
     }
@@ -184,6 +286,17 @@ public struct ArtifactManifest: Codable, Sendable, Equatable {
                 throw .invalidChunkList
             }
         }
+        if let packs, !packs.isValid(for: self) { throw .invalidPacks }
+    }
+
+    /// A reader's view of the manifest: an invalid pack index (e.g. limits a
+    /// newer publisher raised) only disables packs, since chunks and the
+    /// whole database remain a complete transport.
+    public func withoutInvalidPacks() -> ArtifactManifest {
+        guard let packs, !packs.isValid(for: self) else { return self }
+        var copy = self
+        copy.packs = nil
+        return copy
     }
 
     public static func decode(_ data: Data) throws -> ArtifactManifest {

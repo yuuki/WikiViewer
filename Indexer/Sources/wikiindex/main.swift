@@ -30,17 +30,26 @@ USAGE
       Latency of the viewer's bounded queries against a published database.
   wikiindex serve   --publish DIR [--port 8080] [--bind 127.0.0.1]
       Minimal read-only static HTTP server for a publish directory (LAN/testing).
+      Keeps connections alive and answers GET /manifest.json?wait=N as soon
+      as a generation newer than N is published (long poll).
 
 OPTIONS
   --image-max N        longest side of image derivatives (default 2048)
   --retain N           published generations to keep (default 3)
-  --quiet SECONDS      publication quiet period (default 20)
+  --quiet SECONDS      publication quiet period after a burst (default 20)
+  --quick-quiet SECONDS
+                       quiet period after a small edit (default 3)
+  --quick-files N      edits of at most N files count as small (default 5)
   --max-delay SECONDS  maximum publication delay (default 300)
   --reconcile SECONDS  periodic reconciliation interval (default 600)
   --full-check         use PRAGMA integrity_check instead of quick_check
   --chunk-size BYTES   delta-transport chunk size (default 131072)
   --chunks-only        publish chunks + chunk list but not the whole database
                        file (recommended for iCloud Drive publish folders)
+  --pack-bases N       publish page-level delta packs from the last N
+                       generations (default 3); the state directory keeps a
+                       private copy of each of those databases
+  --no-packs           publish no page-level packs (chunks only)
   --exclude PATTERN    never index this folder; repeatable. "Private" matches
                        a folder of that name at any depth, "/Private" or
                        "Archive/2024" a path from the vault root; * and ?
@@ -102,11 +111,15 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     config.imageMaxDimension = args.int("image-max", config.imageMaxDimension)
     config.retainedGenerations = args.int("retain", config.retainedGenerations)
     config.quietPeriod = .milliseconds(Int(args.double("quiet", 20) * 1000))
+    config.quickQuietPeriod = .milliseconds(Int(args.double("quick-quiet", 3) * 1000))
+    config.quickPublishMaxFiles = args.int("quick-files", config.quickPublishMaxFiles)
     config.maximumPublicationDelay = .milliseconds(Int(args.double("max-delay", 300) * 1000))
     config.reconciliationInterval = .milliseconds(Int(args.double("reconcile", 600) * 1000))
     config.fullIntegrityCheck = args.flags.contains("full-check")
     config.chunkSize = args.int("chunk-size", config.chunkSize)
     config.publishFullDatabase = !args.flags.contains("chunks-only")
+    config.publishPacks = !args.flags.contains("no-packs")
+    config.packDeltaBases = min(max(1, args.int("pack-bases", config.packDeltaBases)), ArtifactManifest.PackIndex.maximumDeltas)
     config.excludePatterns = args.lists["exclude"] ?? []
     if args.options["exclude-file"] != nil {
         config.excludeFile = try args.url("exclude-file")

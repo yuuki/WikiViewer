@@ -73,6 +73,50 @@ Notes:
   several publications). It is host-only and well within a Mac mini's RAM, but
   is listed as a remaining optimization.
 
+### Update transfer: chunks vs. page packs (2026-09-27)
+
+Same machine and command (`scripts/bench.sh 20000 100000`), after page packs
+were added. "Files" is what a phone fetches per update: each is one iCloud
+Drive item or one HTTP request.
+
+| update | 20k: chunks | 20k: packs | 100k: chunks | 100k: packs |
+|---|---:|---:|---:|---:|
+| single-note edit | 30 files, 3.8 MiB | **1 file, 39.6 KiB** | 38 files, 4.8 MiB | **1 file, 172.9 KiB** |
+| 1000-note burst | 396 files, 49.5 MiB | **2 files, 4.4 MiB** | 1,225 files, 153 MiB | **4 files, 4.3 MiB** |
+| first install (nothing on the device) | 755 files, 94.3 MiB | **12 files, 26.8 MiB** (keyframe) | 3,707 files, 463 MiB | **58 files, 134.8 MiB** (keyframe) |
+
+A pack is split into parts of at most 8 MiB before compression, which bounds
+the memory needed to decode one. The chunk list (one small file) is fetched in
+every case. A keyframe is republished only when more than 20% of the current
+chunks are missing from it; until then a new device also fetches the chunks
+that changed since.
+
+On the phone a delta is written onto an APFS clone of the installed
+generation and only the chunks it touched are hashed, instead of rewriting
+and re-hashing the whole database (`quick_check` still reads it).
+
+Publisher cost of packs:
+
+| metric | 20k | 100k |
+|---|---:|---:|
+| initial publication (incl. keyframe) | 4.7 s | 14.1 s |
+| single-note update: publish (3 deltas) | 0.59 s | 2.09 s |
+| 1000-note burst: publish (3 deltas) | 2.66 s | 11.9 s |
+| bench process peak memory footprint | 296 MiB | 531 MiB |
+
+The 100k footprint fell from 992 MiB: publication used to keep every chunk it
+read alive until it finished (autoreleased buffers, 108 MiB at 20k); reads are
+now released per chunk. Private copies of the last three databases for
+computing deltas take up to 3× the database size in the state directory.
+
+Update latency is dominated by waiting, not by transfer; it has not been
+measured end to end on a device. The mechanisms (see ARCHITECTURE.md): a
+small edit is published 3 s after the vault is quiet (was 20 s, and Obsidian's
+own `.obsidian/` writes reset the timer); an open app learns of a publication
+over HTTP within about a second (long poll; test: under 5 s from publication
+to the new generation being open, on localhost) or by polling a folder every
+30 s; failed updates are retried with backoff.
+
 ### Effect of measured optimizations (20k notes)
 
 | change | before | after |
