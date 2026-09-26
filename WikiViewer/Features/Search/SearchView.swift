@@ -12,38 +12,103 @@ import WikiViewerKit
 
 struct SearchView: View {
     @Environment(Library.self) private var library
+    @Environment(AppModel.self) private var app
     @State private var query = ""
+    /// Title and alias matches, shown first (what the quick switcher gave).
+    @State private var titleHits: [SearchHit] = []
+    /// Everything else the full-text search found.
     @State private var hits: [SearchHit] = []
     @State private var searching = false
     @State private var error: String?
+    @FocusState private var fieldFocused: Bool
+    @State private var handledFocusRequest = 0
+
+    static let titleLimit = 6
 
     var body: some View {
         List {
             if let error {
                 Text(error).foregroundStyle(.secondary)
             }
-            // Identity includes the snippet so a row is rebuilt whenever the
-            // result for the same note changes between queries.
-            ForEach(hits, id: \.self) { hit in
-                NavigationLink(value: Route.note(path: hit.note.path, anchor: nil)) {
-                    SearchHitRow(hit: hit)
+            if searchesTitlesOnly {
+                // Stays with the results: a two-character Japanese word that
+                // is only in note text would otherwise look like a miss.
+                Label("Terms under 3 characters only match titles, aliases and tags. Add a longer term to search note text.", systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .listRowSeparator(.hidden)
+            }
+            if !titleHits.isEmpty {
+                Section("Titles") {
+                    ForEach(titleHits) { hit in
+                        NavigationLink(value: Route.note(path: hit.note.path, anchor: nil)) {
+                            SearchHitRow(hit: hit)
+                        }
+                        .notePreviewMenu(path: hit.note.path, title: hit.note.title)
+                    }
+                }
+            }
+            if !hits.isEmpty {
+                Section(searchesTitlesOnly ? "Tags" : "In Notes") {
+                    // Identity includes the snippet so a row is rebuilt whenever the
+                    // result for the same note changes between queries.
+                    ForEach(hits, id: \.self) { hit in
+                        NavigationLink(value: Route.note(path: hit.note.path, anchor: matchAnchor(for: hit))) {
+                            SearchHitRow(hit: hit)
+                        }
+                        .notePreviewMenu(path: hit.note.path, title: hit.note.title)
+                    }
                 }
             }
         }
         .listStyle(.plain)
         .overlay {
-            if !query.isEmpty, hits.isEmpty, !searching, error == nil {
+            if !query.isEmpty, hits.isEmpty, titleHits.isEmpty, !searching, error == nil {
                 ContentUnavailableView.search(text: query)
             } else if query.isEmpty {
-                ContentUnavailableView("Search Notes", systemImage: "magnifyingglass", description: Text("Full-text search. Terms of 3+ characters search note text; shorter terms match titles, aliases and tags."))
+                ContentUnavailableView("Search Notes", systemImage: "magnifyingglass", description: Text("Titles, aliases and note text. Terms of 3+ characters search note text; shorter terms match titles, aliases and tags."))
             }
         }
         .navigationTitle("Search")
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search notes")
-        .quickSwitcherToolbar()
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Titles and text")
+        .searchFocused($fieldFocused)
+        .onSubmit(of: .search) {
+            // Return opens the best title match, like the quick switcher did.
+            if let first = titleHits.first ?? hits.first {
+                navigation.push(.note(path: first.note.path, anchor: nil))
+            }
+        }
+        .onAppear(perform: focusIfRequested)
+        .onChange(of: app.searchFocusRequest) { focusIfRequested() }
         .task(id: SearchKey(query: query, session: library.session?.id)) {
             await run()
         }
+    }
+
+    @Environment(NavigationModel.self) private var navigation
+
+    /// Opens a note-text match at the block containing the query.
+    private func matchAnchor(for hit: SearchHit) -> Anchor? {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard hit.snippet != nil, !q.isEmpty else { return nil }
+        return Anchor(text: q)
+    }
+
+    private var searchesTitlesOnly: Bool {
+        !query.trimmingCharacters(in: .whitespaces).isEmpty && !TrigramSearchEngine.searchesNoteText(query)
+    }
+
+    func focusIfRequested() {
+        let request = app.searchFocusRequest
+        guard request.id != handledFocusRequest else { return }
+        handledFocusRequest = request.id
+        if request.resetNavigation {
+            navigation.path.removeAll()
+        } else if !navigation.path.isEmpty {
+            return
+        }
+        // The field only takes focus once it is on screen.
+        Task { fieldFocused = true }
     }
 
     struct SearchKey: Hashable {
@@ -55,16 +120,23 @@ struct SearchView: View {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty, let session = library.session else {
             hits = []
+            titleHits = []
             return
         }
+        // Counts as searching during the debounce too, so "No Results" does
+        // not flash while the user is still typing.
+        searching = true
+        defer { if !Task.isCancelled { searching = false } }
         do {
-            try await Task.sleep(for: .milliseconds(250))
-            searching = true
-            defer { searching = false }
-            let result = try await session.search.search(q, limit: 100)
+            try await Task.sleep(for: .milliseconds(200))
+            async let titles = session.search.quickSwitch(q, limit: Self.titleLimit)
+            async let full = session.search.search(q, limit: 100)
+            let (titleResult, fullResult) = try await (titles, full)
             // A superseded query may still finish; never let it overwrite a newer one.
             try Task.checkCancellation()
-            hits = result
+            let titleIDs = Set(titleResult.map(\.id))
+            titleHits = titleResult
+            hits = fullResult.filter { !titleIDs.contains($0.id) }
             error = nil
         } catch is CancellationError {
         } catch {
@@ -86,7 +158,9 @@ struct SearchHitRow: View {
                     .lineLimit(3)
             }
             HStack(spacing: 6) {
-                Text(hit.note.folderPath.isEmpty ? "/" : hit.note.folderPath)
+                if !hit.note.folderPath.isEmpty {
+                    Text("\(Image(systemName: "folder")) \(hit.note.folderPath)")
+                }
                 switch hit.match {
                 case .alias(let alias): Text("alias: \(alias)")
                 case .tag(let tag): Text("#\(tag)")

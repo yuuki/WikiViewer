@@ -27,7 +27,8 @@ func likeEscaped(_ s: String) -> String {
 
 extension NoteSummary: FetchableRecord {
     public init(row: Row) {
-        self.init(id: row["id"], title: row["title"], path: row["path"])
+        self.init(id: row["id"], title: row["title"], path: row["path"],
+                  modifiedNanoseconds: row.hasColumn("mtime_ns") ? row["mtime_ns"] : nil)
     }
 }
 
@@ -108,11 +109,20 @@ public struct FolderRepository: Sendable {
         }
     }
 
-    /// Direct subfolders, ordered by name (folders_parent_name index).
-    public func subfolders(of folderID: Int64, limit: Int = maxPage) async throws -> Page<FolderSummary> {
+    /// Direct subfolders, ordered by name (folders_parent_name index),
+    /// keyset-paginated after `cursor`.
+    public func subfolders(of folderID: Int64, after cursor: FolderSummary? = nil, limit: Int = maxPage) async throws -> Page<FolderSummary> {
         let limit = clampLimit(limit)
         return try await database.reader.read { db in
-            let rows = try Row.fetchAll(db, sql: "SELECT * FROM folders WHERE parent_id = ? ORDER BY name LIMIT ?", arguments: [folderID, limit + 1])
+            let rows: [Row]
+            if let cursor {
+                rows = try Row.fetchAll(db, sql: """
+                    SELECT * FROM folders WHERE parent_id = ? AND (name > ? OR (name = ? AND id > ?))
+                    ORDER BY name, id LIMIT ?
+                    """, arguments: [folderID, cursor.name, cursor.name, cursor.id, limit + 1])
+            } else {
+                rows = try Row.fetchAll(db, sql: "SELECT * FROM folders WHERE parent_id = ? ORDER BY name, id LIMIT ?", arguments: [folderID, limit + 1])
+            }
             return Page(items: rows.prefix(limit).map(Self.folder), hasMore: rows.count > limit)
         }
     }
@@ -131,6 +141,58 @@ public struct FolderRepository: Sendable {
                     """, arguments: [folderID, cursor.title, cursor.title, cursor.id, limit + 1])
             } else {
                 rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE folder_id = ? ORDER BY title, id LIMIT ?", arguments: [folderID, limit + 1])
+            }
+            return Page(items: Array(rows.prefix(limit)), hasMore: rows.count > limit)
+        }
+    }
+
+    /// Largest folder whose notes may be listed by modification time. That
+    /// order has no index, so each page sorts the folder's rows; the bound
+    /// keeps the cost of a page fixed.
+    public static let maxNotesSortedByModified = 2000
+
+    /// Whether `modifiedNewest` applies to a folder of this size.
+    public static func canSortByModified(noteCount: Int) -> Bool {
+        noteCount <= maxNotesSortedByModified
+    }
+
+    /// Notes directly in a folder in `order`, keyset-paginated. Title orders
+    /// walk the notes_folder index forwards or backwards. `modifiedNewest`
+    /// falls back to title order for folders too large to sort.
+    public func notes(in folderID: Int64, order: NoteOrder, after cursor: NoteCursor? = nil, limit: Int = 200) async throws -> Page<NoteSummary> {
+        let limit = clampLimit(limit)
+        return try await database.reader.read { db in
+            var order = order
+            if order == .modifiedNewest {
+                let count = try Int.fetchOne(db, sql: "SELECT note_count FROM folders WHERE id = ?", arguments: [folderID]) ?? 0
+                if !Self.canSortByModified(noteCount: count) { order = .titleAscending }
+            }
+            let rows: [NoteSummary]
+            switch (order, cursor) {
+            case (.titleAscending, nil):
+                rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE folder_id = ? ORDER BY title, id LIMIT ?", arguments: [folderID, limit + 1])
+            case (.titleAscending, let c?):
+                rows = try NoteSummary.fetchAll(db, sql: """
+                    SELECT id, title, path FROM notes
+                    WHERE folder_id = ? AND (title > ? OR (title = ? AND id > ?))
+                    ORDER BY title, id LIMIT ?
+                    """, arguments: [folderID, c.title, c.title, c.id, limit + 1])
+            case (.titleDescending, nil):
+                rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE folder_id = ? ORDER BY title DESC, id DESC LIMIT ?", arguments: [folderID, limit + 1])
+            case (.titleDescending, let c?):
+                rows = try NoteSummary.fetchAll(db, sql: """
+                    SELECT id, title, path FROM notes
+                    WHERE folder_id = ? AND (title < ? OR (title = ? AND id < ?))
+                    ORDER BY title DESC, id DESC LIMIT ?
+                    """, arguments: [folderID, c.title, c.title, c.id, limit + 1])
+            case (.modifiedNewest, nil):
+                rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path, mtime_ns FROM notes WHERE folder_id = ? ORDER BY mtime_ns DESC, id DESC LIMIT ?", arguments: [folderID, limit + 1])
+            case (.modifiedNewest, let c?):
+                rows = try NoteSummary.fetchAll(db, sql: """
+                    SELECT id, title, path, mtime_ns FROM notes
+                    WHERE folder_id = ? AND (mtime_ns < ? OR (mtime_ns = ? AND id < ?))
+                    ORDER BY mtime_ns DESC, id DESC LIMIT ?
+                    """, arguments: [folderID, c.modifiedNanoseconds, c.modifiedNanoseconds, c.id, limit + 1])
             }
             return Page(items: Array(rows.prefix(limit)), hasMore: rows.count > limit)
         }
@@ -234,6 +296,28 @@ public struct LinkRepository: Sendable {
         }
     }
 
+    /// Longest context line returned by `backlinkContext`.
+    public static let maxContextCharacters = 300
+
+    /// The source line of the first link from `sourceID` to `targetID`, to
+    /// show a backlink in context. Reads one note body (links: primary key).
+    public func backlinkContext(from sourceID: Int64, to targetID: Int64) async throws -> String? {
+        try await database.reader.read { db in
+            guard let line = try Int.fetchOne(db, sql: "SELECT line FROM links WHERE source_note_id = ? AND target_note_id = ? ORDER BY ordinal LIMIT 1", arguments: [sourceID, targetID]),
+                  let body = try String.fetchOne(db, sql: "SELECT body FROM notes WHERE id = ?", arguments: [sourceID]) else { return nil }
+            // Split on "\n" scalars, like the scanner that recorded the line.
+            var index = 0
+            for text in body.unicodeScalars.split(separator: "\n", omittingEmptySubsequences: false) {
+                if index == line {
+                    let trimmed = String(text).trimmingCharacters(in: .whitespaces)
+                    return trimmed.count > Self.maxContextCharacters ? String(trimmed.prefix(Self.maxContextCharacters)) + "…" : trimmed
+                }
+                index += 1
+            }
+            return nil
+        }
+    }
+
     public func headings(of noteID: Int64) async throws -> [HeadingInfo] {
         try await database.reader.read { db in
             try Row.fetchAll(db, sql: "SELECT ordinal, level, text, heading_key, line FROM headings WHERE note_id = ? ORDER BY ordinal LIMIT 5000", arguments: [noteID]).map {
@@ -290,6 +374,50 @@ public struct TagRepository: Sendable {
                 WHERE nt.note_id = ? ORDER BY t.name LIMIT 500
                 """, arguments: [noteID]).map { TagSummary(id: $0["id"], name: $0["name"], noteCount: $0["note_count"]) }
         }
+    }
+
+    /// Upper bound on tags read to build one level of the hierarchy.
+    static let maxHierarchyScan = 50_000
+
+    /// Direct children of `parent` in the tag hierarchy (top-level tags when
+    /// nil), by name. A level exists when any tag starts with it, even if it
+    /// is never used by itself (`#a/b` alone yields `a`). Reads the tags
+    /// under `parent` (bounded by tag cardinality, not note count).
+    public func childTags(of parent: String? = nil) async throws -> [TagNode] {
+        let prefix = parent.map { $0 + "/" } ?? ""
+        let rows = try await database.reader.read { db in
+            try Row.fetchAll(db, sql: "SELECT name, note_count FROM tags WHERE name LIKE ? ESCAPE '\\' LIMIT \(Self.maxHierarchyScan)",
+                             arguments: [likeEscaped(prefix) + "%"]).map { (name: $0["name"] as String, count: $0["note_count"] as Int) }
+        }
+        var nodes: [String: TagNode] = [:]
+        for row in rows {
+            let name = row.name
+            guard name.count > prefix.count else { continue }
+            let rest = name.dropFirst(prefix.count)
+            let component = String(rest.prefix { $0 != "/" })
+            guard !component.isEmpty else { continue }
+            let key = VaultPath.matchKey(component)
+            var node = nodes[key] ?? TagNode(name: prefix + component, component: component, noteCount: 0, hasChildren: false)
+            if rest.count == component.count {
+                node.name = name
+                node.component = component
+                node.noteCount = row.count
+            } else {
+                node.hasChildren = true
+            }
+            nodes[key] = node
+        }
+        return nodes.values.sorted { $0.component.localizedStandardCompare($1.component) == .orderedAscending }
+    }
+
+    /// Notes under a tag name, like `notes(taggedWith:)`, but also for a
+    /// level that exists only through nested tags (`a` when only `a/b` is used).
+    public func notes(underTag name: String, includeNested: Bool = true, before cursor: Int64? = nil, limit: Int = 200) async throws -> Page<NoteSummary> {
+        if let tag = try await tag(named: name) {
+            return try await notes(taggedWith: tag, includeNested: includeNested, before: cursor, limit: limit)
+        }
+        guard includeNested else { return Page(items: [], hasMore: false) }
+        return try await notes(taggedWith: TagSummary(id: -1, name: name, noteCount: 0), includeNested: true, before: cursor, limit: limit)
     }
 
     /// Upper bound on nested tags merged for one listing.

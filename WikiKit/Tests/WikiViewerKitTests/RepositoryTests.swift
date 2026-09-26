@@ -20,6 +20,10 @@ import WikiShared
         #expect(db.generation.generation == 1)
         #expect(db.generation.noteCount == 11)
         #expect(db.generation.schemaVersion == WikiVersions.schemaVersion)
+        #expect(db.generation.createdDate != nil)
+        var info = db.generation
+        info.createdAt = "not a date"
+        #expect(info.createdDate == nil)
     }
 
     @Test func databaseIsReadOnly() async throws {
@@ -35,6 +39,15 @@ import WikiShared
         let root = try await session.folders.subfolders(of: ViewerSchema.rootFolderID)
         #expect(root.items.map(\.name) == ["Archive", "attachments", "Café", "Daily", "Meetings", "Projects", "日本語"])
         #expect(!root.hasMore)
+        var folderCursor: FolderSummary?
+        var folderNames: [String] = []
+        while true {
+            let page = try await session.folders.subfolders(of: ViewerSchema.rootFolderID, after: folderCursor, limit: 2)
+            folderNames += page.items.map(\.name)
+            folderCursor = page.items.last
+            if !page.hasMore { break }
+        }
+        #expect(folderNames == root.items.map(\.name))
         let rootNotes = try await session.folders.notes(in: ViewerSchema.rootFolderID)
         #expect(rootNotes.items.map(\.title) == ["Code", "Empty", "Home", "Invalid YAML"])
 
@@ -48,6 +61,29 @@ import WikiShared
             if !page.hasMore { break }
         } while true
         #expect(titles == ["Code", "Empty", "Home", "Invalid YAML"])
+
+        // Every order pages with a keyset cursor to the same list as one page.
+        func walk(_ order: NoteOrder) async throws -> [String] {
+            var cursor: NoteCursor?
+            var titles: [String] = []
+            while true {
+                let page = try await session.folders.notes(in: ViewerSchema.rootFolderID, order: order, after: cursor, limit: 1)
+                titles += page.items.map(\.title)
+                cursor = page.items.last.map(NoteCursor.init(after:))
+                if !page.hasMore { break }
+            }
+            return titles
+        }
+        #expect(try await walk(.titleAscending) == ["Code", "Empty", "Home", "Invalid YAML"])
+        #expect(try await walk(.titleDescending) == ["Invalid YAML", "Home", "Empty", "Code"])
+        let byModified = try await db.reader.read { db in
+            try String.fetchAll(db, sql: "SELECT title FROM notes WHERE folder_id = 1 ORDER BY mtime_ns DESC, id DESC")
+        }
+        #expect(try await walk(.modifiedNewest) == byModified)
+        let newest = try await session.folders.notes(in: ViewerSchema.rootFolderID, order: .modifiedNewest)
+        #expect(newest.items.allSatisfy { $0.modified != nil })
+        #expect(FolderRepository.canSortByModified(noteCount: FolderRepository.maxNotesSortedByModified))
+        #expect(!FolderRepository.canSortByModified(noteCount: FolderRepository.maxNotesSortedByModified + 1))
 
         let archive = try #require(root.items.first { $0.name == "Archive" })
         #expect(archive.folderCount == 1)
@@ -78,6 +114,11 @@ import WikiShared
         let betaBacklinks = try await session.links.backlinks(to: beta)
         let fromHome = try #require(betaBacklinks.items.first { $0.note.path == "Home.md" })
         #expect(fromHome.linkCount == 3, "[[Beta#Goals]], [[Beta#^decision-1]], [Beta as markdown](Projects/Beta.md)")
+        // Context: the line holding the first link, lines counted after frontmatter.
+        #expect(try await session.links.backlinkContext(from: try await id("Projects/Alpha.md"), to: home)
+                == "Alpha is the first project. It links back to [[Home]] and to [[Beta]].")
+        #expect(try await session.links.backlinkContext(from: try await id("Code.md"), to: home) == "Real link after code: [[Home]]")
+        #expect(try await session.links.backlinkContext(from: home, to: try await id("Code.md")) == nil, "no such link")
         let missing = try await session.links.notesLinkingToMissing("Nonexistent Note")
         #expect(missing.map(\.path) == ["Home.md"])
     }
@@ -132,6 +173,18 @@ import WikiShared
         #expect(flat.items.map(\.path) == ["Projects/Alpha.md"])
         let prefixed = try await session.tags.tags(prefix: "proj")
         #expect(prefixed.items.map(\.name) == ["project", "project/alpha", "project/beta"])
+        let top = try await session.tags.childTags()
+        #expect(top.map(\.name) == ["archive", "daily", "index", "inline-tag", "project", "メモ", "日本語"])
+        let projectNode = try #require(top.first { $0.name == "project" })
+        #expect(projectNode.hasChildren && projectNode.noteCount == 1)
+        #expect(top.first { $0.name == "daily" }?.hasChildren == false)
+        let children = try await session.tags.childTags(of: "project")
+        #expect(children.map(\.name) == ["project/alpha", "project/beta"])
+        #expect(children.map(\.component) == ["alpha", "beta"])
+        #expect(try await session.tags.childTags(of: "project/alpha").isEmpty)
+        #expect(try await session.tags.notes(underTag: "project").items.count == 2)
+        #expect(try await session.tags.notes(underTag: "nothing").items.isEmpty)
+
         let homeTags = try await session.tags.tags(of: try await id("Home.md"))
         #expect(homeTags.map(\.name) == ["index", "inline-tag", "日本語"])
     }
@@ -189,6 +242,15 @@ import WikiShared
         #expect(hits.first?.match == .title)
         let tagHits = try await search.search("日本", limit: 10)
         #expect(Set(tagHits.map(\.note.path)).isSuperset(of: ["日本語/東京メモ.md", "Home.md"]))
+    }
+
+    @Test func reportsWhetherNoteTextIsSearched() {
+        #expect(!TrigramSearchEngine.searchesNoteText("東京"))
+        #expect(!TrigramSearchEngine.searchesNoteText("東京 天気"))
+        #expect(!TrigramSearchEngine.searchesNoteText("  "))
+        #expect(TrigramSearchEngine.searchesNoteText("東京都"))
+        #expect(TrigramSearchEngine.searchesNoteText("東京 東京都"))
+        #expect(TrigramSearchEngine.searchesNoteText("alpha"))
     }
 
     @Test func quickSwitcher() async throws {

@@ -15,39 +15,79 @@ struct NoteView: View {
     let anchor: Anchor?
     @Environment(Library.self) private var library
     @Environment(NavigationModel.self) private var navigation
+    @Environment(ReadingHistory.self) private var history
     @State private var model = NoteModel()
-    @State private var scrollTarget: Int?
+    /// Top-level block at the top of the screen. Setting it scrolls there,
+    /// and it follows the reader's scrolling (outline, reading position).
+    /// Unlike ScrollViewReader.scrollTo, the block stays pinned while lazy
+    /// rows above it are measured, so a far jump lands where intended.
+    @State private var position: Int?
+    /// Where to scroll once the scroll view exists: the first layout resets
+    /// `position`, so a value set with the first load would be lost.
+    @State private var initialPosition: Int?
+    @State private var showingOutline = false
+    /// Block briefly highlighted after arriving at a search match.
+    @State private var highlightedBlock: Int?
+    @State private var viewingAsset: AssetInfo?
 
     var body: some View {
         content
             .navigationTitle(model.detail?.title ?? VaultPath.basename(of: path))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // The outline is the main way around a long note, so it sits
+                // in the toolbar itself rather than behind an overflow menu.
+                if let detail = model.detail, let session = library.session {
+                    NoteActionItems(detail: detail, session: session)
+                }
                 if let rendered = model.rendered, !rendered.headings.isEmpty {
-                    ToolbarItem(placement: .secondaryAction) {
-                        Menu {
-                            ForEach(Array(rendered.headings.enumerated()), id: \.offset) { _, heading in
-                                Button {
-                                    scrollTarget = heading.blockID
-                                } label: {
-                                    Text(String(repeating: "  ", count: max(0, heading.level - 1)) + heading.text)
-                                }
-                            }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showingOutline = true
                         } label: {
                             Label("Outline", systemImage: "list.bullet.indent")
                         }
                     }
                 }
             }
-            .quickSwitcherToolbar()
+            .sheet(isPresented: $showingOutline) {
+                if let rendered = model.rendered {
+                    OutlineSheet(headings: rendered.headings.map { OutlineSheet.Heading(level: $0.level, text: $0.text, blockID: $0.blockID) },
+                                 current: OutlineSheet.currentHeading(in: rendered.headings.map(\.blockID), top: position)) { blockID in
+                        showingOutline = false
+                        scroll(to: blockID)
+                    }
+                }
+            }
             .task(id: library.session?.id) {
                 guard let session = library.session else { return }
                 let firstLoad = await model.load(path: path, session: session)
-                if firstLoad, let anchor { scrollTarget = model.blockID(for: anchor) }
+                if let detail = model.detail { history.recordVisit(path: path, title: detail.title) }
+                if firstLoad, let anchor, let target = model.blockID(for: anchor) {
+                    initialPosition = target
+                    if anchor.text != nil { await flashHighlight(target) }
+                } else if firstLoad, anchor == nil, let saved = history.position(of: path),
+                          model.rendered?.blocks.contains(where: { $0.id == saved }) == true {
+                    // Continue where the reader left this note.
+                    initialPosition = saved
+                }
             }
+            .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
             .onDisappear { model.releaseIfLarge() }
+    }
+
+    private func scroll(to block: Int?) {
+        guard let block else { return }
+        withAnimation(.easeOut(duration: 0.2)) { position = block }
+    }
+
+    /// Marks the block a search result opened at, then fades the mark out.
+    private func flashHighlight(_ block: Int) async {
+        highlightedBlock = block
+        try? await Task.sleep(for: .seconds(2))
+        withAnimation(.easeOut(duration: 0.6)) { highlightedBlock = nil }
     }
 
     @ViewBuilder
@@ -61,33 +101,49 @@ struct NoteView: View {
             ContentUnavailableView("Couldn't Load Note", systemImage: "exclamationmark.triangle", description: Text(message))
         case .loaded:
             if let session = library.session, let detail = model.detail, let rendered = model.rendered {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 10) {
-                            NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: !Self.startsWithTitleHeading(rendered, title: detail.title))
-                                .id("header")
-                            ForEach(rendered.blocks) { block in
-                                BlockView(block: block)
-                                    .id(block.id)
-                            }
-                            BacklinksSection(model: model, session: session)
-                                .id("backlinks")
-                                .padding(.top, 24)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: !Self.startsWithTitleHeading(rendered, title: detail.title))
+                            .id("header")
+                        ForEach(rendered.blocks) { block in
+                            BlockView(block: block)
+                                .background {
+                                    if highlightedBlock == block.id {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color.yellow.opacity(0.3))
+                                            .padding(-4)
+                                            .transition(.opacity)
+                                    }
+                                }
+                                .id(block.id)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: 820, alignment: .leading)
-                        .frame(maxWidth: .infinity)
+                        BacklinksSection(model: model, session: session)
+                            .id("backlinks")
+                            .padding(.top, 24)
                     }
-                    .onChange(of: scrollTarget) { _, target in
-                        guard let target else { return }
-                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target, anchor: .top) }
-                        scrollTarget = nil
-                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: 820, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                }
+                // Only blocks have Int ids: with the header or backlinks at
+                // the top the position is nil.
+                .scrollPosition(id: $position, anchor: .top)
+                .onAppear {
+                    guard let target = initialPosition else { return }
+                    initialPosition = nil
+                    Task { position = target }
+                }
+                .onChange(of: position) {
+                    // nil (header or backlinks at the top) keeps the last block.
+                    if let position { history.setPosition(position, of: path) }
                 }
                 .environment(\.openURL, OpenURLAction { url in
                     LinkRouter(session: session, navigation: navigation, currentNoteID: detail.id) { anchor in
-                        scrollTarget = model.blockID(for: anchor)
+                        scroll(to: model.blockID(for: anchor))
+                    } openAsset: { id in
+                        Task { viewingAsset = try? await session.assets.asset(id: id) }
                     }.handle(url)
                 })
             }
@@ -186,6 +242,13 @@ final class NoteModel {
         guard let rendered else { return nil }
         if let block = anchor.blockID { return rendered.blockAnchors[block] }
         if let heading = anchor.heading { return rendered.headingAnchors[HeadingKey.make(heading)] }
+        if let text = anchor.text {
+            // The whole query as a phrase, else its terms, longest first.
+            let terms = TrigramSearchEngine.terms(text).sorted { $0.count > $1.count }
+            for candidate in [text] + terms {
+                if let block = rendered.firstBlock(containing: candidate) { return block }
+            }
+        }
         return nil
     }
 }
@@ -204,9 +267,7 @@ struct NoteHeader: View {
                     .font(.title.bold())
                     .textSelection(.enabled)
             }
-            Text(VaultPath.folder(of: detail.path).isEmpty ? "/" : VaultPath.folder(of: detail.path))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            FolderBreadcrumb(folder: VaultPath.folder(of: detail.path))
             if !tags.isEmpty {
                 TagLine(tags: tags.map(\.name))
             }
@@ -215,12 +276,46 @@ struct NoteHeader: View {
                     PropertiesView(properties: detail.properties, noteID: detail.id, links: links)
                         .padding(.top, 4)
                 } label: {
-                    Text("Properties (\(detail.properties.count))")
+                    // Primary color: a tinted secondary label reads as disabled.
+                    Label("Properties (\(detail.properties.count))", systemImage: "list.bullet.rectangle")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
+                .tint(.secondary)
             }
             Divider().padding(.top, 4)
+        }
+    }
+}
+
+/// The note's folder as tappable path components. Nothing for the vault
+/// root, where a lone "/" would say nothing.
+struct FolderBreadcrumb: View {
+    let folder: String
+
+    var body: some View {
+        if !folder.isEmpty {
+            let components = folder.split(separator: "/").map(String.init)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .accessibilityHidden(true)
+                    ForEach(components.indices, id: \.self) { i in
+                        if i > 0 {
+                            Image(systemName: "chevron.compact.right")
+                                .accessibilityHidden(true)
+                        }
+                        NavigationLink(value: Route.folder(path: components[...i].joined(separator: "/"))) {
+                            Text(components[i])
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text("Folder"))
         }
     }
 }
@@ -269,31 +364,85 @@ struct BacklinksSection: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Linked mentions (\(model.backlinkTotalLabel))")
                 .font(.headline)
+                .accessibilityAddTraits(.isHeader)
             if model.backlinks.isEmpty {
                 Text("No other notes link here.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             ForEach(model.backlinks) { backlink in
-                NavigationLink(value: Route.note(path: backlink.note.path, anchor: nil)) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(backlink.note.title)
-                        Text(backlink.note.folderPath.isEmpty ? "/" : backlink.note.folderPath)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
+                BacklinkRow(backlink: backlink, targetID: model.detail?.id, session: session)
                 Divider()
             }
             if model.backlinksHaveMore {
-                Button("Show more") {
+                Button("Show More Mentions") {
                     Task { await model.loadMoreBacklinks(session: session) }
                 }
-                .font(.footnote)
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity)
             }
         }
+    }
+}
+
+/// One linking note, with the line that links here (loaded when shown).
+struct BacklinkRow: View {
+    let backlink: Backlink
+    let targetID: Int64?
+    let session: LibrarySession
+    @State private var context: String?
+
+    var body: some View {
+        NavigationLink(value: Route.note(path: backlink.note.path, anchor: nil)) {
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(backlink.note.title)
+                        .font(.body.weight(.medium))
+                    if let context, !context.isEmpty {
+                        Text(context)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    if !backlink.note.folderPath.isEmpty {
+                        Text("\(Image(systemName: "folder")) \(backlink.note.folderPath)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.forward")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .notePreviewMenu(path: backlink.note.path, title: backlink.note.title)
+        .task(id: backlink.note.id) {
+            guard let targetID else { return }
+            let line = try? await session.links.backlinkContext(from: backlink.note.id, to: targetID)
+            context = line.map(Self.readable)
+        }
+    }
+
+    /// Shows links as their text: "[[a/b#c|Label]]" → "Label", "[[a/b]]" → "b".
+    static func readable(_ line: String) -> String {
+        var text = line
+        if let wiki = try? Regex(#"!?\[\[([^\]|]*)(?:\|([^\]]*))?\]\]"#) {
+            text = text.replacing(wiki) { match in
+                if let label = match.output[2].substring, !label.isEmpty { return String(label) }
+                let target = match.output[1].substring.map(String.init) ?? ""
+                let page = target.split(separator: "#").first.map(String.init) ?? target
+                return page.split(separator: "/").last.map(String.init) ?? page
+            }
+        }
+        // Leading list, quote and heading markers.
+        while let first = text.first, "-*+>#".contains(first) {
+            text = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        return text
     }
 }
 

@@ -38,6 +38,7 @@ struct AssetEmbedView: View {
     @State private var image: CGImage?
     @State private var failure: String?
     @State private var availableWidth: CGFloat = 0
+    @State private var viewing: AssetInfo?
 
     /// `|300` or `|300x200` from the embed.
     var requestedWidth: CGFloat? {
@@ -53,8 +54,14 @@ struct AssetEmbedView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(maxWidth: requestedWidth.map { min($0, CGFloat(image.width) / displayScale) } ?? CGFloat(image.width) / displayScale)
                     .accessibilityLabel(name)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint(Text("Opens the image full screen"))
+                    .onTapGesture { viewing = asset }
             } else if let asset, asset.kind != .image || asset.blobSHA256 == nil || failure != nil {
-                AttachmentRow(asset: asset, note: failure)
+                Button { viewing = asset } label: {
+                    AttachmentRow(asset: asset, note: failure)
+                }
+                .buttonStyle(.plain)
             } else {
                 Rectangle()
                     .fill(.quaternary)
@@ -72,6 +79,7 @@ struct AssetEmbedView: View {
         // when the row leaves the screen (the byte-bounded cache may keep a
         // copy, and `.task` reloads it on reappear).
         .onDisappear { image = nil }
+        .fullScreenCover(item: $viewing) { AssetViewer(asset: $0) }
     }
 
     struct TaskKey: Hashable {
@@ -132,8 +140,10 @@ struct AttachmentRow: View {
         .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 4))
     }
 
-    var symbol: String {
-        switch asset.kind {
+    var symbol: String { Self.symbol(for: asset.kind) }
+
+    static func symbol(for kind: ViewerSchema.AssetKind) -> String {
+        switch kind {
         case .image: "photo"
         case .pdf: "doc.richtext"
         case .audio: "waveform"
