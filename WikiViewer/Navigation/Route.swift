@@ -8,7 +8,7 @@ import WikiViewerKit
 
 /// Navigation destinations. Notes and folders are addressed by vault path,
 /// not database id, so a navigation stack survives a generation switch.
-enum Route: Hashable {
+enum Route: Hashable, Codable {
     case folder(path: String)
     case note(path: String, anchor: Anchor?)
     case tag(name: String)
@@ -17,7 +17,7 @@ enum Route: Hashable {
     case tags
 }
 
-struct Anchor: Hashable {
+struct Anchor: Hashable, Codable {
     var heading: String?
     var blockID: String?
     /// Text to find in the note (a search match), highlighted on arrival.

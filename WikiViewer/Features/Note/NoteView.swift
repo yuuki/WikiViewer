@@ -15,10 +15,16 @@ struct NoteView: View {
     let anchor: Anchor?
     @Environment(Library.self) private var library
     @Environment(NavigationModel.self) private var navigation
+    @Environment(ReadingHistory.self) private var history
     @State private var model = NoteModel()
-    @State private var scrollTarget: Int?
-    /// Top-level block at the top of the screen, for the outline.
-    @State private var topBlockID: Int?
+    /// Top-level block at the top of the screen. Setting it scrolls there,
+    /// and it follows the reader's scrolling (outline, reading position).
+    /// Unlike ScrollViewReader.scrollTo, the block stays pinned while lazy
+    /// rows above it are measured, so a far jump lands where intended.
+    @State private var position: Int?
+    /// Where to scroll once the scroll view exists: the first layout resets
+    /// `position`, so a value set with the first load would be lost.
+    @State private var initialPosition: Int?
     @State private var showingOutline = false
     /// Block briefly highlighted after arriving at a search match.
     @State private var highlightedBlock: Int?
@@ -43,9 +49,9 @@ struct NoteView: View {
             .sheet(isPresented: $showingOutline) {
                 if let rendered = model.rendered {
                     OutlineSheet(headings: rendered.headings.map { OutlineSheet.Heading(level: $0.level, text: $0.text, blockID: $0.blockID) },
-                                 current: OutlineSheet.currentHeading(in: rendered.headings.map(\.blockID), top: topBlockID)) { blockID in
+                                 current: OutlineSheet.currentHeading(in: rendered.headings.map(\.blockID), top: position)) { blockID in
                         showingOutline = false
-                        scrollTarget = blockID
+                        scroll(to: blockID)
                     }
                 }
             }
@@ -53,13 +59,22 @@ struct NoteView: View {
                 guard let session = library.session else { return }
                 let firstLoad = await model.load(path: path, session: session)
                 if firstLoad, let anchor, let target = model.blockID(for: anchor) {
-                    scrollTarget = target
+                    initialPosition = target
                     if anchor.text != nil { await flashHighlight(target) }
+                } else if firstLoad, anchor == nil, let saved = history.position(of: path),
+                          model.rendered?.blocks.contains(where: { $0.id == saved }) == true {
+                    // Continue where the reader left this note.
+                    initialPosition = saved
                 }
             }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
             .onDisappear { model.releaseIfLarge() }
+    }
+
+    private func scroll(to block: Int?) {
+        guard let block else { return }
+        withAnimation(.easeOut(duration: 0.2)) { position = block }
     }
 
     /// Marks the block a search result opened at, then fades the mark out.
@@ -80,55 +95,47 @@ struct NoteView: View {
             ContentUnavailableView("Couldn't Load Note", systemImage: "exclamationmark.triangle", description: Text(message))
         case .loaded:
             if let session = library.session, let detail = model.detail, let rendered = model.rendered {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 10) {
-                            NoteHeader(detail: detail, tags: model.tags, showsTitle: !Self.startsWithTitleHeading(rendered, title: detail.title))
-                                .id("header")
-                            ForEach(rendered.blocks) { block in
-                                BlockView(block: block)
-                                    .background {
-                                        if highlightedBlock == block.id {
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .fill(Color.yellow.opacity(0.3))
-                                                .padding(-4)
-                                                .transition(.opacity)
-                                        }
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        NoteHeader(detail: detail, tags: model.tags, showsTitle: !Self.startsWithTitleHeading(rendered, title: detail.title))
+                            .id("header")
+                        ForEach(rendered.blocks) { block in
+                            BlockView(block: block)
+                                .background {
+                                    if highlightedBlock == block.id {
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(Color.yellow.opacity(0.3))
+                                            .padding(-4)
+                                            .transition(.opacity)
                                     }
-                                    .id(block.id)
-                            }
-                            BacklinksSection(model: model, session: session)
-                                .id("backlinks")
-                                .padding(.top, 24)
+                                }
+                                .id(block.id)
                         }
-                        .scrollTargetLayout()
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .frame(maxWidth: 820, alignment: .leading)
-                        .frame(maxWidth: .infinity)
+                        BacklinksSection(model: model, session: session)
+                            .id("backlinks")
+                            .padding(.top, 24)
                     }
-                    // Only blocks have Int ids; the header and backlinks are ignored.
-                    .onScrollTargetVisibilityChange(idType: Int.self) { visible in
-                        topBlockID = visible.min()
-                    }
-                    .onChange(of: scrollTarget) { _, target in
-                        guard let target else { return }
-                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target, anchor: .top) }
-                        scrollTarget = nil
-                    }
-                    // A target set by the first load arrives with the scroll
-                    // view itself, before onChange observes anything.
-                    .onAppear {
-                        guard let target = scrollTarget else { return }
-                        Task {
-                            proxy.scrollTo(target, anchor: .top)
-                            scrollTarget = nil
-                        }
-                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: 820, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                }
+                // Only blocks have Int ids: with the header or backlinks at
+                // the top the position is nil.
+                .scrollPosition(id: $position, anchor: .top)
+                .onAppear {
+                    guard let target = initialPosition else { return }
+                    initialPosition = nil
+                    Task { position = target }
+                }
+                .onChange(of: position) {
+                    // nil (header or backlinks at the top) keeps the last block.
+                    if let position { history.setPosition(position, of: path) }
                 }
                 .environment(\.openURL, OpenURLAction { url in
                     LinkRouter(session: session, navigation: navigation, currentNoteID: detail.id) { anchor in
-                        scrollTarget = model.blockID(for: anchor)
+                        scroll(to: model.blockID(for: anchor))
                     }.handle(url)
                 })
             }
