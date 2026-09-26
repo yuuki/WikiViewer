@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var footprint: UInt64?
     @State private var confirmReset = false
     @State private var folderError: String?
+    @AppStorage(ObsidianLink.vaultNameKey) private var obsidianVaultName = ""
 
     var body: some View {
         Form {
@@ -70,6 +71,16 @@ struct SettingsView: View {
                 Text("Update Source")
             } footer: {
                 Text("A folder can be any location in the Files app, including an iCloud Drive folder the Mac mini publishes into. HTTP(S) points at a published directory (manifest.json, generations/, assets/).")
+            }
+
+            Section {
+                TextField("Vault name", text: $obsidianVaultName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            } header: {
+                Text("Obsidian")
+            } footer: {
+                Text("The vault's name as shown in Obsidian. Used by Edit in Obsidian and shared links.")
             }
 
             Section("Diagnostics") {

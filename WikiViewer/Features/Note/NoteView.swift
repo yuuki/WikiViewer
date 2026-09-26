@@ -37,13 +37,8 @@ struct NoteView: View {
             .toolbar {
                 // The outline is the main way around a long note, so it sits
                 // in the toolbar itself rather than behind an overflow menu.
-                if let detail = model.detail {
-                    ToolbarItem(placement: .secondaryAction) {
-                        let pinned = history.isPinned(path)
-                        Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
-                            history.togglePin(path: path, title: detail.title)
-                        }
-                    }
+                if let detail = model.detail, let session = library.session {
+                    NoteActionItems(detail: detail, session: session)
                 }
                 if let rendered = model.rendered, !rendered.headings.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
