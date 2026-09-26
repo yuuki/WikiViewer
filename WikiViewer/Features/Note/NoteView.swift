@@ -28,6 +28,7 @@ struct NoteView: View {
     @State private var showingOutline = false
     /// Block briefly highlighted after arriving at a search match.
     @State private var highlightedBlock: Int?
+    @State private var viewingAsset: AssetInfo?
 
     var body: some View {
         content
@@ -76,6 +77,7 @@ struct NoteView: View {
                     initialPosition = saved
                 }
             }
+            .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
             .onDisappear { model.releaseIfLarge() }
@@ -145,6 +147,8 @@ struct NoteView: View {
                 .environment(\.openURL, OpenURLAction { url in
                     LinkRouter(session: session, navigation: navigation, currentNoteID: detail.id) { anchor in
                         scroll(to: model.blockID(for: anchor))
+                    } openAsset: { id in
+                        Task { viewingAsset = try? await session.assets.asset(id: id) }
                     }.handle(url)
                 })
             }

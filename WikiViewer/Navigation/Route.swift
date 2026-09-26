@@ -56,6 +56,7 @@ struct LinkRouter {
     let navigation: NavigationModel
     let currentNoteID: Int64?
     let scrollTo: (Anchor) -> Void
+    let openAsset: (Int64) -> Void
 
     func handle(_ url: URL) -> OpenURLAction.Result {
         guard let action = WikiLinkAction(url: url) else { return .discarded }
@@ -80,7 +81,8 @@ struct LinkRouter {
         case .tag(let name):
             navigation.push(.tag(name: name))
             return .handled
-        case .asset:
+        case .asset(let id):
+            openAsset(id)
             return .handled
         }
     }

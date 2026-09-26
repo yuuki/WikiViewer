@@ -15,6 +15,7 @@ struct FolderView: View {
     @Environment(Library.self) private var library
     @State private var model = FolderModel()
     @State private var today: NoteSummary?
+    @State private var viewingAsset: AssetInfo?
     /// Refreshed every minute so the snapshot's age stays right.
     @State private var now = Date.now
 
@@ -66,8 +67,12 @@ struct FolderView: View {
             if !model.assets.isEmpty {
                 Section("Attachments") {
                     ForEach(model.assets) { asset in
-                        Label(asset.name, systemImage: asset.kind == .image ? "photo" : "doc")
-                            .foregroundStyle(.secondary)
+                        // Every attachment opens: images in the viewer,
+                        // others to say why there is no preview.
+                        Button { viewingAsset = asset } label: {
+                            AttachmentListRow(asset: asset)
+                        }
+                        .foregroundStyle(.primary)
                     }
                 }
             }
@@ -80,6 +85,7 @@ struct FolderView: View {
         }
         .navigationTitle(path.isEmpty ? "Vault" : VaultPath.fileName(of: path))
         .navigationBarTitleDisplayMode(path.isEmpty ? .large : .inline)
+        .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
         .navigationSubtitle(path.isEmpty ? freshness ?? Text(verbatim: "") : Text(verbatim: ""))
         .task(id: path.isEmpty) {
             guard path.isEmpty else { return }
@@ -99,6 +105,32 @@ struct FolderView: View {
 extension FolderView {
     private var freshness: Text? {
         SnapshotFreshness(status: library.updateStatus, published: library.session?.info.createdDate).text(now: now)
+    }
+}
+
+struct AttachmentListRow: View {
+    let asset: AssetInfo
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(asset.name)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: AttachmentRow.symbol(for: asset.kind))
+        }
+    }
+
+    private var detail: String {
+        let size = ByteCountFormatter.string(fromByteCount: asset.size, countStyle: .file)
+        if asset.kind == .image, asset.blobSHA256 == nil {
+            return String(localized: "\(size) · Not included in the snapshot")
+        }
+        if asset.kind != .image {
+            return String(localized: "\(size) · No preview")
+        }
+        return size
     }
 }
 
