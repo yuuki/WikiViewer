@@ -46,14 +46,15 @@ OPTIONS
                        "Archive/2024" a path from the vault root; * and ?
                        match within one path component; case-insensitive
   --exclude-file FILE  read --exclude patterns from FILE, one per line
-                       ("#" starts a comment); read at startup
+                       ("#" starts a comment); watch re-reads it on change
   --force              publish even if nothing changed
   --verbose            debug logging
 
 The vault is never written to; --state and --publish must be outside it.
 Hidden folders (.obsidian, .trash, …) and node_modules are always excluded.
-Changing the exclusions takes effect on the next build, or when watch restarts:
-newly excluded notes are removed from the next generation.
+Changing the exclusions takes effect on the next build; a running watch applies
+edits to --exclude-file without a restart. Newly excluded notes are removed
+from the next generation.
 """
 
 struct Arguments {
@@ -106,13 +107,9 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     config.fullIntegrityCheck = args.flags.contains("full-check")
     config.chunkSize = args.int("chunk-size", config.chunkSize)
     config.publishFullDatabase = !args.flags.contains("chunks-only")
-    var patterns = args.lists["exclude"] ?? []
+    config.excludePatterns = args.lists["exclude"] ?? []
     if args.options["exclude-file"] != nil {
-        patterns += try VaultFilter.patterns(fromFile: try args.url("exclude-file"))
-    }
-    config.filter = try VaultFilter(excluding: patterns)
-    if !config.filter.patterns.isEmpty {
-        Log.info("excluding folders: \(config.filter.patterns.joined(separator: ", "))")
+        config.excludeFile = try args.url("exclude-file")
     }
     return config
 }

@@ -19,10 +19,15 @@ public struct IndexerConfiguration: Sendable {
     public var imageMaxDimension: Int = 2048
     /// JPEG quality for derivatives (0…1).
     public var jpegQuality: Double = 0.82
-    /// Folders that are never indexed or published (see VaultFilter.swift).
-    /// Changing it takes effect on the next reconciliation: newly excluded
-    /// files are removed from the builder, newly included ones are indexed.
-    public var filter = VaultFilter()
+    /// Folders that are never indexed or published (see VaultFilter.swift):
+    /// these patterns plus those read from `excludeFile`. A change takes
+    /// effect on the next reconciliation: newly excluded files are removed
+    /// from the builder, newly included ones are indexed.
+    public var excludePatterns: [String] = []
+    /// Optional pattern file. `watch` re-reads it when it changes.
+    public var excludeFile: URL?
+    /// How often `watch` checks `excludeFile` for changes.
+    public var excludeFileCheckInterval: Duration = .seconds(1)
     /// Maximum note size that is indexed; larger files are skipped with a warning.
     public var maximumNoteBytes: Int = 8 * 1024 * 1024
     /// Maximum asset size that is hashed / processed.
@@ -67,6 +72,15 @@ public struct IndexerConfiguration: Sendable {
 
     public var builderDatabaseURL: URL { stateDirectory.appendingPathComponent("builder.sqlite") }
     public var assetStoreURL: URL { publishDirectory.appendingPathComponent("assets", isDirectory: true) }
+
+    /// The effective folder filter: `excludePatterns` + `excludeFile`.
+    public func makeFilter() throws -> VaultFilter {
+        try makeFilter(filePatterns: excludeFile.map(VaultFilter.patterns(fromFile:)) ?? [])
+    }
+
+    func makeFilter(filePatterns: [String]) throws -> VaultFilter {
+        try VaultFilter(excluding: excludePatterns + filePatterns)
+    }
 
     /// Parameters that affect derivative output; part of the derivative cache key.
     var derivativeParameters: String { "v1;max=\(imageMaxDimension);q=\(Int(jpegQuality * 100))" }

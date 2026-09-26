@@ -87,8 +87,11 @@ Patterns name folders only and match case-insensitively. Everything inside an
 excluded folder is excluded, including images. Links to excluded notes show as
 unresolved in the app.
 
-The patterns are read when the indexer starts. After editing them, run `build`
-again or restart `watch`. The next generation drops notes in newly excluded
+After editing the patterns, run `build` again. A running `watch` notices edits
+to the `--exclude-file` within about a second and applies them without a
+restart. If the edited file cannot be read or has an invalid pattern, it keeps
+the current exclusions and logs an error. Patterns given with `--exclude` can
+only change with a restart. The next generation drops notes in newly excluded
 folders and adds notes in folders that are no longer excluded. Older retained
 generations keep their content until they are garbage collected.
 

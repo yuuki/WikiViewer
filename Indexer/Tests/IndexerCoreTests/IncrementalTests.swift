@@ -74,7 +74,7 @@ import WikiShared
             #expect(try await count(indexer, "Projects/%") == 2)
         }
         var excluded = env.config
-        excluded.filter = try VaultFilter(excluding: ["projects", "/Archive"])
+        excluded.excludePatterns = ["projects", "/Archive"]
         do {
             let indexer = try Indexer(configuration: excluded)
             let stats = try await indexer.reconcile()
