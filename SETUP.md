@@ -229,16 +229,27 @@ To update later, copy the new files over the old ones (`cp -Rc "<PUBLISH>/"
 ### Signing
 
 The project has no development team, and its bundle identifier is the
-placeholder `com.example.WikiViewer`. The Simulator needs neither. For a device,
-set both in Xcode (**WikiViewer target → Signing & Capabilities**):
+placeholder `com.example.WikiViewer` (both in `Config/Signing.xcconfig`). The
+Simulator needs neither. For a device, set both in `Config/Local.xcconfig`,
+which is git-ignored:
 
-- **Team**: your team (`<TEAM_ID>`). A Personal Team is fine.
-- **Bundle Identifier**: `<BUNDLE_ID>`. It must be unique across all Apple
-  developer accounts, so do not use the placeholder. Use a reverse domain you
-  control.
+```sh
+cp Config/Local.xcconfig.example Config/Local.xcconfig
+```
 
-To keep these values out of your commits, pass them on the command line
-instead: `DEVELOPMENT_TEAM=<TEAM_ID> PRODUCT_BUNDLE_IDENTIFIER=<BUNDLE_ID>`.
+- `DEVELOPMENT_TEAM`: your team (`<TEAM_ID>`). A Personal Team is fine.
+- `PRODUCT_BUNDLE_IDENTIFIER`: `<BUNDLE_ID>`. It must be unique across all
+  Apple developer accounts, so do not use the placeholder. Use a reverse domain
+  you control.
+
+Do not pick the team in **Signing & Capabilities**. Xcode writes it into the
+project file, where it overrides `Local.xcconfig` and ends up in your commits.
+Values passed on the command line (`DEVELOPMENT_TEAM=<TEAM_ID>
+PRODUCT_BUNDLE_IDENTIFIER=<BUNDLE_ID>`) still override both files.
+
+Claude Code copies `Local.xcconfig` into new git worktrees (see
+`.worktreeinclude`). Worktrees created with plain `git worktree add` do not get
+it; copy it yourself.
 
 Then sign in to Xcode with that Apple account: **Xcode → Settings → Apple
 Accounts**.
