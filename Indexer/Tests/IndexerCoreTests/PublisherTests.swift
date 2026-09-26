@@ -17,7 +17,7 @@ import WikiShared
         let result = try #require(try await indexer.publish())
         let dir = env.config.publishDirectory
         let files = try FileManager.default.contentsOfDirectory(atPath: dir.appendingPathComponent("generations").path)
-        #expect(files.sorted() == ["viewer-000001.assets", "viewer-000001.chunks", "viewer-000001.sqlite"], "no -wal/-shm/-journal side files")
+        #expect(files.sorted() == ["viewer-000001.assets", "viewer-000001.chunks", "viewer-000001.packs", "viewer-000001.sqlite"], "no -wal/-shm/-journal side files")
         let report = try ArtifactVerifier.verify(publishDirectory: dir)
         #expect(report.manifest == result.manifest)
         #expect(report.tables["builder_state"] == nil)
@@ -144,6 +144,8 @@ import WikiShared
         var c = IndexerConfiguration(vault: URL(fileURLWithPath: "/v"), stateDirectory: URL(fileURLWithPath: "/s"), publishDirectory: URL(fileURLWithPath: "/p"))
         c.debounce = .seconds(1)
         c.quietPeriod = .seconds(10)
+        // The quick path has its own tests; these exercise the full period.
+        c.quickQuietPeriod = .seconds(10)
         c.maximumPublicationDelay = .seconds(60)
         c.reconciliationInterval = .seconds(600)
         c.unstableRetryDelay = .seconds(2)

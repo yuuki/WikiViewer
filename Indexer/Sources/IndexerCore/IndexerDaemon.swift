@@ -6,7 +6,9 @@
 //   - FSEvents paths are debounced, then processed in bounded batches;
 //   - files that changed while being read are retried with backoff;
 //   - a periodic metadata reconciliation catches anything the watcher missed;
-//   - publication waits for a quiet period, bounded by a maximum delay;
+//   - publication waits for a quiet period — a few seconds after a small
+//     edit, longer after a burst — bounded by a maximum delay; events for
+//     paths that are never indexed (e.g. `.obsidian/`) do not count;
 //   - edits to the exclude file change the folder filter without a restart.
 //
 
@@ -66,8 +68,16 @@ public final class IndexerDaemon: Sendable {
                     let now = ContinuousClock.now
                     switch event {
                     case .watch(.paths(let paths)):
-                        scheduler.recordEvent(paths: paths, at: now)
+                        // Obsidian rewrites `.obsidian/workspace.json` whenever
+                        // a note is opened or scrolled; such events must not
+                        // keep postponing publication.
+                        let filter = await indexer.filter
+                        let relevant = paths.filter { !Self.isIgnored($0, filter: filter) }
+                        if !relevant.isEmpty {
+                            scheduler.recordEvent(paths: relevant, at: now)
+                        }
                     case .watch(.rescan(let subpath)):
+                        if let subpath, Self.isIgnored(subpath, filter: await indexer.filter) { continue }
                         scheduler.requestRescan(subpath, at: now)
                     case .tick:
                         if excludeFile != nil {
@@ -80,6 +90,12 @@ public final class IndexerDaemon: Sendable {
             try await group.next()
             group.cancelAll()
         }
+    }
+
+    /// Paths the indexer never reads: hidden files and anything inside a
+    /// hidden or excluded folder (the same rule as VaultFiles).
+    static func isIgnored(_ path: String, filter: VaultFilter) -> Bool {
+        VaultPath.fileName(of: path).hasPrefix(".") || filter.excludesAncestor(of: path)
     }
 
     /// Applies a changed exclude file. An unreadable or invalid file keeps
@@ -152,6 +168,11 @@ public struct PublicationScheduler: Sendable {
     var rescanScopes: Set<String> = []
     var fullRescan = false
     var nextPublishAttempt: ContinuousClock.Instant?
+    /// Files processed with changes since the last publication, and whether
+    /// a change of unknown size (reconciliation) is pending: together they
+    /// decide between the quick and the full quiet period.
+    var changedFilesSincePublication = 0
+    var largeChangePending = false
 
     static let maxAttempts = 30
 
@@ -206,7 +227,10 @@ public struct PublicationScheduler: Sendable {
             let backoff = configuration.unstableRetryDelay * min(n, 30)
             pending[path] = now + backoff
         }
-        if changed { recordChange(at: now) }
+        if changed {
+            changedFilesSincePublication += paths.count - unstableSet.count
+            recordChange(at: now)
+        }
     }
 
     public func dueReconciliation(at now: ContinuousClock.Instant) -> (subpath: String?, Void)? {
@@ -227,22 +251,34 @@ public struct PublicationScheduler: Sendable {
             pending[path] = now + configuration.unstableRetryDelay
             attempts[path, default: 0] += 1
         }
-        if changed { recordChange(at: now) }
+        if changed {
+            largeChangePending = true
+            recordChange(at: now)
+        }
     }
 
-    /// Publish once the vault has been quiet for `quietPeriod`, or when the
-    /// oldest unpublished change is older than `maximumPublicationDelay`.
+    /// Publish once the vault has been quiet for the quiet period — the short
+    /// `quickQuietPeriod` after a small edit, `quietPeriod` after a burst or
+    /// a reconciliation — or when the oldest unpublished change is older than
+    /// `maximumPublicationDelay`.
     public func shouldPublish(at now: ContinuousClock.Instant, hasChanges: Bool) -> Bool {
         guard hasChanges, let first = firstUnpublishedChangeAt else { return false }
         if let next = nextPublishAttempt, now < next { return false }
         if now - first >= configuration.maximumPublicationDelay { return true }
         let lastActivity = [lastEventAt, lastChangeAt].compactMap { $0 }.max() ?? first
-        return now - lastActivity >= configuration.quietPeriod && pending.isEmpty
+        return now - lastActivity >= currentQuietPeriod && pending.isEmpty
+    }
+
+    var currentQuietPeriod: Duration {
+        let small = !largeChangePending && changedFilesSincePublication <= configuration.quickPublishMaxFiles
+        return small ? min(configuration.quickQuietPeriod, configuration.quietPeriod) : configuration.quietPeriod
     }
 
     public mutating func published() {
         firstUnpublishedChangeAt = nil
         nextPublishAttempt = nil
+        changedFilesSincePublication = 0
+        largeChangePending = false
     }
 
     public mutating func publicationFailed(at now: ContinuousClock.Instant) {

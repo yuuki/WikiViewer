@@ -20,6 +20,19 @@ public protocol ArtifactSource: Sendable {
     /// Copies a published file (`generations/…` or `assets/…`) to
     /// `destination`, failing if it is larger than `maximumBytes`.
     func download(_ relativePath: String, to destination: URL, maximumBytes: Int64) async throws
+    /// Returns the manifest once it may name a generation newer than
+    /// `generation`: immediately when the source can be notified (HTTP long
+    /// poll against `wikiindex serve`), otherwise after about `interval`.
+    /// Callers compare the generation themselves; nothing is guaranteed to
+    /// have changed.
+    func waitForManifest(after generation: Int64, interval: Duration) async throws -> Data
+}
+
+extension ArtifactSource {
+    public func waitForManifest(after generation: Int64, interval: Duration) async throws -> Data {
+        try await Task.sleep(for: interval)
+        return try await fetchManifest()
+    }
 }
 
 public enum TransportError: Error, Equatable, CustomStringConvertible {
@@ -49,6 +62,7 @@ enum PublishedPath {
             || relativePath.hasPrefix("generations/viewer-")
             || relativePath.hasPrefix("assets/")
             || relativePath.hasPrefix("chunks/")
+            || relativePath.hasPrefix("packs/")
         guard ok, !relativePath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) else {
             throw TransportError.unsafePath(relativePath)
         }
@@ -176,14 +190,29 @@ public struct LocalFolderArtifactSource: ArtifactSource {
 
 /// Fetches a publish directory served over HTTP(S), e.g. by
 /// `wikiindex serve` behind an HTTPS reverse proxy or a VPN.
+///
+/// Every request goes through one URLSession, so the many small requests of
+/// a chunk transfer reuse connections (and TLS sessions) instead of paying a
+/// handshake each; per-request size limits are enforced by a task delegate.
 public struct HTTPArtifactSource: ArtifactSource {
     public let baseURL: URL
     let session: URLSession
 
-    public init(baseURL: URL, session: URLSession = .shared) {
+    public init(baseURL: URL, session: URLSession = HTTPArtifactSource.sharedSession) {
         self.baseURL = baseURL
         self.session = session
     }
+
+    public static let sharedSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.httpMaximumConnectionsPerHost = ArtifactUpdater.chunkFetchConcurrency
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: configuration)
+    }()
+
+    /// How long the server may hold a long-poll request.
+    static let longPollSeconds = 25
 
     public var displayName: String { baseURL.host() ?? baseURL.absoluteString }
     public var identifier: String { "http:" + baseURL.absoluteString }
@@ -193,9 +222,16 @@ public struct HTTPArtifactSource: ArtifactSource {
     }
 
     public func fetchManifest() async throws -> Data {
-        var request = URLRequest(url: url(for: "manifest.json"))
+        try await fetchManifest(query: nil, timeout: 30).data
+    }
+
+    func fetchManifest(query: [URLQueryItem]?, timeout: TimeInterval) async throws -> (data: Data, longPoll: Bool) {
+        var components = URLComponents(url: url(for: "manifest.json"), resolvingAgainstBaseURL: false)
+        components?.queryItems = query
+        guard let manifestURL = components?.url else { throw TransportError.unavailable("bad URL") }
+        var request = URLRequest(url: manifestURL)
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = 30
+        request.timeoutInterval = timeout
         let (bytes, response) = try await session.bytes(for: request)
         try Self.check(response, "manifest.json")
         var data = Data()
@@ -203,14 +239,31 @@ public struct HTTPArtifactSource: ArtifactSource {
             data.append(byte)
             if data.count > ArtifactManifest.maximumEncodedSize { throw TransportError.tooLarge("manifest.json") }
         }
-        return data
+        let longPoll = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "X-WikiViewer-Long-Poll") == "1"
+        return (data, longPoll)
+    }
+
+    /// Long poll: the server answers when a newer generation is published.
+    /// A server that ignores the query (any static host) answers at once
+    /// without the long-poll header; the call then waits out `interval`
+    /// and fetches the manifest again, i.e. degrades to polling.
+    public func waitForManifest(after generation: Int64, interval: Duration) async throws -> Data {
+        let start = ContinuousClock.now
+        let query = [URLQueryItem(name: "wait", value: String(generation)), URLQueryItem(name: "timeout", value: String(Self.longPollSeconds))]
+        let (data, longPoll) = try await fetchManifest(query: query, timeout: TimeInterval(Self.longPollSeconds + 15))
+        if longPoll || (try? ArtifactManifest.decode(data).generation).map({ $0 > generation }) == true {
+            return data
+        }
+        let remaining = interval - (ContinuousClock.now - start)
+        if remaining > .zero { try await Task.sleep(for: remaining) }
+        return try await fetchManifest()
     }
 
     public func download(_ relativePath: String, to destination: URL, maximumBytes: Int64) async throws {
         try PublishedPath.validate(relativePath)
         var request = URLRequest(url: url(for: relativePath))
         request.timeoutInterval = 120
-        try await BoundedDownload.run(request: request, configuration: session.configuration, destination: destination, maximumBytes: maximumBytes, name: relativePath)
+        try await BoundedDownload.run(request: request, session: session, destination: destination, maximumBytes: maximumBytes, name: relativePath)
     }
 
     static func check(_ response: URLResponse, _ path: String) throws {
@@ -224,12 +277,16 @@ import Synchronization
 
 /// Streams an HTTP response body to a file, cancelling as soon as it exceeds
 /// `maximumBytes`, so a misbehaving server cannot fill the device's disk.
+/// Installed as the task's own delegate, so it works on a shared session.
 final class BoundedDownload: NSObject, URLSessionDataDelegate, Sendable {
     struct State {
         var handle: FileHandle?
         var total: Int64 = 0
         var failure: (any Error)?
         var continuation: CheckedContinuation<Void, any Error>?
+        /// Completion that arrived before the continuation was installed
+        /// (a task cancelled before it was resumed can complete at once).
+        var completed: Result<Void, any Error>?
     }
 
     let state = Mutex(State())
@@ -243,18 +300,26 @@ final class BoundedDownload: NSObject, URLSessionDataDelegate, Sendable {
         self.name = name
     }
 
-    static func run(request: URLRequest, configuration: URLSessionConfiguration, destination: URL, maximumBytes: Int64, name: String) async throws {
+    static func run(request: URLRequest, session: URLSession, destination: URL, maximumBytes: Int64, name: String) async throws {
+        try Task.checkCancellation()
         FileManager.default.createFile(atPath: destination.path, contents: nil)
         let handle = try FileHandle(forWritingTo: destination)
         let delegate = BoundedDownload(maximumBytes: maximumBytes, destination: destination, name: name)
         delegate.state.withLock { $0.handle = handle }
-        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-        defer { session.finishTasksAndInvalidate() }
         let task = session.dataTask(with: request)
+        task.delegate = delegate
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                delegate.state.withLock { $0.continuation = continuation }
-                task.resume()
+                let early = delegate.state.withLock { state -> Result<Void, any Error>? in
+                    if let done = state.completed { return done }
+                    state.continuation = continuation
+                    return nil
+                }
+                if let early {
+                    continuation.resume(with: early)
+                } else {
+                    task.resume()
+                }
             }
         } onCancel: {
             task.cancel()
@@ -292,19 +357,17 @@ final class BoundedDownload: NSObject, URLSessionDataDelegate, Sendable {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
-        let (continuation, failure) = state.withLock { state -> (CheckedContinuation<Void, any Error>?, (any Error)?) in
+        let (continuation, result) = state.withLock { state -> (CheckedContinuation<Void, any Error>?, Result<Void, any Error>) in
             try? state.handle?.synchronize()
             try? state.handle?.close()
             state.handle = nil
+            let result: Result<Void, any Error> = if let failure = state.failure ?? error { .failure(failure) } else { .success(()) }
             let c = state.continuation
             state.continuation = nil
-            return (c, state.failure ?? error)
+            if c == nil { state.completed = result }
+            return (c, result)
         }
-        if let failure {
-            continuation?.resume(throwing: failure)
-        } else {
-            continuation?.resume()
-        }
+        continuation?.resume(with: result)
     }
 }
 

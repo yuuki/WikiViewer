@@ -45,10 +45,12 @@ final class CountingSource: ArtifactSource, @unchecked Sendable {
         return p
     }
 
-    /// Enough notes that the database spans many chunks.
+    /// Enough notes that the database spans many chunks. Page packs are off:
+    /// these tests cover the chunk transport (PackTransportTests covers packs).
     func bigEnv() async throws -> (Env, Indexer) {
         var env = try Env(copyFixture: true)
         env.config.chunkSize = 16 * 1024
+        env.config.publishPacks = false
         for i in 0..<300 {
             try env.write("Bulk/Note \(i).md", "# Note \(i)\n\n" + String(repeating: "Body text for note \(i) with [[Home]] and 日本語の本文。\n", count: 20))
         }
@@ -146,6 +148,6 @@ final class CountingSource: ArtifactSource, @unchecked Sendable {
         let stored = try FileManager.default.subpathsOfDirectory(atPath: env.config.publishDirectory.appendingPathComponent("chunks").path).filter { $0.count > 3 }.count
         #expect(stored == Set(list.digests).count, "only the retained generation's chunks remain")
         let gens = try FileManager.default.contentsOfDirectory(atPath: env.config.publishDirectory.appendingPathComponent("generations").path).sorted()
-        #expect(gens == ["viewer-000004.assets", "viewer-000004.chunks", "viewer-000004.sqlite"])
+        #expect(gens == ["viewer-000004.assets", "viewer-000004.chunks", "viewer-000004.packs", "viewer-000004.sqlite"])
     }
 }

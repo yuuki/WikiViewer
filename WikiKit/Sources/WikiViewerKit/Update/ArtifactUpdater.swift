@@ -4,6 +4,16 @@
 //
 //  transport → staging → size/SHA-256 → SQLite validation → generations/NNNNNN
 //
+//  Transports, cheapest first:
+//   1. delta pack: clone an installed generation (APFS copy-on-write) and
+//      write only the changed pages; verify only the chunks that changed;
+//   2. keyframe: nothing installed — fetch the compressed database of a
+//      recent generation, then only the chunks that changed since;
+//   3. chunks: reuse chunks of installed generations, fetch the rest;
+//   4. the whole database file.
+//  A pack path that fails for any reason other than cancellation falls back
+//  to chunks; every path ends with the same verification.
+//
 //  The updater prepares a generation completely before anyone may switch to
 //  it. Switching (and closing the old connection) is the Library's job, on
 //  the main actor, at a safe point. Any failure here leaves the current and
@@ -26,11 +36,17 @@ public struct TransferStats: Sendable, Equatable {
     public var reusedChunks = 0
     public var fetchedChunks = 0
     public var fetchedBytes: Int64 = 0
+    /// Pack parts downloaded (delta or keyframe).
+    public var fetchedPacks = 0
+    /// Why a pack path was abandoned for chunks, if it was.
+    public var packFallback: String?
 
     public enum Mode: Sendable, Equatable {
         case alreadyInstalled
         case fullDownload
         case chunks
+        case deltaPack
+        case keyframe
     }
 }
 
@@ -79,7 +95,7 @@ public actor ArtifactUpdater {
         }
         let manifest: ArtifactManifest
         do {
-            manifest = try ArtifactManifest.decode(data)
+            manifest = try ArtifactManifest.decode(data).withoutInvalidPacks()
         } catch {
             throw UpdateError.malformedManifest(String(describing: error))
         }
@@ -102,18 +118,12 @@ public actor ArtifactUpdater {
     /// Downloads and validates a generation into generations/NNNNNN.
     /// Does not switch to it.
     public func prepare(_ manifest: ArtifactManifest, source: any ArtifactSource) async throws -> PreparedGeneration {
+        let manifest = manifest.withoutInvalidPacks()
         try manifest.validate()
         // Already installed and validated by an earlier (interrupted) run.
         let expected = InstalledGeneration(manifest: manifest)
         if await store.installedGenerations().contains(expected), await store.manifest(for: expected) == manifest {
             return PreparedGeneration(manifest: manifest, installed: expected, databaseURL: store.databaseURL(for: expected))
-        }
-        // Staging may hold fetched chunks plus the assembled file: require
-        // twice the database size plus a margin before downloading anything.
-        let needed = manifest.database.byteSize * 2 + 64 * 1024 * 1024
-        if let available = try? store.root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage,
-           available < needed {
-            throw UpdateError.insufficientSpace(needed: needed, available: available)
         }
         let staging = try await store.makeStagingDirectory()
         var installed = false
@@ -144,36 +154,77 @@ public actor ArtifactUpdater {
             guard chunkList?.chunkSize == entry.chunkSize, chunkList?.digests.count == entry.count else {
                 throw UpdateError.invalidChunkList("does not match manifest")
             }
+            try? FileManager.default.removeItem(at: listURL)
         }
 
+        // A file already proven to match `chunkList` chunk by chunk needs no
+        // second whole-file pass.
+        var verifiedByChunks = false
+        var assembled = false
         let local = await localChunkIndex()
-        if let chunkList, !local.isEmpty {
-            // Delta: reuse chunks of the generations already on the device.
-            transfer = try await assemble(chunkList, local: local, source: source, into: stagedDB, staging: staging)
-        } else {
+        if let packs = manifest.packs {
             do {
-                try await source.download(manifest.database.path, to: stagedDB, maximumBytes: manifest.database.byteSize)
-                transfer.mode = .fullDownload
-                transfer.fetchedBytes = manifest.database.byteSize
-            } catch TransportError.notFound(_) where chunkList != nil {
-                // Chunks-only publication: assemble from chunks alone.
-                transfer = try await assemble(chunkList!, local: [:], source: source, into: stagedDB, staging: staging)
+                if let delta = await applicableDelta(packs) {
+                    let result = try await applyDelta(delta, packs: packs, manifest: manifest, chunkList: chunkList, source: source, into: stagedDB, staging: staging)
+                    transfer = result.stats
+                    verifiedByChunks = result.verified
+                    assembled = true
+                } else if local.isEmpty, let keyframe = packs.keyframe, chunkList != nil || keyframe.sha256 == manifest.database.sha256 {
+                    transfer = try await assembleFromKeyframe(keyframe, packs: packs, manifest: manifest, chunkList: chunkList, source: source, into: stagedDB, staging: staging)
+                    assembled = true
+                }
+            } catch where error is CancellationError || Task.isCancelled {
+                // Transport errors wrap cancellation; never fall back then.
+                throw CancellationError()
             } catch {
-                throw UpdateError.transport(error)
+                // Packs are an optimization: fall back to chunks.
+                transfer.packFallback = String(describing: error)
+                try? FileManager.default.removeItem(at: stagedDB)
+                Self.removePackWorkFiles(in: staging)
             }
         }
-        try Task.checkCancellation()
-
-        // 1. Size and SHA-256 over the whole assembled file (streamed). The
-        //    same pass records this generation's chunk list for future deltas.
-        let chunkSize = chunkList?.chunkSize ?? ChunkList.defaultChunkSize
-        let (computedList, sha) = try ChunkList.make(fileAt: stagedDB, chunkSize: chunkSize)
-        let size = computedList.totalBytes
-        guard size == manifest.database.byteSize else {
-            throw UpdateError.sizeMismatch(expected: manifest.database.byteSize, actual: size)
+        if !assembled {
+            // Staging may hold fetched chunks plus the assembled file.
+            try requireSpace(manifest.database.byteSize * 2)
+            let fallback = transfer.packFallback
+            if let chunkList, !local.isEmpty {
+                // Delta: reuse chunks of the generations already on the device.
+                transfer = try await assemble(chunkList, local: local, source: source, into: stagedDB, staging: staging)
+            } else {
+                do {
+                    try await source.download(manifest.database.path, to: stagedDB, maximumBytes: manifest.database.byteSize)
+                    transfer.mode = .fullDownload
+                    transfer.fetchedBytes = manifest.database.byteSize
+                } catch TransportError.notFound(_) where chunkList != nil {
+                    // Chunks-only publication: assemble from chunks alone.
+                    transfer = try await assemble(chunkList!, local: [:], source: source, into: stagedDB, staging: staging)
+                } catch {
+                    throw UpdateError.transport(error)
+                }
+            }
+            transfer.packFallback = fallback
         }
-        guard sha == manifest.database.sha256 else { throw UpdateError.hashMismatch }
-        try computedList.encoded().write(to: staging.appendingPathComponent("viewer.chunks"))
+        try Task.checkCancellation()
+        // The staging directory becomes the generation directory: nothing but
+        // the database, its chunk list and the manifest may remain in it.
+        Self.removePackWorkFiles(in: staging)
+
+        // 1. Size and SHA-256 over the whole assembled file (streamed), which
+        //    also records this generation's chunk list for future deltas —
+        //    unless the pack path already verified every chunk against the
+        //    manifest's chunk list.
+        if verifiedByChunks, let chunkList {
+            try chunkList.encoded().write(to: staging.appendingPathComponent("viewer.chunks"))
+        } else {
+            let chunkSize = chunkList?.chunkSize ?? ChunkList.defaultChunkSize
+            let (computedList, sha) = try ChunkList.make(fileAt: stagedDB, chunkSize: chunkSize)
+            let size = computedList.totalBytes
+            guard size == manifest.database.byteSize else {
+                throw UpdateError.sizeMismatch(expected: manifest.database.byteSize, actual: size)
+            }
+            guard sha == manifest.database.sha256 else { throw UpdateError.hashMismatch }
+            try computedList.encoded().write(to: staging.appendingPathComponent("viewer.chunks"))
+        }
 
         // 2. SQLite validation of the untrusted file (read-only, not immutable).
         do {
@@ -192,6 +243,201 @@ public actor ArtifactUpdater {
         let installedGeneration = try await store.install(stagingDirectory: staging, manifest: manifest)
         installed = true
         return PreparedGeneration(manifest: manifest, installed: installedGeneration, databaseURL: store.databaseURL(for: installedGeneration), transfer: transfer)
+    }
+
+    static let spaceMargin: Int64 = 64 * 1024 * 1024
+
+    /// Fails before downloading anything if the volume lacks `bytes` plus a margin.
+    func requireSpace(_ bytes: Int64) throws {
+        let needed = bytes + Self.spaceMargin
+        if let available = try? store.root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage,
+           available < needed {
+            throw UpdateError.insufficientSpace(needed: needed, available: available)
+        }
+    }
+
+    // MARK: Packs
+
+    struct DeltaChoice {
+        var delta: ArtifactManifest.PackIndex.Delta
+        var base: InstalledGeneration
+    }
+
+    /// The smallest delta whose base is an installed generation.
+    func applicableDelta(_ packs: ArtifactManifest.PackIndex) async -> DeltaChoice? {
+        var best: DeltaChoice?
+        for generation in [await store.currentGeneration(), await store.previousGeneration()].compactMap({ $0 }) {
+            guard let installed = await store.manifest(for: generation),
+                  let delta = packs.deltas.first(where: { $0.baseSHA256 == installed.database.sha256 && $0.baseByteSize == installed.database.byteSize }),
+                  FileManager.default.fileExists(atPath: store.databaseURL(for: generation).path) else { continue }
+            if best == nil || delta.byteSize < best!.delta.byteSize {
+                best = DeltaChoice(delta: delta, base: generation)
+            }
+        }
+        return best
+    }
+
+    static let packFetchConcurrency = 4
+
+    static func removePackWorkFiles(in staging: URL) {
+        for name in ["packs", "keyframe.sqlite"] {
+            try? FileManager.default.removeItem(at: staging.appendingPathComponent(name))
+        }
+    }
+
+    /// Downloads pack parts into `staging/packs/` (bounded concurrency) and
+    /// verifies each one's size and SHA-256. Returns the local files in order.
+    func fetchParts(_ parts: [ArtifactManifest.PackIndex.Part], source: any ArtifactSource, staging: URL) async throws -> [URL] {
+        let dir = staging.appendingPathComponent("packs", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let urls = parts.map { dir.appendingPathComponent($0.sha256) }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            var next = 0
+            func enqueue(_ i: Int) {
+                let part = parts[i]
+                let target = urls[i]
+                group.addTask {
+                    do {
+                        try await source.download(part.path, to: target, maximumBytes: part.byteSize)
+                    } catch {
+                        throw UpdateError.transport(error)
+                    }
+                    let (sha, size) = try Digest.sha256Hex(fileAt: target)
+                    guard size == part.byteSize, sha == part.sha256 else { throw UpdateError.hashMismatch }
+                }
+            }
+            while next < min(Self.packFetchConcurrency, parts.count) {
+                enqueue(next)
+                next += 1
+            }
+            while try await group.next() != nil {
+                if next < parts.count {
+                    enqueue(next)
+                    next += 1
+                }
+            }
+        }
+        return urls
+    }
+
+    /// Clones the base generation's database (copy-on-write on APFS, so only
+    /// changed pages take space) and applies the delta's blocks in place.
+    /// Returns whether the result was verified chunk by chunk.
+    func applyDelta(_ choice: DeltaChoice, packs: ArtifactManifest.PackIndex, manifest: ArtifactManifest, chunkList: ChunkList?, source: any ArtifactSource, into destination: URL, staging: URL) async throws -> (stats: TransferStats, verified: Bool) {
+        let delta = choice.delta
+        try requireSpace(delta.byteSize + Int64(delta.blockCount) * Int64(packs.blockSize))
+        var stats = TransferStats(mode: .deltaPack)
+        let files = try await fetchParts(delta.parts, source: source, staging: staging)
+        stats.fetchedPacks = files.count
+        stats.fetchedBytes = delta.byteSize
+        try Task.checkCancellation()
+
+        let baseURL = store.databaseURL(for: choice.base)
+        try FileManager.default.copyItem(at: baseURL, to: destination)
+        let handle = try FileHandle(forUpdating: destination)
+        defer { try? handle.close() }
+        var touchedChunks = Set<Int>()
+        var blocks = 0
+        for file in files {
+            try Task.checkCancellation()
+            try autoreleasepool {
+                let part = try PagePack.decodePart(try Data(contentsOf: file), expectedBlockSize: packs.blockSize, expectedTargetSize: manifest.database.byteSize)
+                guard part.xor else { throw UpdateError.invalidChunkList("delta pack is not XOR") }
+                try part.forEachEntry { index, payload in
+                    let offset = UInt64(index) * UInt64(packs.blockSize)
+                    try handle.seek(toOffset: offset)
+                    let base = try handle.read(upToCount: payload.count) ?? Data()
+                    try handle.seek(toOffset: offset)
+                    try handle.write(contentsOf: PagePack.xor(payload, base: base))
+                    if let chunkList { touchedChunks.insert(Int(offset / UInt64(chunkList.chunkSize))) }
+                    blocks += 1
+                }
+            }
+            try? FileManager.default.removeItem(at: file)
+        }
+        guard blocks == delta.blockCount else { throw UpdateError.invalidChunkList("delta has \(blocks) of \(delta.blockCount) blocks") }
+        try handle.truncate(atOffset: UInt64(manifest.database.byteSize))
+        try handle.synchronize()
+
+        // Chunks not touched by the delta are the base's bytes, whose digests
+        // this device computed when it installed the base.
+        guard let chunkList,
+              let baseData = try? Data(contentsOf: store.directory(for: choice.base).appendingPathComponent("viewer.chunks")),
+              let baseList = try? ChunkList.decode(baseData, expectedTotalBytes: delta.baseByteSize),
+              baseList.chunkSize == chunkList.chunkSize else {
+            return (stats, false)
+        }
+        try Self.verifyPatched(destination, target: chunkList, base: baseList, touched: touchedChunks, handle: handle)
+        stats.reusedChunks = chunkList.digests.count - touchedChunks.count
+        return (stats, true)
+    }
+
+    /// Proves that `file` matches `target` chunk for chunk: a chunk is hashed
+    /// unless the delta did not touch it and the base had the same digest at
+    /// the same position with the same length.
+    static func verifyPatched(_ file: URL, target: ChunkList, base: ChunkList, touched: Set<Int>, handle: FileHandle) throws {
+        let size = try handle.seekToEnd()
+        guard Int64(size) == target.totalBytes else {
+            throw UpdateError.sizeMismatch(expected: target.totalBytes, actual: Int64(size))
+        }
+        for (i, digest) in target.digests.enumerated() {
+            let unchanged = !touched.contains(i) && i < base.digests.count && base.digests[i] == digest && base.length(of: i) == target.length(of: i)
+            if unchanged { continue }
+            try autoreleasepool {
+                try handle.seek(toOffset: UInt64(i) * UInt64(target.chunkSize))
+                let data = try handle.read(upToCount: target.length(of: i)) ?? Data()
+                guard data.count == target.length(of: i), Digest.sha256Hex(data) == digest else { throw UpdateError.hashMismatch }
+            }
+        }
+    }
+
+    /// Nothing installed: rebuild the keyframe's database in staging, then
+    /// assemble the target from its chunks plus the chunks that changed
+    /// since the keyframe. Keyframe bytes are only a chunk source: each
+    /// reused chunk is matched by its own digest.
+    func assembleFromKeyframe(_ keyframe: ArtifactManifest.PackIndex.Keyframe, packs: ArtifactManifest.PackIndex, manifest: ArtifactManifest, chunkList: ChunkList?, source: any ArtifactSource, into destination: URL, staging: URL) async throws -> TransferStats {
+        let isTarget = keyframe.sha256 == manifest.database.sha256 && keyframe.byteSize == manifest.database.byteSize
+        let partBytes = keyframe.parts.reduce(0) { $0 + $1.byteSize }
+        try requireSpace(partBytes + keyframe.byteSize + (isTarget ? 0 : manifest.database.byteSize))
+        let files = try await fetchParts(keyframe.parts, source: source, staging: staging)
+        try Task.checkCancellation()
+
+        let rebuilt = isTarget ? destination : staging.appendingPathComponent("keyframe.sqlite")
+        FileManager.default.createFile(atPath: rebuilt.path, contents: nil)
+        do {
+            let handle = try FileHandle(forWritingTo: rebuilt)
+            defer { try? handle.close() }
+            try handle.truncate(atOffset: UInt64(keyframe.byteSize))
+            for file in files {
+                try Task.checkCancellation()
+                try autoreleasepool {
+                    let part = try PagePack.decodePart(try Data(contentsOf: file), expectedBlockSize: packs.blockSize, expectedTargetSize: keyframe.byteSize)
+                    guard !part.xor else { throw UpdateError.invalidChunkList("keyframe pack is XOR") }
+                    try part.forEachEntry { index, payload in
+                        try handle.seek(toOffset: UInt64(index) * UInt64(packs.blockSize))
+                        try handle.write(contentsOf: payload)
+                    }
+                }
+                try? FileManager.default.removeItem(at: file)
+            }
+            try handle.synchronize()
+        }
+        if isTarget {
+            // Verified as a whole file by the caller.
+            return TransferStats(mode: .keyframe, fetchedBytes: partBytes, fetchedPacks: files.count)
+        }
+        guard let chunkList else { throw UpdateError.invalidChunkList("keyframe needs a chunk list") }
+        defer { try? FileManager.default.removeItem(at: rebuilt) }
+        let (keyframeList, _) = try ChunkList.make(fileAt: rebuilt, chunkSize: chunkList.chunkSize)
+        var local: [String: LocalChunk] = [:]
+        for (i, digest) in keyframeList.digests.enumerated() where local[digest] == nil {
+            local[digest] = LocalChunk(url: rebuilt, offset: UInt64(i) * UInt64(keyframeList.chunkSize), length: keyframeList.length(of: i))
+        }
+        var stats = try await assemble(chunkList, local: local, source: source, into: destination, staging: staging)
+        stats.mode = .keyframe
+        stats.fetchedPacks = files.count
+        stats.fetchedBytes += partBytes
+        return stats
     }
 
     struct LocalChunk {

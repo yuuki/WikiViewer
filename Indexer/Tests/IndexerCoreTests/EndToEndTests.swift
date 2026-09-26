@@ -59,8 +59,8 @@ import WikiViewerKit
         // Session 1 is still readable while it is referenced.
         #expect(try await session1.notes.noteID(path: "New Note.md") == nil)
 
-        // Manifest synced but neither the database nor its new chunks yet
-        // (partial sync): rejected, current kept.
+        // Manifest synced but neither the database, its new chunks nor its
+        // packs yet (partial sync): rejected, current kept.
         try env.write("Another.md", "# Another")
         _ = try await indexer.process(paths: ["Another.md"])
         let r3 = try #require(try await indexer.publish())
@@ -69,6 +69,9 @@ import WikiViewerKit
         let list2 = try ChunkList.make(fileAt: p2.databaseURL, chunkSize: list3.chunkSize).list
         let newChunk = try #require(Set(list3.digests).subtracting(list2.digests).first)
         try FileManager.default.removeItem(at: env.config.publishDirectory.appendingPathComponent(ChunkList.relativePath(for: newChunk)!))
+        for part in (r3.manifest.packs?.deltas.flatMap(\.parts) ?? []) + (r3.manifest.packs?.keyframe?.parts ?? []) {
+            try? FileManager.default.removeItem(at: env.config.publishDirectory.appendingPathComponent(part.path))
+        }
         guard case .available(let m3) = try await updater.check(source: source) else { Issue.record("no update 3"); return }
         await #expect(throws: UpdateError.self) { _ = try await updater.prepare(m3, source: source) }
         #expect(await store.currentGeneration() == p2.installed)

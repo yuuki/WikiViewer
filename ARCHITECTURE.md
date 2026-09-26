@@ -53,10 +53,10 @@ Obsidian Desktop ⇄ Obsidian Sync ⇄ vault on the Mac mini   (source of truth)
                           indexer  →  builder database (mutable, disposable)
                                      │ publish
                                      ▼
-              manifest + immutable database generations + images
-                                     │ iCloud Drive folder, or HTTPS
+     manifest + immutable database generations (chunks, delta packs) + images
+                                     │ iCloud Drive folder (polled), or HTTPS (long poll)
                                      ▼
-            iOS app: verify → install → switch atomically → query read-only
+     iOS app: patch/assemble → verify → install → switch atomically → query read-only
 ```
 
 ## Components and their responsibilities
@@ -72,8 +72,9 @@ needs a global view of the vault — above all link resolution.
 
 **Published artifacts.** A directory the phone can read through any file or
 HTTP transport: a manifest (the pointer to the current generation), immutable
-database generations, the chunks they are made of, and content-addressed
-image blobs shared by all generations.
+database generations, the chunks they are made of, page-level packs (deltas
+between generations and an occasional compressed keyframe), and
+content-addressed image blobs shared by all generations.
 
 **Shared code (`WikiKit/WikiShared`).** The pieces both sides must agree on
 exactly: the Obsidian syntax scanner, the database schema, the manifest and
@@ -201,6 +202,56 @@ and fetches only the rest; after a one-note edit that is about 1% of the file.
 The whole reassembled file is still verified against the manifest. For an
 iCloud Drive transport the whole file need not be published at all.
 
+### Page-level delta packs on top of chunks
+
+Chunks are the unit of storage and verification, but not a good unit of
+transfer. An edit dirties individual 8 KiB SQLite pages scattered through the
+file: measured at 20k notes, a one-note edit changes 31 pages (248 KiB) yet
+26 chunks (3.3 MiB), and every chunk is a separate file — one iCloud Drive
+item or one HTTP round trip each, which dominates small transfers.
+
+So every publication also writes, for each of the last three generations, a
+*delta pack*: only the pages that changed, XORed against the old page (so
+unchanged bytes become zeros) and LZFSE-compressed, in a single file (about
+40 KiB for that edit; large deltas are split into 8 MiB parts). A phone that has one of those generations installed
+clones it (APFS copy-on-write: no copy, no extra space for unchanged pages),
+writes the changed pages, and verifies only the chunks the pack touched —
+the others are byte-for-byte the verified base. A phone with nothing
+installed downloads a *keyframe*, the whole database compressed (about 3.5×
+smaller), plus the chunks that changed since it; the keyframe is republished
+only when more than 20% of the current chunks are missing from it, so
+iCloud Drive does not re-upload the database for every edit. When no pack
+applies, or a pack fails in any way, the phone falls back to chunks.
+
+Packs are only a way to move bytes: whatever path assembled the file, it
+must match the manifest's chunk list (or whole-file SHA-256) before SQLite
+even opens it. Cost: the Mac keeps private copies of the last three
+databases (to diff against) and computes a delta per base — proportional to
+the change, since only chunks whose digests differ are compared.
+
+### Following the source instead of polling rarely
+
+What makes an update feel slow is mostly waiting, not transfer: the phone
+used to check only when the app came to the foreground (at most every
+15 minutes), and the Mac waited for 20 s of quiet — which Obsidian's own
+writes to `.obsidian/` kept resetting. Now:
+
+- the indexer ignores events for paths it never indexes, and publishes a
+  small edit after 3 s of quiet (a burst or a reconciliation still waits
+  20 s, so an Obsidian Sync batch is not published half-way);
+- the open app follows the source: over HTTP it keeps a long-poll request
+  open that `wikiindex serve` answers the moment a generation is published;
+  a folder (iCloud Drive) or a plain static server is polled every 20–30 s;
+- a failed update — typically iCloud having delivered the manifest before the
+  files it names — is retried with backoff rather than on the next launch;
+- iOS background app refresh fetches updates while the app is closed, which
+  small deltas make feasible within the time iOS allows.
+
+Cost: more publications (each a few hundred KiB with packs) and a request
+held open while the app is in the foreground. iCloud Drive's own propagation
+delay remains outside the app's control; HTTP over a private network is the
+low-latency transport.
+
 ### Transport is replaceable; it is never runtime storage
 
 The update logic is written against a small "artifact source" abstraction.
@@ -273,8 +324,8 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
 - Remote images in notes are shown as links and not fetched (privacy, memory).
 - PDF, audio and video have no preview yet.
 - The manifest is hashed but not signed; see THREAT_MODEL.md.
-- The indexer's own memory grows with vault size (about 1 GB at 100k notes);
-  it runs on the Mac, where this is acceptable for now.
+- The indexer's own memory grows with vault size; it runs on the Mac, where
+  this is acceptable for now (numbers in BENCHMARKS.md).
 - Real-device memory has not been measured yet; the procedure is in
   BENCHMARKS.md.
 - The indexer should run in the logged-in user's session (next to Obsidian);
