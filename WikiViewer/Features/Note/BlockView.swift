@@ -127,21 +127,19 @@ struct CalloutView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Button {
-                if foldable { expanded.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: style.symbol)
-                    Text(title).fontWeight(.semibold)
-                    if foldable {
-                        Spacer()
-                        Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.caption)
-                    }
+            // Only a foldable callout is a button: a disabled one would be
+            // drawn dimmed and read as unavailable.
+            if foldable {
+                Button {
+                    expanded.toggle()
+                } label: {
+                    titleRow
                 }
-                .foregroundStyle(style.color)
+                .buttonStyle(.plain)
+                .accessibilityValue(expanded ? Text("Expanded") : Text("Collapsed"))
+            } else {
+                titleRow
             }
-            .buttonStyle(.plain)
-            .disabled(!foldable)
             if expanded {
                 ForEach(children) { BlockView(block: $0) }
             }
@@ -154,11 +152,32 @@ struct CalloutView: View {
         }
     }
 
+    private var titleRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: style.symbol)
+            Text(title).fontWeight(.semibold)
+            if foldable {
+                Spacer()
+                Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.caption)
+            }
+        }
+        .foregroundStyle(titleColor)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// The accent darkened (light mode) or lightened (dark mode) toward the
+    /// text color, so the title keeps enough contrast on the tinted
+    /// background. Yellow needs the strongest shift.
+    private var titleColor: Color {
+        style.color.mix(with: .primary, by: type == "question" || type == "help" || type == "faq" ? 0.5 : 0.3)
+    }
+
     var style: (symbol: String, color: Color) {
         switch type {
         case "tip", "hint", "important": ("flame", .teal)
         case "success", "check", "done": ("checkmark.circle", .green)
-        case "question", "help", "faq": ("questionmark.circle", .yellow)
+        case "question", "help", "faq": ("questionmark.circle", Color(.systemYellow))
         case "warning", "caution", "attention": ("exclamationmark.triangle", .orange)
         case "failure", "fail", "missing", "danger", "error", "bug": ("xmark.octagon", .red)
         case "example": ("list.bullet", .purple)
