@@ -211,10 +211,12 @@ struct NoteHeader: View {
                     PropertiesView(properties: detail.properties)
                         .padding(.top, 4)
                 } label: {
-                    Text("Properties (\(detail.properties.count))")
+                    // Primary color: a tinted secondary label reads as disabled.
+                    Label("Properties (\(detail.properties.count))", systemImage: "list.bullet.rectangle")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
+                .tint(.secondary)
             }
             Divider().padding(.top, 4)
         }

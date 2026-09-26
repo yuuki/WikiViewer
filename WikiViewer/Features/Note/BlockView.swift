@@ -17,7 +17,8 @@ struct BlockView: View {
         case .heading(let level, let text):
             Text(text)
                 .font(Self.headingFont(level))
-                .fontWeight(level <= 2 ? .bold : .semibold)
+                .fontWeight(level <= 2 ? .bold : level <= 4 ? .semibold : .medium)
+                .foregroundStyle(level >= 6 ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                 .padding(.top, level <= 2 ? 10 : 6)
                 .textSelection(.enabled)
                 .accessibilityAddTraits(.isHeader)
@@ -62,13 +63,14 @@ struct BlockView: View {
         }
     }
 
+    /// Never smaller than body text, so a deep heading still ranks above the
+    /// paragraph it introduces; H5 and H6 differ by weight and color only.
     static func headingFont(_ level: Int) -> Font {
         switch level {
         case 1: .title
         case 2: .title2
         case 3: .title3
-        case 4: .headline
-        default: .subheadline
+        default: .headline
         }
     }
 }
