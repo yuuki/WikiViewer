@@ -17,6 +17,8 @@ public struct ParsedNote: Sendable {
     public var body: String
     public var aliases: [String]
     public var tags: [ParsedTag]
+    /// Body links in scanner order, then wikilinks found in frontmatter
+    /// string values (`line == -1`; their ranges are not body offsets).
     public var links: [ScannedLink]
     public var headings: [ScannedHeading]
     public var blockIDs: [ScannedBlockID]
@@ -29,6 +31,11 @@ public struct ParsedTag: Sendable, Equatable {
 }
 
 public enum NoteParser {
+    /// Bumped when parsing changes what is stored for an unchanged file, so
+    /// the builder re-parses every note once.
+    /// 2: wikilinks in frontmatter values are stored as links.
+    public static let version = 2
+
     public static func parse(path: String, text: String) -> ParsedNote {
         let split = Frontmatter.split(text)
         var properties: [(String, Node)] = []
@@ -106,7 +113,7 @@ public enum NoteParser {
             body: split.body,
             aliases: aliases,
             tags: tags,
-            links: scanned.links,
+            links: scanned.links + frontmatterLinks(properties.map(\.1)),
             headings: scanned.headings,
             blockIDs: blocks,
             frontmatterError: frontmatterError
@@ -118,6 +125,40 @@ public enum NoteParser {
     static let maximumFrontmatterJSONBytes = 256 * 1024
     /// Upper bound on tags/aliases taken from one property.
     static let maximumListItems = 1000
+
+    /// Upper bound on links taken from frontmatter.
+    static let maximumFrontmatterLinks = 1000
+
+    /// Wikilinks inside frontmatter string values, e.g. `up: "[[Home]]"` or
+    /// `related: ["[[A]]", "[[B]]"]`. Obsidian links only wikilinks here;
+    /// Markdown links in properties stay plain text.
+    static func frontmatterLinks(_ values: [Node]) -> [ScannedLink] {
+        var links: [ScannedLink] = []
+        let scanner = ObsidianScanner()
+        // YAML aliases can make the composed tree exponentially large; stop
+        // after as many nodes as the stored JSON could hold.
+        var budget = maximumFrontmatterJSONBytes
+        func visit(_ node: Node, depth: Int) {
+            guard depth < 32, budget > 0, links.count < maximumFrontmatterLinks else { return }
+            budget -= 1
+            switch node {
+            case .scalar(let scalar):
+                guard scalar.string.contains("[[") else { return }
+                for var link in scanner.scan(scalar.string).links where link.kind == .wiki {
+                    link.line = -1
+                    links.append(link)
+                }
+            case .sequence(let seq):
+                for item in seq { visit(item, depth: depth + 1) }
+            case .mapping(let mapping):
+                for (_, value) in mapping { visit(value, depth: depth + 1) }
+            case .alias:
+                break
+            }
+        }
+        for value in values { visit(value, depth: 0) }
+        return Array(links.prefix(maximumFrontmatterLinks))
+    }
 
     /// A YAML string or sequence → list of strings.
     static func stringList(_ node: Node, separators: Set<Character>) -> [String] {

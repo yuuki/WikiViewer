@@ -102,6 +102,19 @@ public final class BuilderDatabase: Sendable {
                 try db.execute(sql: "PRAGMA user_version = \(ViewerSchema.version)")
             }
         }
+        // Notes parsed by another parser version: forget their size, mtime
+        // and hash so the next reconciliation re-reads and re-parses them.
+        // Assets and their derivatives are kept.
+        try writer.write { db in
+            let key = "parser_version"
+            let stored = try String.fetchOne(db, sql: "SELECT value FROM builder_state WHERE key = ?", arguments: [key])
+            guard stored != String(NoteParser.version) else { return }
+            if !isNew {
+                Log.info("note parser changed (\(stored ?? "none") → \(NoteParser.version)); re-parsing all notes")
+                try db.execute(sql: "UPDATE notes SET size = -1, mtime_ns = -1, content_hash = ''")
+            }
+            try db.execute(sql: "INSERT OR REPLACE INTO builder_state(key, value) VALUES (?, ?)", arguments: [key, String(NoteParser.version)])
+        }
     }
 
     // MARK: State

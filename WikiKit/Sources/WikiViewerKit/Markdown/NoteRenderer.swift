@@ -138,6 +138,62 @@ public enum NoteRenderer {
     }
 }
 
+// MARK: - Properties
+
+extension NoteRenderer {
+    /// A frontmatter value as display text. Wikilinks inside string values
+    /// (`up: "[[Home]]"`) become links, resolved through the note's link
+    /// rows (the indexer stores them after the body links).
+    public static func propertyText(_ value: PropertyValue, noteID: Int64, links: [OutgoingLink]) -> AttributedString {
+        var byRaw: [String: OutgoingLink] = [:]
+        for link in links where link.kind == .wiki && byRaw[link.raw] == nil {
+            byRaw[link.raw] = link
+        }
+        return propertyText(value, noteID: noteID, byRaw: byRaw)
+    }
+
+    static func propertyText(_ value: PropertyValue, noteID: Int64, byRaw: [String: OutgoingLink]) -> AttributedString {
+        switch value {
+        case .text(let s):
+            return linkedText(s, noteID: noteID, byRaw: byRaw)
+        case .list(let items):
+            var out = AttributedString()
+            for (i, item) in items.enumerated() {
+                if i > 0 { out.append(AttributedString(", ")) }
+                out.append(propertyText(item, noteID: noteID, byRaw: byRaw))
+            }
+            return out
+        case .object(let props):
+            var out = AttributedString()
+            for (i, prop) in props.enumerated() {
+                if i > 0 { out.append(AttributedString(", ")) }
+                out.append(AttributedString(prop.key + ": "))
+                out.append(propertyText(prop.value, noteID: noteID, byRaw: byRaw))
+            }
+            return out
+        case .number, .bool, .null:
+            return AttributedString(value.displayText)
+        }
+    }
+
+    static func linkedText(_ s: String, noteID: Int64, byRaw: [String: OutgoingLink]) -> AttributedString {
+        guard s.contains("[[") else { return AttributedString(s) }
+        let bytes = Array(s.utf8)
+        var out = AttributedString()
+        var cursor = 0
+        for token in ObsidianScanner().scan(s).links where token.kind == .wiki {
+            guard token.range.lowerBound >= cursor, token.range.upperBound <= bytes.count else { continue }
+            out.append(AttributedString(String(decoding: bytes[cursor..<token.range.lowerBound], as: UTF8.self)))
+            var label = AttributedString(Preprocessor.wikiLabel(token.target))
+            label.link = Preprocessor.resolve(byRaw[token.raw], token: token, noteID: noteID).url
+            out.append(label)
+            cursor = token.range.upperBound
+        }
+        out.append(AttributedString(String(decoding: bytes[cursor...], as: UTF8.self)))
+        return out
+    }
+}
+
 // MARK: - Preprocessing
 
 struct Preprocessor {
