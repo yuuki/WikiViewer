@@ -29,9 +29,76 @@ import WikiShared
             #expect(try Int.fetchOne(db, sql: "SELECT count(*) FROM notes WHERE path LIKE '%node_modules%'") == 0)
             #expect(try Int.fetchOne(db, sql: "SELECT count(*) FROM folders WHERE path LIKE '%node_modules%'") == 0)
         }
-        #expect(VaultEntryKind.classify("node_modules/pkg/README.md") == nil)
-        #expect(VaultEntryKind.classify("a/node_modules/b.png") == nil)
-        #expect(VaultEntryKind.classify("node_modules.md") == .note, "only a directory of that name is ignored")
+        #expect(VaultEntryKind.classify("node_modules/pkg/README.md", filter: VaultFilter()) == nil)
+        #expect(VaultEntryKind.classify("a/node_modules/b.png", filter: VaultFilter()) == nil)
+        #expect(VaultEntryKind.classify("node_modules.md", filter: VaultFilter()) == .note, "only a directory of that name is ignored")
+    }
+
+    @Test func excludePatternsMatchFoldersOnly() throws {
+        let filter = try VaultFilter(excluding: ["Private", "/Archive/2024/", "Daily/*-draft", "日本語"])
+        #expect(filter.patterns == ["Private", "/Archive/2024", "/Daily/*-draft", "日本語"])
+        // Unanchored: a folder name at any depth, case-insensitive.
+        #expect(filter.excludesAncestor(of: "Private/a.md"))
+        #expect(filter.excludesAncestor(of: "Work/private/deep/b.png"))
+        #expect(!filter.excludesAncestor(of: "Private.md"), "folders only")
+        #expect(!filter.excludesAncestor(of: "PrivateNotes/a.md"))
+        // Anchored: a path from the vault root, and everything beneath it.
+        #expect(filter.excludesAncestor(of: "Archive/2024/Meeting Notes.md"))
+        #expect(filter.excludesAncestor(of: "Archive/2024/q1/x.md"))
+        #expect(!filter.excludesAncestor(of: "Archive/2025/x.md"))
+        #expect(!filter.excludesAncestor(of: "Old/Archive/2024/x.md"))
+        // Wildcards stay within one component.
+        #expect(filter.excludesAncestor(of: "Daily/2026-draft/x.md"))
+        #expect(!filter.excludesAncestor(of: "Daily/2026/x-draft/x.md"))
+        // Unicode: decomposed input still matches the NFC pattern.
+        #expect(filter.excludesAncestor(of: "日本語/東京メモ.md"))
+        let cafe = try VaultFilter(excluding: ["Cafe\u{301}"])
+        #expect(cafe.excludesAncestor(of: "Café/Ünïcode Nöte.md"))
+        // Built-ins are always excluded.
+        #expect(filter.excludesDirectory(".obsidian"))
+        #expect(VaultFilter().excludesPath("a/node_modules/pkg"))
+        // Patterns that cannot name a folder in the vault are refused.
+        for bad in ["", " ", "/", "../outside", "a/./b"] {
+            #expect(throws: VaultFilter.InvalidPattern.self) { try VaultFilter(excluding: [bad]) }
+        }
+    }
+
+    @Test func excludedFoldersAreDroppedAndRestoredWhenTheFilterChanges() async throws {
+        let env = try Env(copyFixture: true)
+        func count(_ indexer: Indexer, _ like: String) async throws -> Int {
+            try await indexer.query { db in try Int.fetchOne(db, sql: "SELECT count(*) FROM notes WHERE path LIKE ?", arguments: [like])! }
+        }
+        do {
+            let indexer = try Indexer(configuration: env.config)
+            _ = try await indexer.reconcile()
+            #expect(try await count(indexer, "Projects/%") == 2)
+        }
+        var excluded = env.config
+        excluded.excludePatterns = ["projects", "/Archive"]
+        do {
+            let indexer = try Indexer(configuration: excluded)
+            let stats = try await indexer.reconcile()
+            #expect(stats.index.deleted >= 3)
+            #expect(try await count(indexer, "Projects/%") == 0)
+            #expect(try await count(indexer, "Archive/%") == 0)
+            #expect(try await count(indexer, "Meetings/%") == 1, "other folders are untouched")
+            try await indexer.query { (db: Database) throws in
+                #expect(try Int.fetchOne(db, sql: "SELECT count(*) FROM folders WHERE path IN ('Projects', 'Archive', 'Archive/2024')") == 0)
+            }
+            // The FSEvents fast path ignores excluded folders too.
+            try env.write("Projects/Gamma.md", "# Gamma\n")
+            let fast = try await indexer.process(paths: ["Projects/Gamma.md", "Projects"])
+            #expect(fast.notesWritten == 0)
+            #expect(try await indexer.reconcile(subpath: "Projects").candidates == 0)
+            let published = try #require(try await indexer.publish())
+            #expect(published.manifest.noteCount == (try await count(indexer, "%")))
+        }
+        do {
+            let indexer = try Indexer(configuration: env.config)
+            _ = try await indexer.reconcile()
+            #expect(try await count(indexer, "Projects/%") == 3, "removing the exclusion indexes the folder again")
+            #expect(try await count(indexer, "Archive/%") == 1)
+        }
     }
 
     @Test func newNoteResolvesDanglingLinksWithoutReparsingSources() async throws {

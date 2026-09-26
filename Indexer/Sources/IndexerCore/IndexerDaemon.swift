@@ -6,7 +6,8 @@
 //   - FSEvents paths are debounced, then processed in bounded batches;
 //   - files that changed while being read are retried with backoff;
 //   - a periodic metadata reconciliation catches anything the watcher missed;
-//   - publication waits for a quiet period, bounded by a maximum delay.
+//   - publication waits for a quiet period, bounded by a maximum delay;
+//   - edits to the exclude file change the folder filter without a restart.
 //
 
 import Foundation
@@ -55,6 +56,7 @@ public final class IndexerDaemon: Sendable {
             }
             group.addTask { [indexer] in
                 var scheduler = PublicationScheduler(configuration: config, now: .now)
+                var excludeFile = config.excludeFile.map { ExcludeFileMonitor(url: $0, interval: config.excludeFileCheckInterval) }
                 let dirty = await indexer.hasUnpublishedChanges
                 if needsInitialPublication || dirty {
                     scheduler.recordChange(at: .now)
@@ -68,12 +70,37 @@ public final class IndexerDaemon: Sendable {
                     case .watch(.rescan(let subpath)):
                         scheduler.requestRescan(subpath, at: now)
                     case .tick:
+                        if excludeFile != nil {
+                            await Self.checkExcludeFile(indexer: indexer, monitor: &excludeFile!, scheduler: &scheduler, now: now)
+                        }
                         try await Self.handleTick(indexer: indexer, scheduler: &scheduler, now: now, onPublish: onPublish)
                     }
                 }
             }
             try await group.next()
             group.cancelAll()
+        }
+    }
+
+    /// Applies a changed exclude file. An unreadable or invalid file keeps
+    /// the current filter, so a half-saved edit never un-excludes a folder.
+    static func checkExcludeFile(indexer: Indexer, monitor: inout ExcludeFileMonitor, scheduler: inout PublicationScheduler, now: ContinuousClock.Instant) async {
+        let path = monitor.url.path
+        switch monitor.poll(at: now) {
+        case .unchanged:
+            return
+        case .failed(let error):
+            Log.error("\(path): \(error); keeping the current exclusions")
+        case .changed(let patterns):
+            do {
+                let filter = try indexer.configuration.makeFilter(filePatterns: patterns)
+                guard await indexer.updateFilter(filter) else { return }
+                let list = filter.patterns.isEmpty ? "nothing" : filter.patterns.joined(separator: ", ")
+                Log.info("\(path) changed; now excluding \(list); reconciling the vault")
+                scheduler.requestRescan(nil, at: now)
+            } catch {
+                Log.error("\(path): \(error); keeping the current exclusions")
+            }
         }
     }
 
@@ -220,5 +247,43 @@ public struct PublicationScheduler: Sendable {
 
     public mutating func publicationFailed(at now: ContinuousClock.Instant) {
         nextPublishAttempt = now + configuration.quietPeriod
+    }
+}
+
+/// Notices edits to the exclude file by polling its metadata; the file may
+/// live outside the vault, where the FSEvents stream does not reach. Editors
+/// that save by rename change the inode, which the signature includes.
+struct ExcludeFileMonitor: Sendable {
+    enum Poll: Equatable {
+        case unchanged
+        case changed([String])
+        case failed(String)
+    }
+
+    let url: URL
+    let interval: Duration
+    /// nil until the first poll, so a file edited between startup and the
+    /// first check is still read (the caller compares filters, not files).
+    private var signature: FileMeta??
+    private var lastCheck: ContinuousClock.Instant?
+
+    init(url: URL, interval: Duration) {
+        self.url = url
+        self.interval = interval
+    }
+
+    mutating func poll(at now: ContinuousClock.Instant) -> Poll {
+        if let lastCheck, now - lastCheck < interval { return .unchanged }
+        lastCheck = now
+        var st = stat()
+        let current: FileMeta? = stat(url.path, &st) == 0 ? FileMeta(st) : nil
+        guard current != signature else { return .unchanged }
+        signature = current
+        guard current != nil else { return .failed("cannot read the exclude file: \(String(cString: strerror(errno)))") }
+        do {
+            return .changed(try VaultFilter.patterns(fromFile: url))
+        } catch {
+            return .failed("\(error)")
+        }
     }
 }

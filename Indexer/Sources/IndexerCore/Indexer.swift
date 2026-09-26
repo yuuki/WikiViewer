@@ -60,6 +60,9 @@ public actor Indexer {
     public let publisher: Publisher
     let store: AssetStore
     private var generationForIndexing: Int64
+    /// Folders excluded from indexing. Starts from the configuration; the
+    /// daemon replaces it when the exclude file changes.
+    public private(set) var filter: VaultFilter
     /// True when builder.sqlite has changes not yet published.
     public private(set) var hasUnpublishedChanges: Bool
     /// Exclusive lock on the state directory (one indexer per builder).
@@ -85,6 +88,10 @@ public actor Indexer {
             dirty = true
         }
         let lastGeneration = Int64(try builder.state("last_generation") ?? "0") ?? 0
+        let filter = try configuration.makeFilter()
+        if !filter.patterns.isEmpty {
+            Log.info("excluding folders: \(filter.patterns.joined(separator: ", "))")
+        }
 
         self.configuration = configuration
         self.lock = lock
@@ -93,6 +100,16 @@ public actor Indexer {
         store = AssetStore(root: configuration.assetStoreURL)
         hasUnpublishedChanges = dirty
         generationForIndexing = lastGeneration + 1
+        self.filter = filter
+    }
+
+    /// Replaces the folder filter. Returns false if it is unchanged. The
+    /// caller must then reconcile the whole vault: that removes files in
+    /// newly excluded folders and indexes files that are no longer excluded.
+    public func updateFilter(_ newFilter: VaultFilter) -> Bool {
+        guard newFilter != filter else { return false }
+        filter = newFilter
+        return true
     }
 
     // MARK: Reconciliation (correctness path)
@@ -103,7 +120,7 @@ public actor Indexer {
     public func reconcile(subpath: String? = nil) async throws -> ReconcileStats {
         var stats = ReconcileStats()
         let walkStart = Clock.now()
-        let entries = try VaultWalker.walk(vault: configuration.vault, subpath: subpath)
+        let entries = try VaultWalker.walk(vault: configuration.vault, subpath: subpath, filter: filter)
         let stored = try builder.fileStates()
         stats.walkSeconds = Clock.seconds(since: walkStart)
         stats.filesSeen = entries.count
@@ -153,7 +170,7 @@ public actor Indexer {
             if seen.insert(path).inserted { expanded.append(path) }
             // … current contents if it is a directory now …
             if let info = VaultWalker.meta(vault: configuration.vault, relativePath: path), info.isDirectory {
-                for entry in try VaultWalker.walk(vault: configuration.vault, subpath: path) where seen.insert(entry.path).inserted {
+                for entry in try VaultWalker.walk(vault: configuration.vault, subpath: path, filter: filter) where seen.insert(entry.path).inserted {
                     expanded.append(entry.path)
                 }
             }
@@ -200,7 +217,7 @@ public actor Indexer {
         var notes: [String] = []
         var images: [String] = []
         for path in batch {
-            if case .asset(.image) = VaultEntryKind.classify(path) { images.append(path) } else { notes.append(path) }
+            if case .asset(.image) = VaultEntryKind.classify(path, filter: filter) { images.append(path) } else { notes.append(path) }
         }
         let notesOutcomes = await boundedMap(notes, limit: configuration.parseConcurrency)
         let imageOutcomes = await boundedMap(images, limit: configuration.imageConcurrency)
@@ -211,6 +228,7 @@ public actor Indexer {
     /// sync burst cannot fan out into thousands of simultaneous reads.
     private func boundedMap(_ paths: [String], limit: Int) async -> [Outcome] {
         let config = configuration
+        let filter = filter
         let store = store
         let builder = builder
         return await withTaskGroup(of: Outcome.self, returning: [Outcome].self) { group in
@@ -221,7 +239,7 @@ public actor Indexer {
             func enqueue(_ path: String) {
                 group.addTask {
                     autoreleasepool {
-                        Self.readOne(path: path, configuration: config, store: store, builder: builder)
+                        Self.readOne(path: path, configuration: config, filter: filter, store: store, builder: builder)
                     }
                 }
             }
@@ -240,8 +258,10 @@ public actor Indexer {
         }
     }
 
-    private static func readOne(path: String, configuration: IndexerConfiguration, store: AssetStore, builder: BuilderDatabase) -> Outcome {
-        guard let kind = VaultEntryKind.classify(path) else { return .deleted(path: path) }
+    private static func readOne(path: String, configuration: IndexerConfiguration, filter: VaultFilter, store: AssetStore, builder: BuilderDatabase) -> Outcome {
+        // Excluded paths count as deleted, so a newly excluded folder is
+        // removed from the builder on the next reconcile.
+        guard let kind = VaultEntryKind.classify(path, filter: filter) else { return .deleted(path: path) }
         switch kind {
         case .note:
             switch StableReader.read(vault: configuration.vault, relativePath: path, maximumBytes: configuration.maximumNoteBytes) {

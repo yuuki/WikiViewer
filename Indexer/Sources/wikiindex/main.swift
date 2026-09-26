@@ -41,15 +41,27 @@ OPTIONS
   --chunk-size BYTES   delta-transport chunk size (default 131072)
   --chunks-only        publish chunks + chunk list but not the whole database
                        file (recommended for iCloud Drive publish folders)
+  --exclude PATTERN    never index this folder; repeatable. "Private" matches
+                       a folder of that name at any depth, "/Private" or
+                       "Archive/2024" a path from the vault root; * and ?
+                       match within one path component; case-insensitive
+  --exclude-file FILE  read --exclude patterns from FILE, one per line
+                       ("#" starts a comment); watch re-reads it on change
   --force              publish even if nothing changed
   --verbose            debug logging
 
 The vault is never written to; --state and --publish must be outside it.
+Hidden folders (.obsidian, .trash, …) and node_modules are always excluded.
+Changing the exclusions takes effect on the next build; a running watch applies
+edits to --exclude-file without a restart. Newly excluded notes are removed
+from the next generation.
 """
 
 struct Arguments {
     var command: String
     var options: [String: String] = [:]
+    /// Every value of each option, in order, for repeatable options.
+    var lists: [String: [String]] = [:]
     var flags: Set<String> = []
 
     init(_ argv: [String]) {
@@ -61,6 +73,7 @@ struct Arguments {
                 let name = String(arg.dropFirst(2))
                 if i + 1 < argv.count, !argv[i + 1].hasPrefix("--") {
                     options[name] = argv[i + 1]
+                    lists[name, default: []].append(argv[i + 1])
                     i += 2
                     continue
                 }
@@ -94,6 +107,10 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     config.fullIntegrityCheck = args.flags.contains("full-check")
     config.chunkSize = args.int("chunk-size", config.chunkSize)
     config.publishFullDatabase = !args.flags.contains("chunks-only")
+    config.excludePatterns = args.lists["exclude"] ?? []
+    if args.options["exclude-file"] != nil {
+        config.excludeFile = try args.url("exclude-file")
+    }
     return config
 }
 

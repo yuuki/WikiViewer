@@ -41,6 +41,7 @@ published:
 - files reached through symbolic links, including a folder replaced by a link
   that points outside the vault;
 - hidden folders such as `.obsidian` and `.trash`, and `node_modules` folders.
+- folders the user excludes with `--exclude` / `--exclude-file`.
 
 **Deleted text surviving in published snapshots.** Text removed from a note,
 such as an accidentally pasted password, is erased from the builder. It is not

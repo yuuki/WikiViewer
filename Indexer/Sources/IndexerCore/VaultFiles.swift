@@ -39,23 +39,12 @@ public enum VaultEntryKind: Sendable, Equatable {
     case note
     case asset(ViewerSchema.AssetKind)
 
-    /// Directory names never indexed besides hidden ones: tool output that
-    /// can hold thousands of Markdown files which are not notes.
-    static let ignoredDirectoryNames: Set<String> = ["node_modules"]
-
-    /// True for a directory name the walker skips without descending.
-    public static func isIgnoredDirectory(_ name: some StringProtocol) -> Bool {
-        name.hasPrefix(".") || ignoredDirectoryNames.contains(String(name))
-    }
-
     /// Classifies a vault-relative path. Returns nil for files the viewer
-    /// ignores (dotfiles, `.obsidian/`, `node_modules/`, canvases, unknown types).
-    public static func classify(_ relativePath: String) -> VaultEntryKind? {
-        let components = relativePath.split(separator: "/")
-        if components.last?.hasPrefix(".") == true { return nil }
-        for component in components.dropLast() where isIgnoredDirectory(component) {
-            return nil
-        }
+    /// ignores: dotfiles, anything in a folder `filter` excludes (hidden
+    /// folders, `node_modules/`, user exclusions), canvases, unknown types.
+    public static func classify(_ relativePath: String, filter: VaultFilter) -> VaultEntryKind? {
+        if VaultPath.fileName(of: relativePath).hasPrefix(".") { return nil }
+        if filter.excludesAncestor(of: relativePath) { return nil }
         let ext = VaultPath.fileExtension(of: relativePath)
         if ext == "md" { return .note }
         if let kind = ViewerSchema.AssetKind.forExtension(ext) { return .asset(kind) }
@@ -72,10 +61,11 @@ public struct VaultEntry: Sendable, Equatable {
 public enum VaultWalker {
     /// Walks the vault (or a subfolder) collecting metadata of indexable
     /// files. Uses fts(3) with FTS_PHYSICAL so symlinks are never followed
-    /// (a symlink could otherwise point outside the vault), and skips hidden
-    /// directories such as `.obsidian` and `.trash`, and `node_modules`,
-    /// without descending.
-    public static func walk(vault: URL, subpath: String? = nil) throws -> [VaultEntry] {
+    /// (a symlink could otherwise point outside the vault), and skips folders
+    /// excluded by `filter` (`.obsidian`, `.trash`, `node_modules`, user
+    /// exclusions) without descending.
+    public static func walk(vault: URL, subpath: String? = nil, filter: VaultFilter) throws -> [VaultEntry] {
+        if let subpath, filter.excludesPath(subpath) { return [] }
         let rootPath = vault.canonicalPath
         let start = subpath.map { rootPath + "/" + $0 } ?? rootPath
         var entries: [VaultEntry] = []
@@ -90,17 +80,18 @@ public enum VaultWalker {
         while let entry = fts_read(fts) {
             let info = Int32(entry.pointee.fts_info)
             let fullPath = String(cString: entry.pointee.fts_path)
-            let name = VaultPath.fileName(of: fullPath)
             switch info {
             case FTS_D:
-                if entry.pointee.fts_level > 0, VaultEntryKind.isIgnoredDirectory(name) {
+                if entry.pointee.fts_level > 0, fullPath.utf8.count > prefixLength,
+                   let relative = VaultPath.normalizeRelative(String(decoding: fullPath.utf8.dropFirst(prefixLength), as: UTF8.self)),
+                   filter.excludesDirectory(relative) {
                     fts_set(fts, entry, FTS_SKIP)
                 }
             case FTS_F:
                 guard fullPath.utf8.count > prefixLength else { continue }
                 let rawRelative = String(decoding: fullPath.utf8.dropFirst(prefixLength), as: UTF8.self)
                 guard let relative = VaultPath.normalizeRelative(rawRelative),
-                      let kind = VaultEntryKind.classify(relative),
+                      let kind = VaultEntryKind.classify(relative, filter: filter),
                       let st = entry.pointee.fts_statp?.pointee else { continue }
                 entries.append(VaultEntry(path: relative, meta: FileMeta(st), kind: kind))
             case FTS_DNR, FTS_ERR, FTS_NS:
