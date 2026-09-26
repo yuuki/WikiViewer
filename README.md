@@ -15,6 +15,7 @@ of the vault.
 
 | Document | Contents |
 |---|---|
+| [SETUP.md](SETUP.md) | Step-by-step setup: indexing, iCloud Drive or Tailscale transport, Simulator and iPhone |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Design: goals, key decisions and their trade-offs, guarantees, limitations |
 | [THREAT_MODEL.md](THREAT_MODEL.md) | What is protected, from what, and how the design responds |
 | [BENCHMARKS.md](BENCHMARKS.md) | Measured numbers at 20k, 50k and 100k notes, and how to reproduce them |
