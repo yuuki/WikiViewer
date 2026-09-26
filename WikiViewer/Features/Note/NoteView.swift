@@ -17,25 +17,33 @@ struct NoteView: View {
     @Environment(NavigationModel.self) private var navigation
     @State private var model = NoteModel()
     @State private var scrollTarget: Int?
+    /// Top-level block at the top of the screen, for the outline.
+    @State private var topBlockID: Int?
+    @State private var showingOutline = false
 
     var body: some View {
         content
             .navigationTitle(model.detail?.title ?? VaultPath.basename(of: path))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // The outline is the main way around a long note, so it sits
+                // in the toolbar itself rather than behind an overflow menu.
                 if let rendered = model.rendered, !rendered.headings.isEmpty {
-                    ToolbarItem(placement: .secondaryAction) {
-                        Menu {
-                            ForEach(Array(rendered.headings.enumerated()), id: \.offset) { _, heading in
-                                Button {
-                                    scrollTarget = heading.blockID
-                                } label: {
-                                    Text(String(repeating: "  ", count: max(0, heading.level - 1)) + heading.text)
-                                }
-                            }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showingOutline = true
                         } label: {
                             Label("Outline", systemImage: "list.bullet.indent")
                         }
+                    }
+                }
+            }
+            .sheet(isPresented: $showingOutline) {
+                if let rendered = model.rendered {
+                    OutlineSheet(headings: rendered.headings.map { OutlineSheet.Heading(level: $0.level, text: $0.text, blockID: $0.blockID) },
+                                 current: OutlineSheet.currentHeading(in: rendered.headings.map(\.blockID), top: topBlockID)) { blockID in
+                        showingOutline = false
+                        scrollTarget = blockID
                     }
                 }
             }
@@ -74,10 +82,15 @@ struct NoteView: View {
                                 .id("backlinks")
                                 .padding(.top, 24)
                         }
+                        .scrollTargetLayout()
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .frame(maxWidth: 820, alignment: .leading)
                         .frame(maxWidth: .infinity)
+                    }
+                    // Only blocks have Int ids; the header and backlinks are ignored.
+                    .onScrollTargetVisibilityChange(idType: Int.self) { visible in
+                        topBlockID = visible.min()
                     }
                     .onChange(of: scrollTarget) { _, target in
                         guard let target else { return }
