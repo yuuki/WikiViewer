@@ -42,6 +42,9 @@ published:
   that points outside the vault;
 - hidden folders such as `.obsidian` and `.trash`, and `node_modules` folders.
 - folders the user excludes with `--exclude` / `--exclude-file`.
+- when the user selects folders with `--include` / `--include-file`, every
+  file outside them. An include file that lists no folder is refused, so
+  emptying it never publishes the whole vault.
 
 **Deleted text surviving in published snapshots.** Text removed from a note,
 such as an accidentally pasted password, is erased from the builder. It is not

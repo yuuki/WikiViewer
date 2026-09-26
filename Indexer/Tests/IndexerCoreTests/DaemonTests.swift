@@ -92,11 +92,55 @@ import WikiShared
         #expect(noteCounts.withLock { $0 } == [9, 10, 11])
     }
 
+    /// Editing the include file while watching changes the published
+    /// folders; emptying it keeps them instead of publishing the whole vault.
+    @Test(.timeLimit(.minutes(1))) func includeFileEditsApplyWithoutRestart() async throws {
+        var env = try Env(copyFixture: true)
+        let includeFile = env.tmp.sub("include.txt")
+        try Data("Projects\n".utf8).write(to: includeFile)
+        env.config.includeFile = includeFile
+        env.config.excludePatterns = ["Private"]
+        env.config.excludeFileCheckInterval = .milliseconds(100)
+        env.config.debounce = .milliseconds(200)
+        env.config.quietPeriod = .milliseconds(500)
+        env.config.maximumPublicationDelay = .seconds(10)
+        let daemon = try IndexerDaemon(configuration: env.config)
+        let noteCounts = Mutex<[Int]>([])
+        let task = Task {
+            try await daemon.run(tick: .milliseconds(100)) { result in
+                noteCounts.withLock { $0.append(result.manifest.noteCount) }
+            }
+        }
+        defer { task.cancel() }
+
+        func waitFor(_ condition: () -> Bool) async throws {
+            for _ in 0..<200 {
+                if condition() { return }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            Issue.record("timed out")
+        }
+
+        // Projects/ holds Alpha and Beta, Daily/ one note.
+        try await waitFor { noteCounts.withLock { $0 } == [2] }
+        try Data("Projects\nDaily\n".utf8).write(to: includeFile, options: .atomic)
+        try await waitFor { noteCounts.withLock { $0.count } == 2 }
+        #expect(noteCounts.withLock { $0 } == [2, 3])
+        #expect(await daemon.indexer.filter.includePatterns == ["/Projects", "/Daily"])
+        #expect(await daemon.indexer.filter.patterns == ["Private"], "--exclude still applies")
+
+        // An include file that lists no folder keeps the current filter.
+        try Data("# emptied\n".utf8).write(to: includeFile)
+        try await Task.sleep(for: .milliseconds(1500))
+        #expect(noteCounts.withLock { $0 } == [2, 3])
+        #expect(await daemon.indexer.filter.includePatterns == ["/Projects", "/Daily"])
+    }
+
     @Test func excludeFileMonitorReportsEachChangeOnce() throws {
         let tmp = TempDir()
         let url = tmp.sub("exclude.txt")
         try Data("A\n".utf8).write(to: url)
-        var monitor = ExcludeFileMonitor(url: url, interval: .seconds(1))
+        var monitor = PatternFileMonitor(url: url, interval: .seconds(1))
         var now = ContinuousClock.now
         #expect(monitor.poll(at: now) == .changed(["A"]), "the first poll always reads the file")
         now += .seconds(2)

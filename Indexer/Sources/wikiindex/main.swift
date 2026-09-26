@@ -56,14 +56,22 @@ OPTIONS
                        match within one path component; case-insensitive
   --exclude-file FILE  read --exclude patterns from FILE, one per line
                        ("#" starts a comment); watch re-reads it on change
+  --include PATTERN    index and publish only this folder (and everything
+                       inside it); repeatable. Always a path from the vault
+                       root: "Projects" or "Work/Notes"; * and ? as above.
+                       Without --include the whole vault is published
+  --include-file FILE  read --include patterns from FILE, one per line; it
+                       must list at least one folder; watch re-reads it
   --force              publish even if nothing changed
   --verbose            debug logging
 
 The vault is never written to; --state and --publish must be outside it.
 Hidden folders (.obsidian, .trash, …) and node_modules are always excluded.
-Changing the exclusions takes effect on the next build; a running watch applies
-edits to --exclude-file without a restart. Newly excluded notes are removed
-from the next generation.
+With --include, notes at the vault root are not published, and --exclude still
+applies inside the included folders.
+Changing the exclusions or inclusions takes effect on the next build; a running
+watch applies edits to --exclude-file and --include-file without a restart.
+Newly excluded notes are removed from the next generation.
 """
 
 struct Arguments {
@@ -123,6 +131,10 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     config.excludePatterns = args.lists["exclude"] ?? []
     if args.options["exclude-file"] != nil {
         config.excludeFile = try args.url("exclude-file")
+    }
+    config.includePatterns = args.lists["include"] ?? []
+    if args.options["include-file"] != nil {
+        config.includeFile = try args.url("include-file")
     }
     return config
 }

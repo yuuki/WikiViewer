@@ -9,7 +9,8 @@
 //   - publication waits for a quiet period — a few seconds after a small
 //     edit, longer after a burst — bounded by a maximum delay; events for
 //     paths that are never indexed (e.g. `.obsidian/`) do not count;
-//   - edits to the exclude file change the folder filter without a restart.
+//   - edits to the exclude and include files change the folder filter
+//     without a restart.
 //
 
 import Foundation
@@ -58,7 +59,7 @@ public final class IndexerDaemon: Sendable {
             }
             group.addTask { [indexer] in
                 var scheduler = PublicationScheduler(configuration: config, now: .now)
-                var excludeFile = config.excludeFile.map { ExcludeFileMonitor(url: $0, interval: config.excludeFileCheckInterval) }
+                var patternFiles = FilterFiles(configuration: config)
                 let dirty = await indexer.hasUnpublishedChanges
                 if needsInitialPublication || dirty {
                     scheduler.recordChange(at: .now)
@@ -80,8 +81,8 @@ public final class IndexerDaemon: Sendable {
                         if let subpath, Self.isIgnored(subpath, filter: await indexer.filter) { continue }
                         scheduler.requestRescan(subpath, at: now)
                     case .tick:
-                        if excludeFile != nil {
-                            await Self.checkExcludeFile(indexer: indexer, monitor: &excludeFile!, scheduler: &scheduler, now: now)
+                        if !patternFiles.isEmpty {
+                            await Self.checkFilterFiles(indexer: indexer, files: &patternFiles, scheduler: &scheduler, now: now)
                         }
                         try await Self.handleTick(indexer: indexer, scheduler: &scheduler, now: now, onPublish: onPublish)
                     }
@@ -93,30 +94,28 @@ public final class IndexerDaemon: Sendable {
     }
 
     /// Paths the indexer never reads: hidden files and anything inside a
-    /// hidden or excluded folder (the same rule as VaultFiles).
+    /// hidden or excluded folder or outside the included folders (the same
+    /// rule as VaultFiles). `path` may name a file or a folder.
     static func isIgnored(_ path: String, filter: VaultFilter) -> Bool {
-        VaultPath.fileName(of: path).hasPrefix(".") || filter.excludesAncestor(of: path)
+        VaultPath.fileName(of: path).hasPrefix(".") || filter.excludesAncestor(of: path) || !filter.mayInclude(path)
     }
 
-    /// Applies a changed exclude file. An unreadable or invalid file keeps
-    /// the current filter, so a half-saved edit never un-excludes a folder.
-    static func checkExcludeFile(indexer: Indexer, monitor: inout ExcludeFileMonitor, scheduler: inout PublicationScheduler, now: ContinuousClock.Instant) async {
-        let path = monitor.url.path
-        switch monitor.poll(at: now) {
-        case .unchanged:
-            return
-        case .failed(let error):
-            Log.error("\(path): \(error); keeping the current exclusions")
-        case .changed(let patterns):
-            do {
-                let filter = try indexer.configuration.makeFilter(filePatterns: patterns)
-                guard await indexer.updateFilter(filter) else { return }
-                let list = filter.patterns.isEmpty ? "nothing" : filter.patterns.joined(separator: ", ")
-                Log.info("\(path) changed; now excluding \(list); reconciling the vault")
-                scheduler.requestRescan(nil, at: now)
-            } catch {
-                Log.error("\(path): \(error); keeping the current exclusions")
-            }
+    /// Applies changed exclude / include files. An unreadable or invalid
+    /// file (or an include file that lists no folder) keeps the current
+    /// filter, so a half-saved edit never un-excludes a folder or publishes
+    /// the whole vault.
+    static func checkFilterFiles(indexer: Indexer, files: inout FilterFiles, scheduler: inout PublicationScheduler, now: ContinuousClock.Instant) async {
+        guard files.poll(at: now), let exclude = files.excludePatterns, let include = files.includePatterns else { return }
+        let paths = files.paths.joined(separator: ", ")
+        do {
+            let filter = try indexer.configuration.makeFilter(excludeFilePatterns: exclude, includeFilePatterns: include)
+            guard await indexer.updateFilter(filter) else { return }
+            let excluded = filter.patterns.isEmpty ? "nothing" : filter.patterns.joined(separator: ", ")
+            let included = filter.includePatterns.isEmpty ? "the whole vault" : filter.includePatterns.joined(separator: ", ")
+            Log.info("\(paths) changed; now publishing \(included), excluding \(excluded); reconciling the vault")
+            scheduler.requestRescan(nil, at: now)
+        } catch {
+            Log.error("\(paths): \(error); keeping the current folder filter")
         }
     }
 
@@ -286,10 +285,56 @@ public struct PublicationScheduler: Sendable {
     }
 }
 
-/// Notices edits to the exclude file by polling its metadata; the file may
+/// The daemon's view of the exclude and include files: the patterns last
+/// read from each, nil while a configured file has not been read.
+struct FilterFiles: Sendable {
+    private var exclude: PatternFileMonitor?
+    private var include: PatternFileMonitor?
+    /// [] for a file that is not configured.
+    private(set) var excludePatterns: [String]?
+    private(set) var includePatterns: [String]?
+
+    init(configuration: IndexerConfiguration) {
+        exclude = configuration.excludeFile.map { PatternFileMonitor(url: $0, interval: configuration.excludeFileCheckInterval) }
+        include = configuration.includeFile.map { PatternFileMonitor(url: $0, interval: configuration.excludeFileCheckInterval) }
+        excludePatterns = exclude == nil ? [] : nil
+        includePatterns = include == nil ? [] : nil
+    }
+
+    var isEmpty: Bool { exclude == nil && include == nil }
+    var paths: [String] { [exclude, include].compactMap { $0?.url.path } }
+
+    /// Polls both files. Returns true if a file was read with new contents.
+    mutating func poll(at now: ContinuousClock.Instant) -> Bool {
+        var changed = false
+        if exclude != nil, let patterns = Self.poll(&exclude!, at: now) {
+            excludePatterns = patterns
+            changed = true
+        }
+        if include != nil, let patterns = Self.poll(&include!, at: now) {
+            includePatterns = patterns
+            changed = true
+        }
+        return changed
+    }
+
+    private static func poll(_ monitor: inout PatternFileMonitor, at now: ContinuousClock.Instant) -> [String]? {
+        switch monitor.poll(at: now) {
+        case .unchanged:
+            return nil
+        case .failed(let error):
+            Log.error("\(monitor.url.path): \(error); keeping the current folder filter")
+            return nil
+        case .changed(let patterns):
+            return patterns
+        }
+    }
+}
+
+/// Notices edits to a pattern file by polling its metadata; the file may
 /// live outside the vault, where the FSEvents stream does not reach. Editors
 /// that save by rename change the inode, which the signature includes.
-struct ExcludeFileMonitor: Sendable {
+struct PatternFileMonitor: Sendable {
     enum Poll: Equatable {
         case unchanged
         case changed([String])
@@ -315,7 +360,7 @@ struct ExcludeFileMonitor: Sendable {
         let current: FileMeta? = stat(url.path, &st) == 0 ? FileMeta(st) : nil
         guard current != signature else { return .unchanged }
         signature = current
-        guard current != nil else { return .failed("cannot read the exclude file: \(String(cString: strerror(errno)))") }
+        guard current != nil else { return .failed("cannot read the file: \(String(cString: strerror(errno)))") }
         do {
             return .changed(try VaultFilter.patterns(fromFile: url))
         } catch {

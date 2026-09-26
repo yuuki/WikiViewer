@@ -63,6 +63,93 @@ import WikiShared
         }
     }
 
+    @Test func includePatternsSelectFoldersFromTheVaultRoot() throws {
+        let filter = try VaultFilter(excluding: ["Private"], including: ["Projects/", "/Work/Notes", "Daily/2026-*"])
+        #expect(filter.includePatterns == ["/Projects", "/Work/Notes", "/Daily/2026-*"])
+        // Files inside an included folder, at any depth.
+        #expect(!filter.excludesFile("Projects/Alpha.md"))
+        #expect(!filter.excludesFile("projects/deep/x.png"), "case-insensitive")
+        #expect(!filter.excludesFile("Work/Notes/a.md"))
+        #expect(!filter.excludesFile("Daily/2026-09/a.md"))
+        // Everything else, including the vault root and a same-named folder elsewhere.
+        #expect(filter.excludesFile("Home.md"))
+        #expect(filter.excludesFile("Work/a.md"))
+        #expect(filter.excludesFile("Archive/Projects/a.md"), "include patterns are anchored")
+        #expect(filter.excludesFile("Daily/2025-12/a.md"))
+        // Exclusions still apply inside included folders.
+        #expect(filter.excludesFile("Projects/Private/a.md"))
+        #expect(filter.excludesFile("Projects/.hidden/a.md"))
+        // The walk descends only into folders that can lead to an included one.
+        #expect(filter.mayInclude("Work"))
+        #expect(filter.mayInclude("Work/Notes/deep"))
+        #expect(!filter.mayInclude("Work/Other"))
+        #expect(!filter.mayInclude("Archive"))
+        #expect(filter.mayInclude("Daily"))
+        // Without include patterns the whole vault is included.
+        #expect(!VaultFilter().excludesFile("Home.md"))
+        #expect(VaultFilter().mayInclude("Anything"))
+        #expect(throws: VaultFilter.InvalidPattern.self) { try VaultFilter(excluding: [], including: ["../outside"]) }
+    }
+
+    @Test func onlyIncludedFoldersArePublished() async throws {
+        let env = try Env(copyFixture: true)
+        func paths(_ indexer: Indexer) async throws -> [String] {
+            try await indexer.query { db in try String.fetchAll(db, sql: "SELECT path FROM notes UNION ALL SELECT path FROM assets ORDER BY 1") }
+        }
+        do {
+            let indexer = try Indexer(configuration: env.config)
+            _ = try await indexer.reconcile()
+        }
+        var included = env.config
+        included.includePatterns = ["Projects", "Archive/2024", "attachments"]
+        included.excludePatterns = ["Beta*"]
+        try env.write("Projects/Beta Drafts/Draft.md", "# Draft\n")
+        do {
+            let indexer = try Indexer(configuration: included)
+            _ = try await indexer.reconcile()
+            let published = try await paths(indexer)
+            #expect(published.filter { $0.hasSuffix(".md") } == ["Archive/2024/Meeting Notes.md", "Projects/Alpha.md", "Projects/Beta.md"])
+            #expect(published.contains("attachments/diagram.png"))
+            try await indexer.query { (db: Database) throws in
+                let folders = try String.fetchAll(db, sql: "SELECT path FROM folders ORDER BY 1")
+                #expect(folders == ["", "Archive", "Archive/2024", "Projects", "attachments"], "the root plus included folders and their parents")
+                // Links into folders that are not published stay unresolved.
+                #expect(try linkTarget(db, from: "Projects/Alpha.md", raw: "Home") == nil)
+            }
+            // The FSEvents fast path ignores folders that are not included.
+            try env.write("Daily/2026-09-25.md", "# New day\n")
+            try env.write("Top.md", "# At the root\n")
+            #expect(try await indexer.process(paths: ["Daily/2026-09-25.md", "Daily", "Top.md"]).notesWritten == 0)
+            #expect(try await indexer.reconcile(subpath: "Daily").candidates == 0)
+            try env.write("Projects/Gamma.md", "# Gamma\n")
+            #expect(try await indexer.process(paths: ["Projects/Gamma.md"]).notesWritten == 1)
+            let result = try #require(try await indexer.publish())
+            #expect(result.manifest.noteCount == 4)
+            let filter = await indexer.filter
+            #expect(IndexerDaemon.isIgnored("Daily/2026-09-25.md", filter: filter))
+            #expect(IndexerDaemon.isIgnored("Top.md", filter: filter))
+            #expect(!IndexerDaemon.isIgnored("Archive", filter: filter), "may lead to Archive/2024")
+            #expect(!IndexerDaemon.isIgnored("Projects/Gamma.md", filter: filter))
+        }
+        do {
+            let indexer = try Indexer(configuration: env.config)
+            _ = try await indexer.reconcile()
+            let all = try await paths(indexer)
+            #expect(all.contains("Home.md") && all.contains("Daily/2026-09-25.md"), "removing the inclusions indexes the whole vault again")
+        }
+    }
+
+    @Test func anEmptyIncludeFileIsRefused() throws {
+        let env = try Env(copyFixture: true)
+        let file = env.tmp.sub("include.txt")
+        try Data("# nothing yet\n".utf8).write(to: file)
+        var config = env.config
+        config.includeFile = file
+        #expect(throws: IndexerError.self) { try Indexer(configuration: config) }
+        config.includePatterns = ["Projects"]
+        #expect(try config.makeFilter().includePatterns == ["/Projects"], "--include alone is enough")
+    }
+
     @Test func excludedFoldersAreDroppedAndRestoredWhenTheFilterChanges() async throws {
         let env = try Env(copyFixture: true)
         func count(_ indexer: Indexer, _ like: String) async throws -> Int {
