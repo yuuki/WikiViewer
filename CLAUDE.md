@@ -23,6 +23,12 @@ sessions do not step on each other.
   the iOS Simulator tool.
 - `scripts/sim.sh gc` deletes simulators whose worktree is gone.
 
+## Physical device
+
+- `scripts/device.sh run` builds, installs and launches the app on the first
+  paired iPhone. `WV_DEVICE=<name or UDID>` picks another one.
+- The device is shared by every worktree, so only run it when asked.
+
 ## Sandbox
 
 `swift build`, `xcodebuild` and `simctl` fail inside the Bash sandbox

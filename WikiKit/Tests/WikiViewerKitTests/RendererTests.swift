@@ -53,6 +53,25 @@ import WikiShared
         ])
     }
 
+    @Test func frontmatterWikilinksBecomeLinks() {
+        let rows = [
+            link(0, "Home", note: 1),
+            link(1, "Home", note: 1),
+            link(2, "Beta#Goals", note: 2),
+            link(3, "Missing"),
+        ]
+        let up = NoteRenderer.propertyText(.text("[[Home]]"), noteID: 7, links: rows)
+        #expect(String(up.characters) == "Home")
+        #expect(links(in: up).map(\.1) == [.note(id: 1, heading: nil, blockID: nil)])
+
+        let related = NoteRenderer.propertyText(.list([.text("see [[Beta#Goals]]"), .text("[[Missing]]"), .number("3")]), noteID: 7, links: rows)
+        #expect(String(related.characters) == "see Beta > Goals, Missing, 3")
+        #expect(links(in: related).map(\.1) == [.note(id: 2, heading: "Goals", blockID: nil), .missing(target: "Missing")])
+
+        let plain = NoteRenderer.propertyText(.text("[text](Beta.md)"), noteID: 7, links: rows)
+        #expect(links(in: plain).isEmpty, "only wikilinks are links in properties")
+    }
+
     @Test func labelsAreLiteralText() {
         let rendered = NoteRenderer.render(body: "[[a*b*|*not emphasis* [x](y)]]", noteID: 1, links: [link(0, "a*b*|*not emphasis* [x](y)", note: 2)])
         let found = links(in: paragraphs(rendered)[0])

@@ -41,10 +41,11 @@ public enum VaultEntryKind: Sendable, Equatable {
 
     /// Classifies a vault-relative path. Returns nil for files the viewer
     /// ignores: dotfiles, anything in a folder `filter` excludes (hidden
-    /// folders, `node_modules/`, user exclusions), canvases, unknown types.
+    /// folders, `node_modules/`, user exclusions) or outside the included
+    /// folders, canvases, unknown types.
     public static func classify(_ relativePath: String, filter: VaultFilter) -> VaultEntryKind? {
         if VaultPath.fileName(of: relativePath).hasPrefix(".") { return nil }
-        if filter.excludesAncestor(of: relativePath) { return nil }
+        if filter.excludesFile(relativePath) { return nil }
         let ext = VaultPath.fileExtension(of: relativePath)
         if ext == "md" { return .note }
         if let kind = ViewerSchema.AssetKind.forExtension(ext) { return .asset(kind) }
@@ -63,9 +64,10 @@ public enum VaultWalker {
     /// files. Uses fts(3) with FTS_PHYSICAL so symlinks are never followed
     /// (a symlink could otherwise point outside the vault), and skips folders
     /// excluded by `filter` (`.obsidian`, `.trash`, `node_modules`, user
-    /// exclusions) without descending.
+    /// exclusions) or that cannot lead to an included folder without
+    /// descending.
     public static func walk(vault: URL, subpath: String? = nil, filter: VaultFilter) throws -> [VaultEntry] {
-        if let subpath, filter.excludesPath(subpath) { return [] }
+        if let subpath, filter.excludesPath(subpath) || !filter.mayInclude(subpath) { return [] }
         let rootPath = vault.canonicalPath
         let start = subpath.map { rootPath + "/" + $0 } ?? rootPath
         var entries: [VaultEntry] = []
@@ -84,7 +86,7 @@ public enum VaultWalker {
             case FTS_D:
                 if entry.pointee.fts_level > 0, fullPath.utf8.count > prefixLength,
                    let relative = VaultPath.normalizeRelative(String(decoding: fullPath.utf8.dropFirst(prefixLength), as: UTF8.self)),
-                   filter.excludesDirectory(relative) {
+                   filter.excludesDirectory(relative) || !filter.mayInclude(relative) {
                     fts_set(fts, entry, FTS_SKIP)
                 }
             case FTS_F:

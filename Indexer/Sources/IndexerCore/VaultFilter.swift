@@ -6,6 +6,11 @@
 //  (`.obsidian`, `.trash`, …) and `node_modules` are always excluded; users
 //  add their own folders with `--exclude` / `--exclude-file`.
 //
+//  Users may also select the folders to publish with `--include` /
+//  `--include-file`. Then only files inside an included folder are indexed
+//  (files at the vault root are not), minus the exclusions: an excluded
+//  folder inside an included one stays excluded.
+//
 //  Pattern rules (a subset of .gitignore, folders only):
 //   - `Archive`          a folder named "Archive" at any depth;
 //   - `/Archive`         only the top-level "Archive" folder;
@@ -14,6 +19,10 @@
 //   - `*` and `?` match within one path component; a trailing "/" is ignored.
 //  Matching is case-insensitive and Unicode-normalized (NFC), like APFS.
 //  Everything beneath an excluded folder is excluded.
+//
+//  Include patterns use the same syntax but are always anchored to the vault
+//  root (`Projects` is the top-level folder), so the walk never descends into
+//  folders that cannot lead to an included one.
 //
 
 import Foundation
@@ -30,23 +39,36 @@ public struct VaultFilter: Sendable, Equatable {
         var anchored: Bool
     }
 
-    /// User patterns as given (normalized), for logging.
+    /// User exclude patterns as given (normalized), for logging.
     public let patterns: [String]
     let compiled: [Pattern]
+    /// User include patterns (normalized, always anchored); empty means the
+    /// whole vault.
+    public let includePatterns: [String]
+    let includes: [[[Character]]]
 
     public init() {
         patterns = []
         compiled = []
+        includePatterns = []
+        includes = []
     }
 
     /// Throws `VaultFilter.InvalidPattern` for an empty pattern or one that
     /// contains "." / ".." components.
-    public init(excluding patterns: [String]) throws {
+    public init(excluding patterns: [String], including includePatterns: [String] = []) throws {
+        (self.patterns, self.compiled) = try Self.compile(patterns, anchoredOnly: false)
+        let (normalized, compiled) = try Self.compile(includePatterns, anchoredOnly: true)
+        self.includePatterns = normalized
+        includes = compiled.map(\.components)
+    }
+
+    private static func compile(_ patterns: [String], anchoredOnly: Bool) throws -> ([String], [Pattern]) {
         var normalized: [String] = []
         var compiled: [Pattern] = []
         for raw in patterns {
             let trimmed = raw.trimmingCharacters(in: .whitespaces).precomposedStringWithCanonicalMapping
-            let anchored = trimmed.hasPrefix("/")
+            let anchored = anchoredOnly || trimmed.hasPrefix("/")
             let parts = trimmed.split(separator: "/", omittingEmptySubsequences: true)
             guard !parts.isEmpty, !parts.contains(where: { $0 == "." || $0 == ".." }) else {
                 throw InvalidPattern(pattern: raw)
@@ -56,8 +78,7 @@ public struct VaultFilter: Sendable, Equatable {
             compiled.append(pattern)
             normalized.append((pattern.anchored ? "/" : "") + parts.joined(separator: "/"))
         }
-        self.patterns = normalized
-        self.compiled = compiled
+        return (normalized, compiled)
     }
 
     /// Reads patterns from a file: one per line, blank lines and lines
@@ -84,6 +105,34 @@ public struct VaultFilter: Sendable, Equatable {
     /// True if any folder containing the file at `relativePath` is excluded.
     public func excludesAncestor(of relativePath: String) -> Bool {
         excludesAnyPrefix(of: relativePath.split(separator: "/").dropLast())
+    }
+
+    /// True if the file at `relativePath` is not indexed because of the
+    /// folders it is in: an excluded folder, or no included one.
+    public func excludesFile(_ relativePath: String) -> Bool {
+        excludesAncestor(of: relativePath) || !includesAncestor(of: relativePath)
+    }
+
+    /// True if a folder containing the file at `relativePath` is included
+    /// (always true without include patterns). Ignores exclusions.
+    public func includesAncestor(of relativePath: String) -> Bool {
+        guard !includes.isEmpty else { return true }
+        let folders = relativePath.split(separator: "/").dropLast().map { Array($0.lowercased()) }
+        return includes.contains { pattern in
+            pattern.count <= folders.count && zip(pattern, folders).allSatisfy { Self.glob($0, $1) }
+        }
+    }
+
+    /// True if the folder at `directoryPath` is included, is inside an
+    /// included folder, or may lead to one (always true without include
+    /// patterns). Ignores exclusions. The walk skips folders for which it is
+    /// false.
+    public func mayInclude(_ directoryPath: String) -> Bool {
+        guard !includes.isEmpty else { return true }
+        let path = directoryPath.split(separator: "/").map { Array($0.lowercased()) }
+        return includes.contains { pattern in
+            zip(pattern, path).allSatisfy { Self.glob($0, $1) }
+        }
     }
 
     private func excludesAnyPrefix(of components: ArraySlice<Substring>) -> Bool {
@@ -138,6 +187,6 @@ public struct VaultFilter: Sendable, Equatable {
 
     public struct InvalidPattern: Error, CustomStringConvertible {
         public var pattern: String
-        public var description: String { "invalid exclude pattern \"\(pattern)\": must name a folder inside the vault" }
+        public var description: String { "invalid folder pattern \"\(pattern)\": must name a folder inside the vault" }
     }
 }

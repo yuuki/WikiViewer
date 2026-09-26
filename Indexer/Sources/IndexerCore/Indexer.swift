@@ -60,8 +60,8 @@ public actor Indexer {
     public let publisher: Publisher
     let store: AssetStore
     private var generationForIndexing: Int64
-    /// Folders excluded from indexing. Starts from the configuration; the
-    /// daemon replaces it when the exclude file changes.
+    /// Folders excluded from (or included in) indexing. Starts from the
+    /// configuration; the daemon replaces it when a pattern file changes.
     public private(set) var filter: VaultFilter
     /// True when builder.sqlite has changes not yet published.
     public private(set) var hasUnpublishedChanges: Bool
@@ -92,6 +92,9 @@ public actor Indexer {
         if !filter.patterns.isEmpty {
             Log.info("excluding folders: \(filter.patterns.joined(separator: ", "))")
         }
+        if !filter.includePatterns.isEmpty {
+            Log.info("publishing only folders: \(filter.includePatterns.joined(separator: ", "))")
+        }
 
         self.configuration = configuration
         self.lock = lock
@@ -105,7 +108,8 @@ public actor Indexer {
 
     /// Replaces the folder filter. Returns false if it is unchanged. The
     /// caller must then reconcile the whole vault: that removes files in
-    /// newly excluded folders and indexes files that are no longer excluded.
+    /// newly excluded (or no longer included) folders and indexes files that
+    /// are no longer excluded (or newly included).
     public func updateFilter(_ newFilter: VaultFilter) -> Bool {
         guard newFilter != filter else { return false }
         filter = newFilter

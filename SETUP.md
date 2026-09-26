@@ -105,6 +105,40 @@ only change with a restart. The next generation drops notes in newly excluded
 folders and adds notes in folders that are no longer excluded. Older retained
 generations keep their content until they are garbage collected.
 
+### Publishing only some folders
+
+To publish only selected folders of the vault, pass `--include` (repeatable)
+or keep the folders in a file and pass `--include-file`:
+
+```sh
+cat > "<STATE>/include.txt" <<'EOT'
+# One folder per line, always a path from the vault root.
+Projects
+Work/Notes
+# The folder your notes embed images from:
+attachments
+EOT
+$BIN build --vault "<VAULT>" --state "<STATE>" --publish "<PUBLISH>" \
+  --include-file "<STATE>/include.txt"
+```
+
+Only files inside an included folder are indexed and published, including its
+subfolders. Notes at the top of the vault are not published. `*` and `?` work
+as in exclude patterns. Unlike an exclude pattern, an include pattern always
+starts at the vault root: `Projects` does not match `Archive/Projects`.
+`--exclude` still applies inside the included folders.
+
+Images are published by folder too. If your notes embed images from a shared
+folder such as `attachments`, include that folder. Links to notes that are not
+published show as unresolved in the app.
+
+The include file must list at least one folder. If it lists none, `build`
+refuses to start, and a running `watch` keeps the current folders and logs an
+error. An emptied file never publishes the whole vault. A running `watch`
+applies other edits to the `--include-file` within about a second, like edits
+to the `--exclude-file`. The next generation drops notes in folders that are no
+longer included.
+
 To keep the snapshot up to date, run `watch` instead of `build`. See the
 LaunchAgent example in [README.md](README.md#publishing-your-vault-mac-mini).
 `watch` publishes an edit of up to 5 notes about 3 seconds after the vault goes

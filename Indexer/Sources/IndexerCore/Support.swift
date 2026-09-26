@@ -43,6 +43,7 @@ public enum IndexerError: Error, CustomStringConvertible {
     case notADirectory(String)
     case publicationFailed(String)
     case integrityCheckFailed(String)
+    case invalidConfiguration(String)
 
     public var description: String {
         switch self {
@@ -50,6 +51,7 @@ public enum IndexerError: Error, CustomStringConvertible {
         case .notADirectory(let s): "Not a directory: \(s)"
         case .publicationFailed(let s): "Publication failed: \(s)"
         case .integrityCheckFailed(let s): "Integrity check failed: \(s)"
+        case .invalidConfiguration(let s): "Invalid configuration: \(s)"
         }
     }
 }

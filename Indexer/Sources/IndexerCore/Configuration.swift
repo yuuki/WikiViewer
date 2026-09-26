@@ -26,7 +26,14 @@ public struct IndexerConfiguration: Sendable {
     public var excludePatterns: [String] = []
     /// Optional pattern file. `watch` re-reads it when it changes.
     public var excludeFile: URL?
-    /// How often `watch` checks `excludeFile` for changes.
+    /// If any are given, only folders matching these patterns plus those read
+    /// from `includeFile` are indexed and published (see VaultFilter.swift).
+    public var includePatterns: [String] = []
+    /// Optional include pattern file. `watch` re-reads it when it changes.
+    /// It must list at least one folder (unless `includePatterns` does), so
+    /// an emptied file never publishes the whole vault.
+    public var includeFile: URL?
+    /// How often `watch` checks `excludeFile` and `includeFile` for changes.
     public var excludeFileCheckInterval: Duration = .seconds(1)
     /// Maximum note size that is indexed; larger files are skipped with a warning.
     public var maximumNoteBytes: Int = 8 * 1024 * 1024
@@ -88,13 +95,19 @@ public struct IndexerConfiguration: Sendable {
     public var builderDatabaseURL: URL { stateDirectory.appendingPathComponent("builder.sqlite") }
     public var assetStoreURL: URL { publishDirectory.appendingPathComponent("assets", isDirectory: true) }
 
-    /// The effective folder filter: `excludePatterns` + `excludeFile`.
+    /// The effective folder filter: `excludePatterns` + `excludeFile`, and
+    /// `includePatterns` + `includeFile`.
     public func makeFilter() throws -> VaultFilter {
-        try makeFilter(filePatterns: excludeFile.map(VaultFilter.patterns(fromFile:)) ?? [])
+        try makeFilter(excludeFilePatterns: excludeFile.map(VaultFilter.patterns(fromFile:)) ?? [],
+                       includeFilePatterns: includeFile.map(VaultFilter.patterns(fromFile:)) ?? [])
     }
 
-    func makeFilter(filePatterns: [String]) throws -> VaultFilter {
-        try VaultFilter(excluding: excludePatterns + filePatterns)
+    func makeFilter(excludeFilePatterns: [String], includeFilePatterns: [String]) throws -> VaultFilter {
+        let includes = includePatterns + includeFilePatterns
+        if let includeFile, includes.isEmpty {
+            throw IndexerError.invalidConfiguration("\(includeFile.path) lists no folders to include")
+        }
+        return try VaultFilter(excluding: excludePatterns + excludeFilePatterns, including: includes)
     }
 
     /// Parameters that affect derivative output; part of the derivative cache key.

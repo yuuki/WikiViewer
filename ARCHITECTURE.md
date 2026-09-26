@@ -309,8 +309,9 @@ install path is exercised on every fresh install.
 
 Supported: wikilinks with paths, labels, headings and block references;
 embeds of images, notes and note sections; Markdown links to notes and
-attachments; YAML frontmatter (shown as properties), aliases, frontmatter and
-inline tags (including nested tags); headings and callouts; unresolved links.
+attachments; YAML frontmatter (shown as properties; wikilinks in string
+values such as `up: "[[Home]]"` are links and count as backlinks), aliases,
+frontmatter and inline tags (including nested tags); headings and callouts; unresolved links.
 The reference is Obsidian's public documentation; no Obsidian code is used.
 
 ## Known limitations of the initial implementation

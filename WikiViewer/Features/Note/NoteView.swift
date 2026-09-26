@@ -103,7 +103,7 @@ struct NoteView: View {
             if let session = library.session, let detail = model.detail, let rendered = model.rendered {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
-                        NoteHeader(detail: detail, tags: model.tags, showsTitle: !Self.startsWithTitleHeading(rendered, title: detail.title))
+                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: !Self.startsWithTitleHeading(rendered, title: detail.title))
                             .id("header")
                         ForEach(rendered.blocks) { block in
                             BlockView(block: block)
@@ -170,6 +170,8 @@ final class NoteModel {
     private(set) var detail: NoteDetail?
     private(set) var rendered: RenderedNote?
     private(set) var tags: [TagSummary] = []
+    /// Outgoing link rows; the header resolves frontmatter wikilinks with them.
+    private(set) var links: [OutgoingLink] = []
     private(set) var backlinks: [Backlink] = []
     private(set) var backlinkTotal = 0
     private(set) var backlinksHaveMore = false
@@ -195,6 +197,7 @@ final class NoteModel {
             let links = try await session.links.outgoingLinks(of: id)
             let rendered = await NoteRenderer.renderInBackground(body: detail.body, noteID: id, links: links)
             tags = try await session.tags.tags(of: id)
+            self.links = links
             let page = try await session.links.backlinks(to: id, limit: Self.backlinkPage)
             backlinkTotal = try await session.links.backlinkCount(to: id, cap: Self.backlinkCountCap)
             backlinks = page.items
@@ -253,6 +256,7 @@ final class NoteModel {
 struct NoteHeader: View {
     let detail: NoteDetail
     let tags: [TagSummary]
+    let links: [OutgoingLink]
     let showsTitle: Bool
     @State private var showProperties = false
 
@@ -269,7 +273,7 @@ struct NoteHeader: View {
             }
             if !detail.properties.isEmpty {
                 DisclosureGroup(isExpanded: $showProperties) {
-                    PropertiesView(properties: detail.properties)
+                    PropertiesView(properties: detail.properties, noteID: detail.id, links: links)
                         .padding(.top, 4)
                 } label: {
                     // Primary color: a tinted secondary label reads as disabled.
@@ -333,6 +337,8 @@ struct TagLine: View {
 
 struct PropertiesView: View {
     let properties: [Property]
+    let noteID: Int64
+    let links: [OutgoingLink]
 
     var body: some View {
         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 4) {
@@ -341,7 +347,7 @@ struct PropertiesView: View {
                     Text(property.key)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Text(property.value.displayText)
+                    Text(NoteRenderer.propertyText(property.value, noteID: noteID, links: links))
                         .font(.footnote)
                         .textSelection(.enabled)
                 }
