@@ -20,6 +20,10 @@ import WikiShared
         #expect(db.generation.generation == 1)
         #expect(db.generation.noteCount == 11)
         #expect(db.generation.schemaVersion == WikiVersions.schemaVersion)
+        #expect(db.generation.createdDate != nil)
+        var info = db.generation
+        info.createdAt = "not a date"
+        #expect(info.createdDate == nil)
     }
 
     @Test func databaseIsReadOnly() async throws {

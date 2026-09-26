@@ -15,11 +15,16 @@ struct FolderView: View {
     @Environment(Library.self) private var library
     @State private var model = FolderModel()
     @State private var today: NoteSummary?
+    /// Refreshed every minute so the snapshot's age stays right.
+    @State private var now = Date.now
 
     var body: some View {
         List {
             if let error = model.error {
                 Text(error).foregroundStyle(.secondary)
+            }
+            if path.isEmpty, case .failed(let message) = library.updateStatus {
+                UpdateFailureBanner(message: message)
             }
             if path.isEmpty {
                 LibraryHomeSections(today: today)
@@ -75,11 +80,25 @@ struct FolderView: View {
         }
         .navigationTitle(path.isEmpty ? "Vault" : VaultPath.fileName(of: path))
         .navigationBarTitleDisplayMode(path.isEmpty ? .large : .inline)
+        .navigationSubtitle(path.isEmpty ? freshness ?? Text(verbatim: "") : Text(verbatim: ""))
+        .task(id: path.isEmpty) {
+            guard path.isEmpty else { return }
+            while !Task.isCancelled {
+                now = .now
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
         .task(id: library.session?.id) {
             guard let session = library.session else { return }
             await model.load(path: path, session: session)
             if path.isEmpty { today = await LibraryHomeSections.findTodaysNote(in: session) }
         }
+    }
+}
+
+extension FolderView {
+    private var freshness: Text? {
+        SnapshotFreshness(status: library.updateStatus, published: library.session?.info.createdDate).text(now: now)
     }
 }
 

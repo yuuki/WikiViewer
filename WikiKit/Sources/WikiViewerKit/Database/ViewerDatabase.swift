@@ -221,4 +221,9 @@ public struct GenerationInfo: Sendable, Equatable {
     public var noteCount: Int
     public var assetCount: Int
     public var builder: String
+
+    /// When the generation was published (`createdAt`, ISO 8601), if valid.
+    public var createdDate: Date? {
+        ISO8601DateFormatter().date(from: createdAt)
+    }
 }
