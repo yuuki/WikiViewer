@@ -27,7 +27,8 @@ func likeEscaped(_ s: String) -> String {
 
 extension NoteSummary: FetchableRecord {
     public init(row: Row) {
-        self.init(id: row["id"], title: row["title"], path: row["path"])
+        self.init(id: row["id"], title: row["title"], path: row["path"],
+                  modifiedNanoseconds: row.hasColumn("mtime_ns") ? row["mtime_ns"] : nil)
     }
 }
 
@@ -131,6 +132,58 @@ public struct FolderRepository: Sendable {
                     """, arguments: [folderID, cursor.title, cursor.title, cursor.id, limit + 1])
             } else {
                 rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE folder_id = ? ORDER BY title, id LIMIT ?", arguments: [folderID, limit + 1])
+            }
+            return Page(items: Array(rows.prefix(limit)), hasMore: rows.count > limit)
+        }
+    }
+
+    /// Largest folder whose notes may be listed by modification time. That
+    /// order has no index, so each page sorts the folder's rows; the bound
+    /// keeps the cost of a page fixed.
+    public static let maxNotesSortedByModified = 2000
+
+    /// Whether `modifiedNewest` applies to a folder of this size.
+    public static func canSortByModified(noteCount: Int) -> Bool {
+        noteCount <= maxNotesSortedByModified
+    }
+
+    /// Notes directly in a folder in `order`, keyset-paginated. Title orders
+    /// walk the notes_folder index forwards or backwards. `modifiedNewest`
+    /// falls back to title order for folders too large to sort.
+    public func notes(in folderID: Int64, order: NoteOrder, after cursor: NoteCursor? = nil, limit: Int = 200) async throws -> Page<NoteSummary> {
+        let limit = clampLimit(limit)
+        return try await database.reader.read { db in
+            var order = order
+            if order == .modifiedNewest {
+                let count = try Int.fetchOne(db, sql: "SELECT note_count FROM folders WHERE id = ?", arguments: [folderID]) ?? 0
+                if !Self.canSortByModified(noteCount: count) { order = .titleAscending }
+            }
+            let rows: [NoteSummary]
+            switch (order, cursor) {
+            case (.titleAscending, nil):
+                rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE folder_id = ? ORDER BY title, id LIMIT ?", arguments: [folderID, limit + 1])
+            case (.titleAscending, let c?):
+                rows = try NoteSummary.fetchAll(db, sql: """
+                    SELECT id, title, path FROM notes
+                    WHERE folder_id = ? AND (title > ? OR (title = ? AND id > ?))
+                    ORDER BY title, id LIMIT ?
+                    """, arguments: [folderID, c.title, c.title, c.id, limit + 1])
+            case (.titleDescending, nil):
+                rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE folder_id = ? ORDER BY title DESC, id DESC LIMIT ?", arguments: [folderID, limit + 1])
+            case (.titleDescending, let c?):
+                rows = try NoteSummary.fetchAll(db, sql: """
+                    SELECT id, title, path FROM notes
+                    WHERE folder_id = ? AND (title < ? OR (title = ? AND id < ?))
+                    ORDER BY title DESC, id DESC LIMIT ?
+                    """, arguments: [folderID, c.title, c.title, c.id, limit + 1])
+            case (.modifiedNewest, nil):
+                rows = try NoteSummary.fetchAll(db, sql: "SELECT id, title, path, mtime_ns FROM notes WHERE folder_id = ? ORDER BY mtime_ns DESC, id DESC LIMIT ?", arguments: [folderID, limit + 1])
+            case (.modifiedNewest, let c?):
+                rows = try NoteSummary.fetchAll(db, sql: """
+                    SELECT id, title, path, mtime_ns FROM notes
+                    WHERE folder_id = ? AND (mtime_ns < ? OR (mtime_ns = ? AND id < ?))
+                    ORDER BY mtime_ns DESC, id DESC LIMIT ?
+                    """, arguments: [folderID, c.modifiedNanoseconds, c.modifiedNanoseconds, c.id, limit + 1])
             }
             return Page(items: Array(rows.prefix(limit)), hasMore: rows.count > limit)
         }

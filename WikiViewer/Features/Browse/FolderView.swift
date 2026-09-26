@@ -18,6 +18,7 @@ struct FolderView: View {
     @State private var viewingAsset: AssetInfo?
     /// Refreshed every minute so the snapshot's age stays right.
     @State private var now = Date.now
+    @State private var order: NoteOrder = .titleAscending
 
     var body: some View {
         List {
@@ -48,8 +49,18 @@ struct FolderView: View {
             Section {
                 ForEach(model.notes) { note in
                     NavigationLink(value: Route.note(path: note.path, anchor: nil)) {
-                        Label(note.title, systemImage: "doc.text")
-                            .lineLimit(2)
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(note.title).lineLimit(2)
+                                if order == .modifiedNewest, let modified = note.modified {
+                                    Text(modified, format: .relative(presentation: .named))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } icon: {
+                            Image(systemName: "doc.text")
+                        }
                     }
                     .onAppear {
                         if note.id == model.notes.last?.id, let session = library.session {
@@ -86,6 +97,29 @@ struct FolderView: View {
         .navigationTitle(path.isEmpty ? "Vault" : VaultPath.fileName(of: path))
         .navigationBarTitleDisplayMode(path.isEmpty ? .large : .inline)
         .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                // One tap shows the orders (not a submenu of an overflow menu).
+                Menu {
+                    Picker("Sort Notes", selection: $order) {
+                        Text("Name (A–Z)").tag(NoteOrder.titleAscending)
+                        Text("Name (Z–A)").tag(NoteOrder.titleDescending)
+                        if model.canSortByModified {
+                            Text("Recently Modified").tag(NoteOrder.modifiedNewest)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label("Sort Notes", systemImage: "arrow.up.arrow.down")
+                }
+            }
+        }
+        .onChange(of: order) {
+            // The first load sets `order` from the store; it already loaded.
+            guard order != model.order, let session = library.session else { return }
+            FolderSortStore.setOrder(order, for: path)
+            Task { await model.load(path: path, order: order, session: session) }
+        }
         .navigationSubtitle(path.isEmpty ? freshness ?? Text(verbatim: "") : Text(verbatim: ""))
         .task(id: path.isEmpty) {
             guard path.isEmpty else { return }
@@ -96,7 +130,8 @@ struct FolderView: View {
         }
         .task(id: library.session?.id) {
             guard let session = library.session else { return }
-            await model.load(path: path, session: session)
+            order = FolderSortStore.order(for: path)
+            await model.load(path: path, order: order, session: session)
             if path.isEmpty { today = await LibraryHomeSections.findTodaysNote(in: session) }
         }
     }
@@ -105,6 +140,26 @@ struct FolderView: View {
 extension FolderView {
     private var freshness: Text? {
         SnapshotFreshness(status: library.updateStatus, published: library.session?.info.createdDate).text(now: now)
+    }
+}
+
+/// The note order chosen for each folder (daily notes read best newest
+/// first, most folders A–Z).
+enum FolderSortStore {
+    static let key = "WikiViewer.folderSort"
+    /// Folders whose order is remembered.
+    static let limit = 500
+
+    static func order(for path: String) -> NoteOrder {
+        let orders = UserDefaults.standard.dictionary(forKey: key) as? [String: String] ?? [:]
+        return orders[path].flatMap(NoteOrder.init(rawValue:)) ?? .titleAscending
+    }
+
+    static func setOrder(_ order: NoteOrder, for path: String) {
+        var orders = UserDefaults.standard.dictionary(forKey: key) as? [String: String] ?? [:]
+        orders[path] = order == .titleAscending ? nil : order.rawValue
+        if orders.count > limit { orders.removeValue(forKey: orders.keys.first!) }
+        UserDefaults.standard.set(orders, forKey: key)
     }
 }
 
@@ -173,6 +228,9 @@ final class FolderModel {
     private(set) var assets: [AssetInfo] = []
     private(set) var hasMoreNotes = false
     private(set) var loaded = false
+    /// Recently Modified is offered only where it is cheap (no index).
+    private(set) var canSortByModified = false
+    private(set) var order: NoteOrder = .titleAscending
     private(set) var error: String?
     private var folderID: Int64?
     private var sessionID: String?
@@ -180,7 +238,8 @@ final class FolderModel {
 
     static let pageSize = 200
 
-    func load(path: String, session: LibrarySession) async {
+    func load(path: String, order: NoteOrder, session: LibrarySession) async {
+        self.order = order
         do {
             guard let id = try await session.folders.folderID(path: path) else {
                 error = "This folder is not in the current snapshot."
@@ -190,7 +249,8 @@ final class FolderModel {
             folderID = id
             sessionID = session.id
             let subfolders = try await session.folders.subfolders(of: id)
-            let page = try await session.folders.notes(in: id, limit: Self.pageSize)
+            let page = try await session.folders.notes(in: id, order: order, limit: Self.pageSize)
+            canSortByModified = FolderRepository.canSortByModified(noteCount: try await session.folders.folder(id: id)?.noteCount ?? 0)
             let assetPage = try await session.folders.assets(in: id, limit: 100)
             folders = subfolders.items
             foldersTruncated = subfolders.hasMore
@@ -209,7 +269,7 @@ final class FolderModel {
         guard hasMoreNotes, !loadingMore, session.id == sessionID, let folderID, let last = notes.last else { return }
         loadingMore = true
         defer { loadingMore = false }
-        if let page = try? await session.folders.notes(in: folderID, after: TitleCursor(after: last), limit: Self.pageSize) {
+        if let page = try? await session.folders.notes(in: folderID, order: order, after: NoteCursor(after: last), limit: Self.pageSize) {
             notes.append(contentsOf: page.items)
             hasMoreNotes = page.hasMore
         }

@@ -13,11 +13,19 @@ public struct NoteSummary: Identifiable, Hashable, Sendable {
     public var id: Int64
     public var title: String
     public var path: String
+    /// Modification time in nanoseconds since 1970, exact for keyset
+    /// paging; only listings ordered by it fill this in.
+    public var modifiedNanoseconds: Int64?
 
-    public init(id: Int64, title: String, path: String) {
+    public init(id: Int64, title: String, path: String, modifiedNanoseconds: Int64? = nil) {
         self.id = id
         self.title = title
         self.path = path
+        self.modifiedNanoseconds = modifiedNanoseconds
+    }
+
+    public var modified: Date? {
+        modifiedNanoseconds.map { Date(timeIntervalSince1970: Double($0) / 1e9) }
     }
 
     public var folderPath: String { VaultPath.folder(of: path) }
@@ -152,6 +160,32 @@ public struct TitleCursor: Sendable, Hashable {
     public init(after note: NoteSummary) {
         title = note.title
         id = note.id
+    }
+}
+
+/// Order of the notes listed in one folder.
+public enum NoteOrder: String, Sendable, CaseIterable, Codable {
+    /// Title A→Z (notes_folder index).
+    case titleAscending
+    /// Title Z→A (notes_folder index read backwards): newest first for
+    /// date-named notes such as daily notes.
+    case titleDescending
+    /// Most recently modified first. No index serves this order, so it is
+    /// only applied to folders with at most
+    /// `FolderRepository.maxNotesSortedByModified` notes.
+    case modifiedNewest
+}
+
+/// Keyset pagination cursor for folder listings in any `NoteOrder`.
+public struct NoteCursor: Sendable, Hashable {
+    public var title: String
+    public var id: Int64
+    public var modifiedNanoseconds: Int64
+
+    public init(after note: NoteSummary) {
+        title = note.title
+        id = note.id
+        modifiedNanoseconds = note.modifiedNanoseconds ?? 0
     }
 }
 

@@ -53,6 +53,29 @@ import WikiShared
         } while true
         #expect(titles == ["Code", "Empty", "Home", "Invalid YAML"])
 
+        // Every order pages with a keyset cursor to the same list as one page.
+        func walk(_ order: NoteOrder) async throws -> [String] {
+            var cursor: NoteCursor?
+            var titles: [String] = []
+            while true {
+                let page = try await session.folders.notes(in: ViewerSchema.rootFolderID, order: order, after: cursor, limit: 1)
+                titles += page.items.map(\.title)
+                cursor = page.items.last.map(NoteCursor.init(after:))
+                if !page.hasMore { break }
+            }
+            return titles
+        }
+        #expect(try await walk(.titleAscending) == ["Code", "Empty", "Home", "Invalid YAML"])
+        #expect(try await walk(.titleDescending) == ["Invalid YAML", "Home", "Empty", "Code"])
+        let byModified = try await db.reader.read { db in
+            try String.fetchAll(db, sql: "SELECT title FROM notes WHERE folder_id = 1 ORDER BY mtime_ns DESC, id DESC")
+        }
+        #expect(try await walk(.modifiedNewest) == byModified)
+        let newest = try await session.folders.notes(in: ViewerSchema.rootFolderID, order: .modifiedNewest)
+        #expect(newest.items.allSatisfy { $0.modified != nil })
+        #expect(FolderRepository.canSortByModified(noteCount: FolderRepository.maxNotesSortedByModified))
+        #expect(!FolderRepository.canSortByModified(noteCount: FolderRepository.maxNotesSortedByModified + 1))
+
         let archive = try #require(root.items.first { $0.name == "Archive" })
         #expect(archive.folderCount == 1)
         let attachments = try #require(root.items.first { $0.name == "attachments" })
