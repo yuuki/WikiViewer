@@ -61,3 +61,24 @@ struct UpdateFailureBanner: View {
         }
     }
 }
+
+/// Shown at the top of the Files tab while the bundled demo is the source,
+/// so the demo is never mistaken for the reader's own vault.
+struct DemoVaultBanner: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("You're viewing the demo vault", systemImage: "sparkles")
+                    .font(.subheadline.weight(.semibold))
+                Text("Connect the folder or address your Mac publishes your vault to.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Connect Your Vault") { app.showSettings() }
+                    .buttonStyle(.bordered)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}

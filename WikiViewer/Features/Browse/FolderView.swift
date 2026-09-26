@@ -25,6 +25,9 @@ struct FolderView: View {
             if let error = model.error {
                 Text(error).foregroundStyle(.secondary)
             }
+            if path.isEmpty, library.source == .bundledDemo {
+                DemoVaultBanner()
+            }
             if path.isEmpty, case .failed(let message) = library.updateStatus {
                 UpdateFailureBanner(message: message)
             }

@@ -61,6 +61,7 @@ struct TabRoot: View {
     let root: Route
     @State private var navigation = NavigationModel()
     @Environment(Library.self) private var library
+    @Environment(AppModel.self) private var app
     /// The tab's navigation stack, restored on the next launch.
     @SceneStorage private var savedPath: Data?
 
@@ -76,9 +77,22 @@ struct TabRoot: View {
                 case .loading:
                     ProgressView("Opening library…")
                 case .empty:
-                    ContentUnavailableView("No Snapshot", systemImage: "tray", description: Text("Choose an update source in Settings."))
+                    ContentUnavailableView {
+                        Label("No Snapshot", systemImage: "tray")
+                    } description: {
+                        Text("Connect the folder or address your Mac publishes the vault to.")
+                    } actions: {
+                        Button("Choose Update Source") { app.showSettings() }
+                            .buttonStyle(.borderedProminent)
+                    }
                 case .failed(let message):
-                    ContentUnavailableView("Couldn't Open Library", systemImage: "exclamationmark.triangle", description: Text(message))
+                    ContentUnavailableView {
+                        Label("Couldn't Open Library", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text(message)
+                    } actions: {
+                        Button("Open Settings") { app.showSettings() }
+                    }
                 case .ready:
                     RouteView(route: root)
                 }
