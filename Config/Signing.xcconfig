@@ -1,0 +1,10 @@
+// Signing defaults for the WikiViewer app target.
+//
+// The Simulator needs neither value. For a device, copy
+// Local.xcconfig.example to Local.xcconfig (git-ignored) and set your own.
+// Claude Code copies Local.xcconfig into new worktrees (.worktreeinclude).
+
+DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = com.example.WikiViewer
+
+#include? "Local.xcconfig"

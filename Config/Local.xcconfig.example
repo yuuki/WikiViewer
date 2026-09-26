@@ -1,0 +1,5 @@
+// Copy to Config/Local.xcconfig (git-ignored) and fill in your own values.
+// Settings here override Config/Signing.xcconfig.
+
+DEVELOPMENT_TEAM = <TEAM_ID>
+PRODUCT_BUNDLE_IDENTIFIER = <BUNDLE_ID>
