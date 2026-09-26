@@ -15,6 +15,7 @@ enum Route: Hashable, Codable {
     case missing(target: String)
     case search
     case tags
+    case recents
 }
 
 struct Anchor: Hashable, Codable {
@@ -44,6 +45,7 @@ struct RouteView: View {
         case .missing(let target): MissingNoteView(target: target)
         case .search: SearchView()
         case .tags: TagsView()
+        case .recents: RecentNotesView()
         }
     }
 }

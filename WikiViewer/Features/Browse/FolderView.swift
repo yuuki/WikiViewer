@@ -14,11 +14,15 @@ struct FolderView: View {
     let path: String
     @Environment(Library.self) private var library
     @State private var model = FolderModel()
+    @State private var today: NoteSummary?
 
     var body: some View {
         List {
             if let error = model.error {
                 Text(error).foregroundStyle(.secondary)
+            }
+            if path.isEmpty {
+                LibraryHomeSections(today: today)
             }
             if !model.folders.isEmpty {
                 Section {
@@ -30,6 +34,9 @@ struct FolderView: View {
                     if model.foldersTruncated {
                         Text("More subfolders not shown").font(.footnote).foregroundStyle(.secondary)
                     }
+                } header: {
+                    // Only needed to set the vault apart from the home sections.
+                    if path.isEmpty { Text("Folders") }
                 }
             }
             Section {
@@ -44,6 +51,8 @@ struct FolderView: View {
                         }
                     }
                 }
+            } header: {
+                if path.isEmpty, !model.notes.isEmpty { Text("Notes") }
             } footer: {
                 if model.hasMoreNotes {
                     ProgressView().frame(maxWidth: .infinity)
@@ -69,6 +78,7 @@ struct FolderView: View {
         .task(id: library.session?.id) {
             guard let session = library.session else { return }
             await model.load(path: path, session: session)
+            if path.isEmpty { today = await LibraryHomeSections.findTodaysNote(in: session) }
         }
     }
 }

@@ -1,0 +1,137 @@
+//
+//  LibraryHomeSections.swift
+//  WikiViewer
+//
+//  The top of the Files tab: today's daily note, pinned notes and recently
+//  read notes, so the usual next note is one tap away in a vault too large
+//  to browse by folder.
+//
+
+import SwiftUI
+import WikiViewerKit
+
+struct LibraryHomeSections: View {
+    /// Today's daily note, if the vault has one (see `findTodaysNote`).
+    let today: NoteSummary?
+    @Environment(ReadingHistory.self) private var history
+
+    static let recentLimit = 5
+
+    var body: some View {
+        if let today {
+            Section {
+                NavigationLink(value: Route.note(path: today.path, anchor: nil)) {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Today's Note")
+                            Text(today.path).font(.caption).foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
+                }
+            }
+        }
+        if !history.pins.isEmpty {
+            Section("Pinned") {
+                ForEach(history.pins) { entry in
+                    HistoryRow(entry: entry, systemImage: "pin")
+                        .swipeActions {
+                            Button("Unpin", systemImage: "pin.slash") {
+                                history.togglePin(path: entry.path, title: entry.title)
+                            }
+                            .tint(.orange)
+                        }
+                }
+                .onMove { history.movePins(from: $0, to: $1) }
+            }
+        }
+        if !history.recents.isEmpty {
+            Section {
+                ForEach(history.recents.prefix(Self.recentLimit)) { entry in
+                    HistoryRow(entry: entry, systemImage: "clock")
+                        .swipeActions {
+                            Button("Remove", systemImage: "minus.circle", role: .destructive) {
+                                history.removeRecent(entry.path)
+                            }
+                        }
+                }
+            } header: {
+                HStack {
+                    Text("Recent")
+                    Spacer()
+                    if history.recents.count > Self.recentLimit {
+                        NavigationLink("Show All", value: Route.recents)
+                            .font(.subheadline)
+                            .textCase(nil)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Obsidian's default daily note name.
+    static func dayString(_ date: Date) -> String {
+        date.formatted(.iso8601.year().month().day().dateSeparator(.dash))
+    }
+
+    /// The note named after today's date (indexed basename lookup).
+    static func findTodaysNote(in session: LibrarySession) async -> NoteSummary? {
+        (try? await session.notes.notes(basename: dayString(.now), limit: 5))?.first
+    }
+}
+
+struct HistoryRow: View {
+    let entry: HistoryEntry
+    let systemImage: String
+
+    var body: some View {
+        NavigationLink(value: Route.note(path: entry.path, anchor: nil)) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.title).lineLimit(2)
+                    let folder = (entry.path as NSString).deletingLastPathComponent
+                    if !folder.isEmpty {
+                        Text(folder).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } icon: {
+                Image(systemName: systemImage)
+            }
+        }
+    }
+}
+
+/// Every remembered recent note.
+struct RecentNotesView: View {
+    @Environment(ReadingHistory.self) private var history
+    @State private var confirmClear = false
+
+    var body: some View {
+        List {
+            ForEach(history.recents) { entry in
+                HistoryRow(entry: entry, systemImage: "clock")
+                    .swipeActions {
+                        Button("Remove", systemImage: "minus.circle", role: .destructive) {
+                            history.removeRecent(entry.path)
+                        }
+                    }
+            }
+        }
+        .listStyle(.plain)
+        .overlay {
+            if history.recents.isEmpty {
+                ContentUnavailableView("No Recent Notes", systemImage: "clock", description: Text("Notes you read appear here."))
+            }
+        }
+        .navigationTitle("Recent")
+        .toolbar {
+            if !history.recents.isEmpty {
+                Button("Clear", role: .destructive) { confirmClear = true }
+            }
+        }
+        .confirmationDialog("Clear the list of recent notes?", isPresented: $confirmClear, titleVisibility: .visible) {
+            Button("Clear Recent Notes", role: .destructive) { history.clearRecents() }
+        }
+    }
+}
