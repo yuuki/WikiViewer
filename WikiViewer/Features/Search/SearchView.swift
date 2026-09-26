@@ -44,6 +44,7 @@ struct SearchView: View {
                         NavigationLink(value: Route.note(path: hit.note.path, anchor: nil)) {
                             SearchHitRow(hit: hit)
                         }
+                        .notePreviewMenu(path: hit.note.path, title: hit.note.title)
                     }
                 }
             }
@@ -55,6 +56,7 @@ struct SearchView: View {
                         NavigationLink(value: Route.note(path: hit.note.path, anchor: matchAnchor(for: hit))) {
                             SearchHitRow(hit: hit)
                         }
+                        .notePreviewMenu(path: hit.note.path, title: hit.note.title)
                     }
                 }
             }

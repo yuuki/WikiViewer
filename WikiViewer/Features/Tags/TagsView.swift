@@ -172,6 +172,7 @@ struct TagNotesView: View {
                             }
                         }
                     }
+                    .notePreviewMenu(path: note.path, title: note.title)
                     .onAppear {
                         if note.id == notes.last?.id { Task { await load(reset: false) } }
                     }

@@ -67,6 +67,7 @@ struct FolderView: View {
                             Image(systemName: "doc.text")
                         }
                     }
+                    .notePreviewMenu(path: note.path, title: note.title)
                     .onAppear {
                         if note.id == model.notes.last?.id, let session = library.session {
                             Task { await model.loadMoreNotes(session: session) }

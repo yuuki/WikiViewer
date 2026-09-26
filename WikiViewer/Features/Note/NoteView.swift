@@ -413,6 +413,7 @@ struct BacklinkRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .notePreviewMenu(path: backlink.note.path, title: backlink.note.title)
         .task(id: backlink.note.id) {
             guard let targetID else { return }
             let line = try? await session.links.backlinkContext(from: backlink.note.id, to: targetID)

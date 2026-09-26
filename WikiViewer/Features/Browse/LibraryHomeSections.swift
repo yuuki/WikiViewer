@@ -99,6 +99,7 @@ struct HistoryRow: View {
                 Image(systemName: systemImage)
             }
         }
+        .notePreviewMenu(path: entry.path, title: entry.title)
     }
 }
 
