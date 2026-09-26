@@ -21,6 +21,20 @@ import WikiShared
         note.blocks.compactMap { if case .paragraph(let t) = $0.kind { t } else { nil } }
     }
 
+    @Test func findsFirstBlockContainingText() {
+        let body = "# Title\n\nFirst paragraph.\n\n- item with [[Alpha|the alpha]]\n\n> quoted Tokyo text\n\nAnother Tokyo."
+        let rendered = NoteRenderer.render(body: body, noteID: 1, links: [link(0, "Alpha|the alpha", note: 2)])
+        func kind(_ id: Int?) -> String? {
+            guard let id, let block = rendered.blocks.first(where: { $0.id == id }) else { return nil }
+            return block.plainText
+        }
+        #expect(kind(rendered.firstBlock(containing: "tokyo")) == "quoted Tokyo text")
+        #expect(kind(rendered.firstBlock(containing: "THE ALPHA")) == "item with the alpha")
+        #expect(rendered.firstBlock(containing: "Alpha|") == nil, "link syntax is not visible text")
+        #expect(rendered.firstBlock(containing: "  ") == nil)
+        #expect(rendered.firstBlock(containing: "absent") == nil)
+    }
+
     @Test func wikilinksBecomeResolvedLinks() {
         let body = "See [[Alpha|the alpha]], [[Beta#Goals]], [[Missing]] and [[#Local]]."
         let rendered = NoteRenderer.render(body: body, noteID: 7, links: [

@@ -20,6 +20,8 @@ enum Route: Hashable {
 struct Anchor: Hashable {
     var heading: String?
     var blockID: String?
+    /// Text to find in the note (a search match), highlighted on arrival.
+    var text: String?
 }
 
 @Observable

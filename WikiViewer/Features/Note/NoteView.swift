@@ -20,6 +20,8 @@ struct NoteView: View {
     /// Top-level block at the top of the screen, for the outline.
     @State private var topBlockID: Int?
     @State private var showingOutline = false
+    /// Block briefly highlighted after arriving at a search match.
+    @State private var highlightedBlock: Int?
 
     var body: some View {
         content
@@ -50,11 +52,21 @@ struct NoteView: View {
             .task(id: library.session?.id) {
                 guard let session = library.session else { return }
                 let firstLoad = await model.load(path: path, session: session)
-                if firstLoad, let anchor { scrollTarget = model.blockID(for: anchor) }
+                if firstLoad, let anchor, let target = model.blockID(for: anchor) {
+                    scrollTarget = target
+                    if anchor.text != nil { await flashHighlight(target) }
+                }
             }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
             .onDisappear { model.releaseIfLarge() }
+    }
+
+    /// Marks the block a search result opened at, then fades the mark out.
+    private func flashHighlight(_ block: Int) async {
+        highlightedBlock = block
+        try? await Task.sleep(for: .seconds(2))
+        withAnimation(.easeOut(duration: 0.6)) { highlightedBlock = nil }
     }
 
     @ViewBuilder
@@ -75,6 +87,14 @@ struct NoteView: View {
                                 .id("header")
                             ForEach(rendered.blocks) { block in
                                 BlockView(block: block)
+                                    .background {
+                                        if highlightedBlock == block.id {
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .fill(Color.yellow.opacity(0.3))
+                                                .padding(-4)
+                                                .transition(.opacity)
+                                        }
+                                    }
                                     .id(block.id)
                             }
                             BacklinksSection(model: model, session: session)
@@ -95,6 +115,15 @@ struct NoteView: View {
                         guard let target else { return }
                         withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target, anchor: .top) }
                         scrollTarget = nil
+                    }
+                    // A target set by the first load arrives with the scroll
+                    // view itself, before onChange observes anything.
+                    .onAppear {
+                        guard let target = scrollTarget else { return }
+                        Task {
+                            proxy.scrollTo(target, anchor: .top)
+                            scrollTarget = nil
+                        }
                     }
                 }
                 .environment(\.openURL, OpenURLAction { url in
@@ -195,6 +224,13 @@ final class NoteModel {
         guard let rendered else { return nil }
         if let block = anchor.blockID { return rendered.blockAnchors[block] }
         if let heading = anchor.heading { return rendered.headingAnchors[HeadingKey.make(heading)] }
+        if let text = anchor.text {
+            // The whole query as a phrase, else its terms, longest first.
+            let terms = TrigramSearchEngine.terms(text).sorted { $0.count > $1.count }
+            for candidate in [text] + terms {
+                if let block = rendered.firstBlock(containing: candidate) { return block }
+            }
+        }
         return nil
     }
 }

@@ -29,6 +29,33 @@ public struct RenderedNote: Sendable {
     public var headings: [(level: Int, text: String, blockID: Int)]
 }
 
+extension RenderedNote {
+    /// Id of the first top-level block whose visible text contains `text`
+    /// (case-insensitive), to open a search result at its match. Markdown
+    /// syntax is not visible, so a match only inside it is not found.
+    public func firstBlock(containing text: String) -> Int? {
+        let needle = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return nil }
+        return blocks.first { $0.plainText.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) != nil }?.id
+    }
+}
+
+extension RenderBlock {
+    /// The text a reader sees in this block, children included.
+    public var plainText: String {
+        switch kind {
+        case .heading(_, let text), .paragraph(let text): String(text.characters)
+        case .code(_, let code, _): code
+        case .quote(let children): children.map(\.plainText).joined(separator: "\n")
+        case .callout(_, let title, _, let children): ([String(title.characters)] + children.map(\.plainText)).joined(separator: "\n")
+        case .listItem(_, _, let blocks): blocks.map(\.plainText).joined(separator: "\n")
+        case .table(let header, let rows): (header + rows.flatMap { $0 }).map { String($0.characters) }.joined(separator: " ")
+        case .rule, .embed: ""
+        case .html(let raw): raw
+        }
+    }
+}
+
 public struct RenderBlock: Identifiable, Sendable {
     public var id: Int
     public var kind: Kind

@@ -52,7 +52,7 @@ struct SearchView: View {
                     // Identity includes the snippet so a row is rebuilt whenever the
                     // result for the same note changes between queries.
                     ForEach(hits, id: \.self) { hit in
-                        NavigationLink(value: Route.note(path: hit.note.path, anchor: nil)) {
+                        NavigationLink(value: Route.note(path: hit.note.path, anchor: matchAnchor(for: hit))) {
                             SearchHitRow(hit: hit)
                         }
                     }
@@ -85,6 +85,13 @@ struct SearchView: View {
 
     @Environment(NavigationModel.self) private var navigation
 
+    /// Opens a note-text match at the block containing the query.
+    private func matchAnchor(for hit: SearchHit) -> Anchor? {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard hit.snippet != nil, !q.isEmpty else { return nil }
+        return Anchor(text: q)
+    }
+
     private var searchesTitlesOnly: Bool {
         !query.trimmingCharacters(in: .whitespaces).isEmpty && !TrigramSearchEngine.searchesNoteText(query)
     }
@@ -114,10 +121,12 @@ struct SearchView: View {
             titleHits = []
             return
         }
+        // Counts as searching during the debounce too, so "No Results" does
+        // not flash while the user is still typing.
+        searching = true
+        defer { if !Task.isCancelled { searching = false } }
         do {
             try await Task.sleep(for: .milliseconds(200))
-            searching = true
-            defer { searching = false }
             async let titles = session.search.quickSwitch(q, limit: Self.titleLimit)
             async let full = session.search.search(q, limit: 100)
             let (titleResult, fullResult) = try await (titles, full)
