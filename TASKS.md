@@ -62,6 +62,12 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - D18 Host: FSEvents for never-indexed paths (`.obsidian/`, excluded folders)
   do not count as activity; ≤ 5-file edits publish after 3 s of quiet,
   bursts/reconciliations after 20 s. `wikiindex serve` keeps connections alive.
+- D19 Host: `--include` / `--include-file` publish only selected folders.
+  Include patterns are always anchored to the vault root so the walk prunes
+  folders that cannot lead to an included one; exclusions still apply inside.
+  Assets are selected by folder like notes (include the attachments folder);
+  publishing only the assets that included notes embed is deferred. An include
+  file listing no folder is an error, never "the whole vault".
 
 ## Phase A — repository baseline
 - [x] Inspect repo, Xcode project, targets, git status
@@ -184,3 +190,5 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [-] Asset downloads are not cancelled when rows scroll away (bounded to 4).
 - [-] PDF/audio/video preview (metadata + placeholder today).
 - [-] Unlinked mentions, graph view, Canvas, Dataview (out of scope).
+- [-] With `--include`, publish images outside the included folders that
+      included notes embed (today the attachments folder must be included).
