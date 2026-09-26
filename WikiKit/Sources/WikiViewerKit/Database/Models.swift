@@ -105,6 +105,18 @@ public struct TagSummary: Identifiable, Hashable, Sendable {
     public var noteCount: Int
 }
 
+/// One level of the tag hierarchy (`project`, `project/alpha`).
+public struct TagNode: Identifiable, Hashable, Sendable {
+    public var id: String { name }
+    /// Full tag name, e.g. `project/alpha`.
+    public var name: String
+    /// Last component, e.g. `alpha`.
+    public var component: String
+    /// Notes carrying exactly this tag; 0 if only nested tags are used.
+    public var noteCount: Int
+    public var hasChildren: Bool
+}
+
 public struct HeadingInfo: Sendable, Hashable {
     public var ordinal: Int
     public var level: Int

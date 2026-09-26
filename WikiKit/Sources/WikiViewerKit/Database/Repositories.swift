@@ -376,6 +376,50 @@ public struct TagRepository: Sendable {
         }
     }
 
+    /// Upper bound on tags read to build one level of the hierarchy.
+    static let maxHierarchyScan = 50_000
+
+    /// Direct children of `parent` in the tag hierarchy (top-level tags when
+    /// nil), by name. A level exists when any tag starts with it, even if it
+    /// is never used by itself (`#a/b` alone yields `a`). Reads the tags
+    /// under `parent` (bounded by tag cardinality, not note count).
+    public func childTags(of parent: String? = nil) async throws -> [TagNode] {
+        let prefix = parent.map { $0 + "/" } ?? ""
+        let rows = try await database.reader.read { db in
+            try Row.fetchAll(db, sql: "SELECT name, note_count FROM tags WHERE name LIKE ? ESCAPE '\\' LIMIT \(Self.maxHierarchyScan)",
+                             arguments: [likeEscaped(prefix) + "%"]).map { (name: $0["name"] as String, count: $0["note_count"] as Int) }
+        }
+        var nodes: [String: TagNode] = [:]
+        for row in rows {
+            let name = row.name
+            guard name.count > prefix.count else { continue }
+            let rest = name.dropFirst(prefix.count)
+            let component = String(rest.prefix { $0 != "/" })
+            guard !component.isEmpty else { continue }
+            let key = VaultPath.matchKey(component)
+            var node = nodes[key] ?? TagNode(name: prefix + component, component: component, noteCount: 0, hasChildren: false)
+            if rest.count == component.count {
+                node.name = name
+                node.component = component
+                node.noteCount = row.count
+            } else {
+                node.hasChildren = true
+            }
+            nodes[key] = node
+        }
+        return nodes.values.sorted { $0.component.localizedStandardCompare($1.component) == .orderedAscending }
+    }
+
+    /// Notes under a tag name, like `notes(taggedWith:)`, but also for a
+    /// level that exists only through nested tags (`a` when only `a/b` is used).
+    public func notes(underTag name: String, includeNested: Bool = true, before cursor: Int64? = nil, limit: Int = 200) async throws -> Page<NoteSummary> {
+        if let tag = try await tag(named: name) {
+            return try await notes(taggedWith: tag, includeNested: includeNested, before: cursor, limit: limit)
+        }
+        guard includeNested else { return Page(items: [], hasMore: false) }
+        return try await notes(taggedWith: TagSummary(id: -1, name: name, noteCount: 0), includeNested: true, before: cursor, limit: limit)
+    }
+
     /// Upper bound on nested tags merged for one listing.
     static let maxNestedTags = 200
 

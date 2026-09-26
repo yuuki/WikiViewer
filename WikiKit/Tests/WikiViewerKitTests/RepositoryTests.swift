@@ -173,6 +173,18 @@ import WikiShared
         #expect(flat.items.map(\.path) == ["Projects/Alpha.md"])
         let prefixed = try await session.tags.tags(prefix: "proj")
         #expect(prefixed.items.map(\.name) == ["project", "project/alpha", "project/beta"])
+        let top = try await session.tags.childTags()
+        #expect(top.map(\.name) == ["archive", "daily", "index", "inline-tag", "project", "メモ", "日本語"])
+        let projectNode = try #require(top.first { $0.name == "project" })
+        #expect(projectNode.hasChildren && projectNode.noteCount == 1)
+        #expect(top.first { $0.name == "daily" }?.hasChildren == false)
+        let children = try await session.tags.childTags(of: "project")
+        #expect(children.map(\.name) == ["project/alpha", "project/beta"])
+        #expect(children.map(\.component) == ["alpha", "beta"])
+        #expect(try await session.tags.childTags(of: "project/alpha").isEmpty)
+        #expect(try await session.tags.notes(underTag: "project").items.count == 2)
+        #expect(try await session.tags.notes(underTag: "nothing").items.isEmpty)
+
         let homeTags = try await session.tags.tags(of: try await id("Home.md"))
         #expect(homeTags.map(\.name) == ["index", "inline-tag", "日本語"])
     }
