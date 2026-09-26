@@ -100,7 +100,7 @@ struct FolderView: View {
                 ContentUnavailableView("Empty Folder", systemImage: "folder")
             }
         }
-        .navigationTitle(path.isEmpty ? "Vault" : VaultPath.fileName(of: path))
+        .navigationTitle(path.isEmpty ? String(localized: "Vault") : VaultPath.fileName(of: path))
         .navigationBarTitleDisplayMode(path.isEmpty ? .large : .inline)
         .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
         .toolbar {
