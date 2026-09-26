@@ -39,6 +39,15 @@ import WikiShared
         let root = try await session.folders.subfolders(of: ViewerSchema.rootFolderID)
         #expect(root.items.map(\.name) == ["Archive", "attachments", "Café", "Daily", "Meetings", "Projects", "日本語"])
         #expect(!root.hasMore)
+        var folderCursor: FolderSummary?
+        var folderNames: [String] = []
+        while true {
+            let page = try await session.folders.subfolders(of: ViewerSchema.rootFolderID, after: folderCursor, limit: 2)
+            folderNames += page.items.map(\.name)
+            folderCursor = page.items.last
+            if !page.hasMore { break }
+        }
+        #expect(folderNames == root.items.map(\.name))
         let rootNotes = try await session.folders.notes(in: ViewerSchema.rootFolderID)
         #expect(rootNotes.items.map(\.title) == ["Code", "Empty", "Home", "Invalid YAML"])
 

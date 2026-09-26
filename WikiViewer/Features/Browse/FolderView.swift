@@ -38,8 +38,10 @@ struct FolderView: View {
                             FolderRow(folder: folder)
                         }
                     }
-                    if model.foldersTruncated {
-                        Text("More subfolders not shown").font(.footnote).foregroundStyle(.secondary)
+                    if model.foldersTruncated, let session = library.session {
+                        Button("Show More Folders") {
+                            Task { await model.loadMoreFolders(session: session) }
+                        }
                     }
                 } header: {
                     // Only needed to set the vault apart from the home sections.
@@ -262,6 +264,14 @@ final class FolderModel {
             self.error = error.localizedDescription
         }
         loaded = true
+    }
+
+    func loadMoreFolders(session: LibrarySession) async {
+        guard foldersTruncated, session.id == sessionID, let folderID, let last = folders.last else { return }
+        if let page = try? await session.folders.subfolders(of: folderID, after: last) {
+            folders.append(contentsOf: page.items)
+            foldersTruncated = page.hasMore
+        }
     }
 
     func loadMoreNotes(session: LibrarySession) async {

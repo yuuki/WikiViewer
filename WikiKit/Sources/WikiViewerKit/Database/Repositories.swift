@@ -109,11 +109,20 @@ public struct FolderRepository: Sendable {
         }
     }
 
-    /// Direct subfolders, ordered by name (folders_parent_name index).
-    public func subfolders(of folderID: Int64, limit: Int = maxPage) async throws -> Page<FolderSummary> {
+    /// Direct subfolders, ordered by name (folders_parent_name index),
+    /// keyset-paginated after `cursor`.
+    public func subfolders(of folderID: Int64, after cursor: FolderSummary? = nil, limit: Int = maxPage) async throws -> Page<FolderSummary> {
         let limit = clampLimit(limit)
         return try await database.reader.read { db in
-            let rows = try Row.fetchAll(db, sql: "SELECT * FROM folders WHERE parent_id = ? ORDER BY name LIMIT ?", arguments: [folderID, limit + 1])
+            let rows: [Row]
+            if let cursor {
+                rows = try Row.fetchAll(db, sql: """
+                    SELECT * FROM folders WHERE parent_id = ? AND (name > ? OR (name = ? AND id > ?))
+                    ORDER BY name, id LIMIT ?
+                    """, arguments: [folderID, cursor.name, cursor.name, cursor.id, limit + 1])
+            } else {
+                rows = try Row.fetchAll(db, sql: "SELECT * FROM folders WHERE parent_id = ? ORDER BY name, id LIMIT ?", arguments: [folderID, limit + 1])
+            }
             return Page(items: rows.prefix(limit).map(Self.folder), hasMore: rows.count > limit)
         }
     }
