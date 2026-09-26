@@ -200,9 +200,7 @@ struct NoteHeader: View {
                     .font(.title.bold())
                     .textSelection(.enabled)
             }
-            Text(VaultPath.folder(of: detail.path).isEmpty ? "/" : VaultPath.folder(of: detail.path))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            FolderBreadcrumb(folder: VaultPath.folder(of: detail.path))
             if !tags.isEmpty {
                 TagLine(tags: tags.map(\.name))
             }
@@ -219,6 +217,38 @@ struct NoteHeader: View {
                 .tint(.secondary)
             }
             Divider().padding(.top, 4)
+        }
+    }
+}
+
+/// The note's folder as tappable path components. Nothing for the vault
+/// root, where a lone "/" would say nothing.
+struct FolderBreadcrumb: View {
+    let folder: String
+
+    var body: some View {
+        if !folder.isEmpty {
+            let components = folder.split(separator: "/").map(String.init)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .accessibilityHidden(true)
+                    ForEach(components.indices, id: \.self) { i in
+                        if i > 0 {
+                            Image(systemName: "chevron.compact.right")
+                                .accessibilityHidden(true)
+                        }
+                        NavigationLink(value: Route.folder(path: components[...i].joined(separator: "/"))) {
+                            Text(components[i])
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Text("Folder"))
         }
     }
 }
