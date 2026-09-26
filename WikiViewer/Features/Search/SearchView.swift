@@ -30,6 +30,14 @@ struct SearchView: View {
             if let error {
                 Text(error).foregroundStyle(.secondary)
             }
+            if searchesTitlesOnly {
+                // Stays with the results: a two-character Japanese word that
+                // is only in note text would otherwise look like a miss.
+                Label("Terms under 3 characters only match titles, aliases and tags. Add a longer term to search note text.", systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .listRowSeparator(.hidden)
+            }
             if !titleHits.isEmpty {
                 Section("Titles") {
                     ForEach(titleHits) { hit in
@@ -40,7 +48,7 @@ struct SearchView: View {
                 }
             }
             if !hits.isEmpty {
-                Section("In Notes") {
+                Section(searchesTitlesOnly ? "Tags" : "In Notes") {
                     // Identity includes the snippet so a row is rebuilt whenever the
                     // result for the same note changes between queries.
                     ForEach(hits, id: \.self) { hit in
@@ -76,6 +84,10 @@ struct SearchView: View {
     }
 
     @Environment(NavigationModel.self) private var navigation
+
+    private var searchesTitlesOnly: Bool {
+        !query.trimmingCharacters(in: .whitespaces).isEmpty && !TrigramSearchEngine.searchesNoteText(query)
+    }
 
     func focusIfRequested() {
         let request = app.searchFocusRequest

@@ -191,6 +191,15 @@ import WikiShared
         #expect(Set(tagHits.map(\.note.path)).isSuperset(of: ["日本語/東京メモ.md", "Home.md"]))
     }
 
+    @Test func reportsWhetherNoteTextIsSearched() {
+        #expect(!TrigramSearchEngine.searchesNoteText("東京"))
+        #expect(!TrigramSearchEngine.searchesNoteText("東京 天気"))
+        #expect(!TrigramSearchEngine.searchesNoteText("  "))
+        #expect(TrigramSearchEngine.searchesNoteText("東京都"))
+        #expect(TrigramSearchEngine.searchesNoteText("東京 東京都"))
+        #expect(TrigramSearchEngine.searchesNoteText("alpha"))
+    }
+
     @Test func quickSwitcher() async throws {
         #expect(try await search.quickSwitch("hom", limit: 10).first?.note.path == "Home.md")
         #expect(try await search.quickSwitch("HOME", limit: 10).first?.note.path == "Home.md")

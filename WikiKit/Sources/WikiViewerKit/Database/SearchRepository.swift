@@ -61,6 +61,13 @@ public struct TrigramSearchEngine: SearchEngine {
             .filter { !$0.isEmpty }
     }
 
+    /// Whether `search` reads note text for this query. It does not when
+    /// every term is shorter than a trigram (e.g. the Japanese "東京"): only
+    /// titles, aliases and tags are matched then, which the UI should say.
+    public static func searchesNoteText(_ query: String) -> Bool {
+        terms(query).contains { $0.unicodeScalars.count >= minimumTrigramLength }
+    }
+
     /// FTS5 query requiring every trigram (3 Unicode scalars, as the trigram
     /// tokenizer counts) of `term`. Each trigram is a quoted one-token string.
     static func trigramQuery(_ term: String) -> String? {
