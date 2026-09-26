@@ -42,7 +42,6 @@ struct TagsView: View {
                 }
             }
         }
-        .quickSwitcherToolbar()
         .task(id: Key(filter: filter, order: order, session: library.session?.id)) {
             await load(reset: true)
         }

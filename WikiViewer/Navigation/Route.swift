@@ -25,7 +25,6 @@ struct Anchor: Hashable {
 @Observable
 final class NavigationModel {
     var path: [Route] = []
-    var quickSwitcherPresented = false
 
     func push(_ route: Route) {
         path.append(route)
@@ -80,37 +79,5 @@ struct LinkRouter {
         case .asset:
             return .handled
         }
-    }
-}
-
-extension View {
-    /// Toolbar button + sheet for the quick switcher.
-    func quickSwitcherToolbar() -> some View {
-        modifier(QuickSwitcherToolbar())
-    }
-}
-
-struct QuickSwitcherToolbar: ViewModifier {
-    @Environment(NavigationModel.self) private var navigation
-
-    func body(content: Content) -> some View {
-        @Bindable var navigation = navigation
-        content
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        navigation.quickSwitcherPresented = true
-                    } label: {
-                        Label("Quick Switcher", systemImage: "arrow.up.and.down.text.horizontal")
-                    }
-                    .keyboardShortcut("o", modifiers: .command)
-                }
-            }
-            .sheet(isPresented: $navigation.quickSwitcherPresented) {
-                QuickSwitcherView { summary in
-                    navigation.quickSwitcherPresented = false
-                    navigation.push(.note(path: summary.path, anchor: nil))
-                }
-            }
     }
 }

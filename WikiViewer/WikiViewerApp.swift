@@ -15,6 +15,7 @@ import BackgroundTasks
 struct WikiViewerApp: App {
     @State private var library: Library?
     @State private var startupError: String?
+    @State private var app = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -23,6 +24,7 @@ struct WikiViewerApp: App {
                 if let library {
                     ContentView()
                         .environment(library)
+                        .environment(app)
                         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
                             library.imageCache.removeAll()
                         }
@@ -41,6 +43,14 @@ struct WikiViewerApp: App {
                 } catch {
                     startupError = error.localizedDescription
                 }
+            }
+        }
+        .commands {
+            CommandGroup(after: .newItem) {
+                Button("Search Notes") { app.showSearch() }
+                    .keyboardShortcut("o", modifiers: .command)
+                Button("Find in Vault") { app.showSearch() }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
             }
         }
         #if os(iOS)

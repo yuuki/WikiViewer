@@ -10,25 +10,26 @@ import WikiViewerKit
 
 struct ContentView: View {
     @Environment(Library.self) private var library
+    @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
-    @State private var tab: Tab = .files
-
-    enum Tab: Hashable { case files, search, tags, settings }
 
     var body: some View {
-        TabView(selection: $tab) {
-            TabRoot(root: .folder(path: "")) 
-                .tabItem { Label("Files", systemImage: "folder") }
-                .tag(Tab.files)
-            TabRoot(root: .search)
-                .tabItem { Label("Search", systemImage: "magnifyingglass") }
-                .tag(Tab.search)
-            TabRoot(root: .tags)
-                .tabItem { Label("Tags", systemImage: "number") }
-                .tag(Tab.tags)
-            NavigationStack { SettingsView() }
-                .tabItem { Label("Settings", systemImage: "gearshape") }
-                .tag(Tab.settings)
+        @Bindable var app = app
+        TabView(selection: $app.tab) {
+            Tab("Files", systemImage: "folder", value: AppTab.files) {
+                TabRoot(root: .folder(path: ""))
+            }
+            Tab("Tags", systemImage: "number", value: AppTab.tags) {
+                TabRoot(root: .tags)
+            }
+            Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
+                NavigationStack { SettingsView() }
+            }
+            // The system search tab: its field takes titles and full text,
+            // replacing the separate quick switcher.
+            Tab(value: AppTab.search, role: .search) {
+                TabRoot(root: .search)
+            }
         }
         // While the app is in the foreground, keep the snapshot current:
         // check on activation, then follow the source (long poll or polling).
@@ -75,4 +76,5 @@ struct TabRoot: View {
 
 #Preview {
     ContentView()
+        .environment(AppModel())
 }

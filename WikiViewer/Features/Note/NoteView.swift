@@ -47,7 +47,6 @@ struct NoteView: View {
                     }
                 }
             }
-            .quickSwitcherToolbar()
             .task(id: library.session?.id) {
                 guard let session = library.session else { return }
                 let firstLoad = await model.load(path: path, session: session)

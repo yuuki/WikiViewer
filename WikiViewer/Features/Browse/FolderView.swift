@@ -66,7 +66,6 @@ struct FolderView: View {
         }
         .navigationTitle(path.isEmpty ? "Vault" : VaultPath.fileName(of: path))
         .navigationBarTitleDisplayMode(path.isEmpty ? .large : .inline)
-        .quickSwitcherToolbar()
         .task(id: library.session?.id) {
             guard let session = library.session else { return }
             await model.load(path: path, session: session)
