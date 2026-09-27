@@ -144,7 +144,7 @@ struct BaseRowView: View {
         let parts = columns.compactMap { column -> Text? in
             guard let cell = row.cells[column.id], !cell.isEmpty else { return nil }
             // A no-break space keeps each label on the line of its value.
-            return Text("\(Text(column.label).foregroundStyle(.secondary))\u{00A0}\(cell.displayText)")
+            return Text("\(Text(column.label).foregroundStyle(.secondary))\u{00A0}\(Text(NoteRenderer.cellText(cell)))")
         }
         guard var text = parts.first else { return nil }
         for part in parts.dropFirst() {
