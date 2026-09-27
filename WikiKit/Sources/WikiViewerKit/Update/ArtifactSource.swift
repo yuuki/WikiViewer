@@ -70,14 +70,22 @@ enum PublishedPath {
 }
 
 /// Copies `source` to `destination` in chunks, enforcing a size limit.
-func boundedCopy(from source: URL, to destination: URL, maximumBytes: Int64, name: String) throws {
+/// `isCancelled` reports cancellation of a caller that is no longer waiting
+/// (the copy runs on a dispatch queue, outside the task): the copy then stops
+/// and removes what it wrote, so it cannot refill a directory being cleaned up.
+func boundedCopy(from source: URL, to destination: URL, maximumBytes: Int64, name: String, isCancelled: () -> Bool = { false }) throws {
     let input = try FileHandle(forReadingFrom: source)
     defer { try? input.close() }
+    if isCancelled() { throw CancellationError() }
     FileManager.default.createFile(atPath: destination.path, contents: nil)
     let output = try FileHandle(forWritingTo: destination)
     defer { try? output.close() }
     var total: Int64 = 0
     while true {
+        if isCancelled() {
+            try? FileManager.default.removeItem(at: destination)
+            throw CancellationError()
+        }
         try Task.checkCancellation()
         // Each read's buffer is released per iteration (FileHandle returns
         // autoreleased data on Darwin).
@@ -117,7 +125,7 @@ public struct LocalFolderArtifactSource: ArtifactSource {
 
     public func fetchManifest() async throws -> Data {
         let source = self
-        return try await withAccess {
+        return try await withAccess { _ in
             try source.coordinatedRead("manifest.json") { url in
                 let handle = try FileHandle(forReadingFrom: url)
                 defer { try? handle.close() }
@@ -131,9 +139,9 @@ public struct LocalFolderArtifactSource: ArtifactSource {
     public func download(_ relativePath: String, to destination: URL, maximumBytes: Int64) async throws {
         try PublishedPath.validate(relativePath)
         let source = self
-        try await withAccess {
+        try await withAccess { isCancelled in
             try source.coordinatedRead(relativePath) { url in
-                try boundedCopy(from: url, to: destination, maximumBytes: maximumBytes, name: relativePath)
+                try boundedCopy(from: url, to: destination, maximumBytes: maximumBytes, name: relativePath, isCancelled: isCancelled)
             }
         }
     }
@@ -147,7 +155,8 @@ public struct LocalFolderArtifactSource: ArtifactSource {
     /// `CancellationError` even if the coordinated read is still blocked
     /// (e.g. an iCloud placeholder while offline); the blocked read finishes
     /// or fails later on its own queue and its result is dropped.
-    func withAccess<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
+    /// `body` receives a check for that cancellation, so long work can stop.
+    func withAccess<T: Sendable>(_ body: @escaping @Sendable (_ isCancelled: @escaping @Sendable () -> Bool) throws -> T) async throws -> T {
         let root = root
         let securityScoped = securityScoped
         let once = ResumeGate<T>()
@@ -157,7 +166,7 @@ public struct LocalFolderArtifactSource: ArtifactSource {
                 Self.ioQueue.async {
                     let granted = securityScoped ? root.startAccessingSecurityScopedResource() : false
                     defer { if granted { root.stopAccessingSecurityScopedResource() } }
-                    once.resume(with: Result { try body() })
+                    once.resume(with: Result { try body { once.isFinished } })
                 }
             }
         } onCancel: {
@@ -387,6 +396,11 @@ final class ResumeGate<T: Sendable>: Sendable {
             return nil
         }
         if let pending { continuation.resume(with: pending) }
+    }
+
+    /// True once the waiting task was resumed (or a result is pending).
+    var isFinished: Bool {
+        state.withLock { $0.done || $0.pending != nil }
     }
 
     func resume(with result: Result<T, any Error>) {
