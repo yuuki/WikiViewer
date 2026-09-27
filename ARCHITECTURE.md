@@ -275,7 +275,9 @@ Rendering happens only for the note on screen, off the main thread, into
 native SwiftUI views; there is no web view. Obsidian-specific syntax
 (wikilinks, embeds, tags, block IDs, callouts) is turned into explicit
 elements using the shared scanner rather than by text substitution, so
-syntax inside code or comments is not misinterpreted. Very long lists, code
+syntax inside code or comments is not misinterpreted. LaTeX math (`$…$`,
+`$$…$$`) is lifted out before Markdown parsing and typeset natively with
+SwiftMath. Very long lists, code
 blocks and tables are split so that even a huge note is laid out lazily.
 
 ### Swift for the indexer
@@ -311,7 +313,8 @@ Supported: wikilinks with paths, labels, headings and block references;
 embeds of images, notes and note sections; Markdown links to notes and
 attachments; YAML frontmatter (shown as properties; wikilinks in string
 values such as `up: "[[Home]]"` are links and count as backlinks), aliases,
-frontmatter and inline tags (including nested tags); headings and callouts; unresolved links.
+frontmatter and inline tags (including nested tags); headings and callouts; unresolved links;
+inline and display LaTeX math.
 The reference is Obsidian's public documentation; no Obsidian code is used.
 
 ## Known limitations of the initial implementation
@@ -324,6 +327,8 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
 - Backlinks and tag lists are ordered by recency, not by title.
 - Remote images in notes are shown as links and not fetched (privacy, memory).
 - PDF, audio and video have no preview yet.
+- Math is typeset by SwiftMath, which covers common LaTeX math but not all
+  of MathJax; a formula it cannot parse is shown as its source.
 - The manifest is hashed but not signed; see THREAT_MODEL.md.
 - The indexer's own memory grows with vault size; it runs on the Mac, where
   this is acceptable for now (numbers in BENCHMARKS.md).
@@ -339,5 +344,6 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
 | GRDB.swift | MIT | SQLite access on both sides; already used by the project |
 | swift-markdown (with swift-cmark) | Apache-2.0 / BSD-2-Clause | CommonMark/GFM parsing for native rendering, maintained by Apple |
 | Yams (with libyaml) | MIT | YAML frontmatter, indexer only |
+| SwiftMath (with its bundled OpenType math fonts) | MIT / OFL, GUST | Native LaTeX math typesetting, app only |
 
 SQLite itself is the system library on both macOS and iOS.

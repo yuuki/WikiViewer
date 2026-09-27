@@ -14,6 +14,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
         .package(url: "https://github.com/swiftlang/swift-markdown.git", from: "0.9.0"),
+        .package(url: "https://github.com/mgriebling/SwiftMath.git", from: "1.7.3"),
     ],
     targets: [
         // Pure Swift, no dependencies: Obsidian syntax scanning, link targets,
@@ -27,6 +28,8 @@ let package = Package(
                 "WikiShared",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "Markdown", package: "swift-markdown"),
+                // LaTeX typesetting for $…$ and $$…$$ (iOS only, see MathRenderer).
+                .product(name: "SwiftMath", package: "SwiftMath", condition: .when(platforms: [.iOS])),
             ],
             resources: [.copy("Resources/DemoArtifact")]
         ),

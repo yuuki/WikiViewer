@@ -46,6 +46,7 @@ extension RenderBlock {
         switch kind {
         case .heading(_, let text), .paragraph(let text): String(text.characters)
         case .code(_, let code, _): code
+        case .math(let latex): latex
         case .quote(let children): children.map(\.plainText).joined(separator: "\n")
         case .callout(_, let title, _, let children): ([String(title.characters)] + children.map(\.plainText)).joined(separator: "\n")
         case .listItem(_, _, let blocks): blocks.map(\.plainText).joined(separator: "\n")
@@ -77,6 +78,8 @@ public struct RenderBlock: Identifiable, Sendable {
         case table(header: [AttributedString], rows: [[AttributedString]])
         case rule
         case embed(EmbedTarget)
+        /// `$$…$$` display math, as LaTeX source.
+        case math(String)
         case html(String)
     }
 }
@@ -85,6 +88,14 @@ public enum ListMarker: Sendable, Equatable {
     case bullet
     case number(Int)
     case task(done: Bool)
+}
+
+/// Marks inline `$…$` math in a paragraph's AttributedString. The run's
+/// characters are the LaTeX source, so search and copying see the formula;
+/// the value is the same source, for the view to typeset.
+public enum MathAttribute: AttributedStringKey {
+    public typealias Value = String
+    public static let name = "WikiViewer.math"
 }
 
 public enum EmbedTarget: Sendable, Hashable {
@@ -99,7 +110,7 @@ public enum NoteRenderer {
     public static func render(body: String, noteID: Int64, links: [OutgoingLink], allowEmbeds: Bool = true) -> RenderedNote {
         let pre = Preprocessor.run(body: body, noteID: noteID, links: links, allowEmbeds: allowEmbeds)
         let document = Document(parsing: pre.text)
-        var builder = BlockBuilder(embeds: pre.embeds)
+        var builder = BlockBuilder(embeds: pre.embeds, math: pre.math)
         var blocks: [RenderBlock] = []
         for child in document.children {
             blocks.append(contentsOf: builder.blocks(for: child))
@@ -227,10 +238,12 @@ struct Preprocessor {
     struct Output {
         var text: String
         var embeds: [Int: EmbedTarget]
+        var math: [Int: ScannedMath]
         var blockIDsByLine: [Int: String]
     }
 
     static let embedPrefix = "wikiviewer://embed/"
+    static let mathPrefix = "wikiviewer://math/"
 
     static func run(body: String, noteID: Int64, links: [OutgoingLink], allowEmbeds: Bool) -> Output {
         let scanned = ObsidianScanner().scan(body)
@@ -252,6 +265,18 @@ struct Preprocessor {
         var blockIDsByLine: [Int: String] = [:]
 
         for range in scanned.hiddenRanges { edits.append((range, .hidden)) }
+        // Math becomes an image placeholder, so swift-markdown does not read
+        // its backslashes, underscores and asterisks as Markdown. Tokens the
+        // scanner found inside inline math ("$a #b$") overlap it and are dropped.
+        var math: [Int: ScannedMath] = [:]
+        for item in MathScanner().scan(body) {
+            let index = math.count
+            math[index] = item
+            // Keep each line's container prefix so line numbers and
+            // blockquotes survive a multi-line block.
+            let lines = item.linePrefixes.map { "\n" + $0 }.joined()
+            edits.append((item.range, .replace("![](\(mathPrefix)\(index))" + lines)))
+        }
         for block in scanned.blockIDs {
             edits.append((block.range, .remove))
             blockIDsByLine[block.line] = block.id
@@ -309,7 +334,7 @@ struct Preprocessor {
             cursor = range.upperBound
         }
         out.append(contentsOf: bytes[cursor...])
-        return Output(text: String(decoding: out, as: UTF8.self), embeds: embeds, blockIDsByLine: blockIDsByLine)
+        return Output(text: String(decoding: out, as: UTF8.self), embeds: embeds, math: math, blockIDsByLine: blockIDsByLine)
     }
 
     static func resolve(_ row: OutgoingLink?, token: ScannedLink, noteID: Int64) -> WikiLinkAction {
@@ -355,10 +380,12 @@ struct Preprocessor {
 
 struct BlockBuilder {
     let embeds: [Int: EmbedTarget]
+    let math: [Int: ScannedMath]
     var nextID = 0
 
-    init(embeds: [Int: EmbedTarget]) {
+    init(embeds: [Int: EmbedTarget], math: [Int: ScannedMath] = [:]) {
         self.embeds = embeds
+        self.math = math
     }
 
     mutating func makeID() -> Int {
@@ -456,16 +483,25 @@ struct BlockBuilder {
         return result
     }
 
-    /// Splits a paragraph around embed images so embeds become blocks.
     mutating func paragraphBlocks(_ paragraph: Paragraph) -> [RenderBlock] {
+        paragraphBlocks(Array(paragraph.children))
+    }
+
+    /// Splits a paragraph around embed and display math images so they
+    /// become blocks.
+    mutating func paragraphBlocks(_ children: [any Markup]) -> [RenderBlock] {
         // Group inline children into runs separated by embed images.
         var runs: [Either] = []
         var pending: [any Markup] = []
-        for child in paragraph.children {
+        for child in children {
             if let image = child as? Markdown.Image, let embed = embedTarget(image) {
                 runs.append(.inlines(pending))
                 pending.removeAll()
                 runs.append(.embed(embed))
+            } else if let image = child as? Markdown.Image, let math = mathSource(image), math.display {
+                runs.append(.inlines(pending))
+                pending.removeAll()
+                runs.append(.math(math.latex))
             } else {
                 pending.append(child)
             }
@@ -477,6 +513,8 @@ struct BlockBuilder {
             switch run {
             case .embed(let embed):
                 result.append(RenderBlock(id: makeID(), kind: .embed(embed)))
+            case .math(let latex):
+                result.append(RenderBlock(id: makeID(), kind: .math(latex)))
             case .inlines(let nodes):
                 guard !nodes.isEmpty else { continue }
                 let text = inlines(nodes)
@@ -491,6 +529,13 @@ struct BlockBuilder {
     enum Either {
         case inlines([any Markup])
         case embed(EmbedTarget)
+        case math(String)
+    }
+
+    func mathSource(_ image: Markdown.Image) -> ScannedMath? {
+        guard let source = image.source, source.hasPrefix(Preprocessor.mathPrefix),
+              let index = Int(source.dropFirst(Preprocessor.mathPrefix.count)) else { return nil }
+        return math[index]
     }
 
     func embedTarget(_ image: Markdown.Image) -> EmbedTarget? {
@@ -523,18 +568,15 @@ struct BlockBuilder {
             }
             if inBody { bodyNodes.append(child) } else { titleNodes.append(child) }
         }
-        var title = AttributedString(rest.trimmingCharacters(in: .whitespaces))
+        // Only the leading space: the text may continue with inline nodes
+        // (math, emphasis) after a space. The whole title is trimmed below.
+        var title = AttributedString(String(rest.drop(while: \.isWhitespace)))
         title.append(inlines(titleNodes))
         if String(title.characters).trimmingCharacters(in: .whitespaces).isEmpty {
             title = AttributedString(type.prefix(1).uppercased() + type.dropFirst())
         }
         var children: [RenderBlock] = []
-        if !bodyNodes.isEmpty {
-            let body = inlines(bodyNodes)
-            if !String(body.characters).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                children.append(RenderBlock(id: makeID(), kind: .paragraph(trimmed(body))))
-            }
-        }
+        children += paragraphBlocks(bodyNodes)
         for child in quote.children.dropFirst() {
             children.append(contentsOf: blocks(for: child))
         }
@@ -590,6 +632,13 @@ struct BlockBuilder {
             // schemes (tel:, shortcuts:, file:, custom apps) render as text.
             let url = l.destination.flatMap { URL(string: $0) }.flatMap { WikiLinkAction(url: $0) != nil ? $0 : nil }
             return children(intent, url ?? link)
+        case let image as Markdown.Image where mathSource(image) != nil:
+            // Math left inline (e.g. in a heading or table cell) is typeset
+            // in text style; its characters are the source.
+            let latex = mathSource(image)?.latex ?? ""
+            var s = styled(latex, intent)
+            s[MathAttribute.self] = latex
+            return s
         case let image as Markdown.Image:
             // Non-embed images (e.g. remote URLs) are not fetched: privacy and
             // bounded memory. They render as a link with their alt text.

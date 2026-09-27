@@ -11,11 +11,12 @@ import WikiViewerKit
 
 struct BlockView: View {
     let block: RenderBlock
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         switch block.kind {
         case .heading(let level, let text):
-            Text(text)
+            Text(math: text, mathSize: MathRenderer.fontSize(Self.headingStyle(level), typeSize))
                 .font(Self.headingFont(level))
                 .fontWeight(level <= 2 ? .bold : level <= 4 ? .semibold : .medium)
                 .foregroundStyle(level >= 6 ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
@@ -23,7 +24,7 @@ struct BlockView: View {
                 .textSelection(.enabled)
                 .accessibilityAddTraits(.isHeader)
         case .paragraph(let text):
-            Text(text)
+            Text(math: text, mathSize: MathRenderer.fontSize(.body, typeSize))
                 .font(.body)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
@@ -55,6 +56,8 @@ struct BlockView: View {
             Divider().padding(.vertical, 6)
         case .embed(let target):
             EmbedView(target: target)
+        case .math(let latex):
+            MathBlockView(latex: latex)
         case .html(let raw):
             Text(raw)
                 .font(.footnote.monospaced())
@@ -71,6 +74,39 @@ struct BlockView: View {
         case 2: .title2
         case 3: .title3
         default: .headline
+        }
+    }
+
+    static func headingStyle(_ level: Int) -> UIFont.TextStyle {
+        switch level {
+        case 1: .title1
+        case 2: .title2
+        case 3: .title3
+        default: .headline
+        }
+    }
+}
+
+/// `$$…$$` display math: centered, and scrollable when wider than the page.
+/// A formula SwiftMath cannot typeset is shown as its source.
+struct MathBlockView: View {
+    let latex: String
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        if let rendered = MathRenderer.render(latex, fontSize: MathRenderer.fontSize(.body, typeSize), display: true) {
+            ViewThatFits(in: .horizontal) {
+                rendered.image
+                    .frame(maxWidth: .infinity)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    rendered.image
+                }
+            }
+            .padding(.vertical, 4)
+            .accessibilityElement()
+            .accessibilityLabel(Text(verbatim: latex))
+        } else {
+            CodeBlockView(language: "latex", code: latex)
         }
     }
 }
@@ -126,6 +162,7 @@ struct CalloutView: View {
     let foldable: Bool
     let children: [RenderBlock]
     @State private var expanded = true
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -157,7 +194,7 @@ struct CalloutView: View {
     private var titleRow: some View {
         HStack(spacing: 6) {
             Image(systemName: style.symbol)
-            Text(title).fontWeight(.semibold)
+            Text(math: title, mathSize: MathRenderer.fontSize(.body, typeSize)).fontWeight(.semibold)
             if foldable {
                 Spacer()
                 Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.caption)
@@ -194,6 +231,7 @@ struct CalloutView: View {
 struct TableBlockView: View {
     let header: [AttributedString]
     let rows: [[AttributedString]]
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -201,7 +239,7 @@ struct TableBlockView: View {
                 if !header.isEmpty {
                     GridRow {
                         ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
-                            Text(cell).font(.footnote.bold())
+                            Text(math: cell, mathSize: MathRenderer.fontSize(.footnote, typeSize)).font(.footnote.bold())
                         }
                     }
                     Divider()
@@ -209,7 +247,7 @@ struct TableBlockView: View {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                            Text(cell).font(.footnote)
+                            Text(math: cell, mathSize: MathRenderer.fontSize(.footnote, typeSize)).font(.footnote)
                         }
                     }
                 }
