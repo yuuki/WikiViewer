@@ -198,6 +198,11 @@ import WikiShared
         #expect(photo.kind == .image)
         #expect(photo.width == 1365 && photo.height == 2048)
         #expect(photo.blobRelativePath?.hasPrefix("assets/") == true)
+
+        let batch = try await session.assets.assets(ids: [photoID, photoID, -1])
+        #expect(batch.count == 1)
+        #expect(batch[photoID] == photo)
+        #expect(try await session.assets.assets(ids: []).isEmpty)
     }
 }
 

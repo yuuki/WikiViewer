@@ -472,6 +472,25 @@ public struct AssetRepository: Sendable {
         }
     }
 
+    /// Several assets at once, keyed by id; unknown ids are left out.
+    public func assets(ids: some Collection<Int64>) async throws -> [Int64: AssetInfo] {
+        let ids = Array(Set(ids))
+        guard !ids.isEmpty else { return [:] }
+        return try await database.reader.read { db in
+            var byID: [Int64: AssetInfo] = [:]
+            // Stay well under SQLite's bound-parameter limit.
+            for start in stride(from: 0, to: ids.count, by: 500) {
+                let chunk = ids[start..<min(start + 500, ids.count)]
+                let marks = Array(repeating: "?", count: chunk.count).joined(separator: ",")
+                for row in try Row.fetchAll(db, sql: "SELECT * FROM assets WHERE id IN (\(marks))", arguments: StatementArguments(Array(chunk))) {
+                    let asset = Self.asset(row)
+                    byID[asset.id] = asset
+                }
+            }
+            return byID
+        }
+    }
+
     static func asset(_ row: Row) -> AssetInfo {
         AssetInfo(
             id: row["id"], path: row["path"], name: row["name"], ext: row["ext"],

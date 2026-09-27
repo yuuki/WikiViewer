@@ -34,7 +34,8 @@ struct AssetEmbedView: View {
     let sizeSpec: String?
     @Environment(Library.self) private var library
     @Environment(\.displayScale) private var displayScale
-    @State private var asset: AssetInfo?
+    @Environment(\.embeddedAssets) private var embeddedAssets
+    @State private var loadedAsset: AssetInfo?
     @State private var image: CGImage?
     @State private var failure: String?
     @State private var availableWidth: CGFloat = 0
@@ -46,13 +47,22 @@ struct AssetEmbedView: View {
         return CGFloat(w)
     }
 
+    /// Known before `load()` when the note prefetched its embedded assets.
+    var asset: AssetInfo? { loadedAsset ?? embeddedAssets[assetID] }
+
+    /// Width cap shared by the image and its placeholder: the requested
+    /// width, but never wider than the image itself.
+    func maxWidth(pixelWidth: Int) -> CGFloat {
+        min(requestedWidth ?? .infinity, CGFloat(pixelWidth) / displayScale)
+    }
+
     var body: some View {
         Group {
             if let image {
                 Image(decorative: image, scale: displayScale)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: requestedWidth.map { min($0, CGFloat(image.width) / displayScale) } ?? CGFloat(image.width) / displayScale)
+                    .frame(maxWidth: maxWidth(pixelWidth: asset?.width ?? image.width))
                     .accessibilityLabel(name)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint(Text("Opens the image full screen"))
@@ -69,10 +79,15 @@ struct AssetEmbedView: View {
                 }
                 .buttonStyle(.plain)
             } else {
+                // Sized like the image it stands for: the row keeps its height
+                // while the image loads and after it is dropped off-screen.
+                // Otherwise a row above the scroll anchor that changes height
+                // shifts the scroll offset, and one at the edge of the screen
+                // can flip between the two sizes, appearing and disappearing.
                 Rectangle()
                     .fill(.quaternary)
                     .aspectRatio(aspectRatio, contentMode: .fit)
-                    .frame(maxWidth: requestedWidth)
+                    .frame(maxWidth: asset?.width.map { maxWidth(pixelWidth: $0) } ?? requestedWidth)
                     .overlay { ProgressView() }
             }
         }
@@ -101,8 +116,10 @@ struct AssetEmbedView: View {
     func load() async {
         guard let session = library.session, availableWidth > 0 else { return }
         do {
-            guard let info = try await session.assets.asset(id: assetID) else { return }
-            asset = info
+            var found = asset
+            if found == nil { found = try await session.assets.asset(id: assetID) }
+            guard let info = found else { return }
+            loadedAsset = info
             guard info.kind == .image, let sha = info.blobSHA256 else { return }
             let points = min(requestedWidth ?? availableWidth, availableWidth)
             let maxPixels = min(Int(points * displayScale), 2048)
@@ -124,6 +141,11 @@ struct AssetEmbedView: View {
             failure = "Not available offline"
         }
     }
+}
+
+extension EnvironmentValues {
+    /// A note's embedded assets by id, prefetched with the note.
+    @Entry var embeddedAssets: [Int64: AssetInfo] = [:]
 }
 
 struct AttachmentRow: View {
