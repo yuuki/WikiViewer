@@ -214,20 +214,71 @@ extension NoteRenderer {
         }
     }
 
+    /// A base cell as display text, with bare URLs in its text as links.
+    public static func cellText(_ cell: BaseCell) -> AttributedString {
+        switch cell {
+        case .text(let s):
+            return autolinked(s, AttributedString.init)
+        case .list(let items):
+            var out = AttributedString()
+            for (i, item) in items.enumerated() {
+                if i > 0 { out.append(AttributedString(", ")) }
+                out.append(cellText(item))
+            }
+            return out
+        case .number, .bool, .date, .link:
+            return AttributedString(cell.displayText)
+        }
+    }
+
     static func linkedText(_ s: String, noteID: Int64, byRaw: [String: OutgoingLink]) -> AttributedString {
-        guard s.contains("[[") else { return AttributedString(s) }
+        guard s.contains("[[") else { return autolinked(s, AttributedString.init) }
         let bytes = Array(s.utf8)
         var out = AttributedString()
         var cursor = 0
         for token in ObsidianScanner().scan(s).links where token.kind == .wiki {
             guard token.range.lowerBound >= cursor, token.range.upperBound <= bytes.count else { continue }
-            out.append(AttributedString(String(decoding: bytes[cursor..<token.range.lowerBound], as: UTF8.self)))
+            out.append(autolinked(String(decoding: bytes[cursor..<token.range.lowerBound], as: UTF8.self), AttributedString.init))
             var label = AttributedString(Preprocessor.wikiLabel(token.target))
             label.link = Preprocessor.resolve(byRaw[token.raw], token: token, noteID: noteID).url
             out.append(label)
             cursor = token.range.upperBound
         }
-        out.append(AttributedString(String(decoding: bytes[cursor...], as: UTF8.self)))
+        out.append(autolinked(String(decoding: bytes[cursor...], as: UTF8.self), AttributedString.init))
+        return out
+    }
+}
+
+// MARK: - Bare URLs
+
+extension NoteRenderer {
+    private static let urlDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
+    /// `s` with its bare http(s) URLs ("see https://example.com.") as links,
+    /// like Obsidian shows them in notes and properties. swift-markdown does
+    /// not enable the GFM autolink extension. `make` styles each piece.
+    static func autolinked(_ s: String, _ make: (String) -> AttributedString) -> AttributedString {
+        guard s.contains("://"), let detector = urlDetector else { return make(s) }
+        var out = AttributedString()
+        var cursor = s.startIndex
+        for match in detector.matches(in: s, range: NSRange(s.startIndex..., in: s)) {
+            guard var range = Range(match.range, in: s), range.lowerBound >= cursor else { continue }
+            // Only URLs written with their scheme: "example.com" stays text.
+            let lowered = s[range].lowercased()
+            guard lowered.hasPrefix("http://") || lowered.hasPrefix("https://") else { continue }
+            // The detector keeps an unbalanced closing parenthesis:
+            // "(https://x.org/Foo_(bar))" ends at "Foo_(bar)".
+            while s[range].last == ")", s[range].count(where: { $0 == ")" }) > s[range].count(where: { $0 == "(" }) {
+                range = range.lowerBound..<s.index(before: range.upperBound)
+            }
+            guard let url = URL(string: String(s[range])) ?? match.url, WikiLinkAction(url: url) != nil else { continue }
+            out.append(make(String(s[cursor..<range.lowerBound])))
+            var piece = make(String(s[range]))
+            piece.link = url
+            out.append(piece)
+            cursor = range.upperBound
+        }
+        out.append(make(String(s[cursor...])))
         return out
     }
 }
@@ -618,7 +669,8 @@ struct BlockBuilder {
         }
         switch markup {
         case let text as Markdown.Text:
-            return styled(text.string, intent)
+            guard link == nil else { return styled(text.string, intent) }
+            return NoteRenderer.autolinked(text.string) { styled($0, intent) }
         case is Emphasis:
             return children(intent.union(.emphasized), link)
         case is Strong:

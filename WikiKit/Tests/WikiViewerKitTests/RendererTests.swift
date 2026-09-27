@@ -223,6 +223,37 @@ import WikiShared
         #expect(found.map(\.0) == ["ok"])
     }
 
+    @Test func bareURLsBecomeLinks() {
+        let body = """
+        See https://example.com/a?b=1. and （https://example.jp/パス）です
+        (https://en.wikipedia.org/wiki/Foo_(bar)) but not example.com, ftp://x.org or `https://code.example`
+        **https://bold.example** [label](https://y.example) <https://angle.example>
+        """
+        let found = links(in: paragraphs(NoteRenderer.render(body: body, noteID: 1, links: [])).first ?? AttributedString())
+        #expect(found.map(\.0) == [
+            "https://example.com/a?b=1", "https://example.jp/パス", "https://en.wikipedia.org/wiki/Foo_(bar)",
+            "https://bold.example", "label", "https://angle.example",
+        ])
+        #expect(found.first?.1 == .external(URL(string: "https://example.com/a?b=1")!))
+    }
+
+    @Test func frontmatterURLsBecomeLinks() {
+        let rows = [link(0, "Home", note: 1)]
+        let source = NoteRenderer.propertyText(.list([.text("https://example.com/post"), .text("[[Home]] via https://x.example/a")]), noteID: 7, links: rows)
+        #expect(String(source.characters) == "https://example.com/post, Home via https://x.example/a")
+        #expect(links(in: source).map(\.1) == [
+            .external(URL(string: "https://example.com/post")!),
+            .note(id: 1, heading: nil, blockID: nil),
+            .external(URL(string: "https://x.example/a")!),
+        ])
+    }
+
+    @Test func baseCellURLsBecomeLinks() {
+        let cell = NoteRenderer.cellText(.list([.text("see https://example.com/a"), .link(display: "https://not.a.url", path: nil), .number(3)]))
+        #expect(String(cell.characters) == "see https://example.com/a, https://not.a.url, 3")
+        #expect(links(in: cell).map(\.0) == ["https://example.com/a"])
+    }
+
     @Test func parenthesesInTargets() {
         let rendered = NoteRenderer.render(body: "[[Foo (draft)]] and [[Note#Step 1)]]", noteID: 1, links: [])
         let found = links(in: paragraphs(rendered)[0])
