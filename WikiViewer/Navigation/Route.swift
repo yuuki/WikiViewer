@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import WikiShared
 import WikiViewerKit
 
 /// Navigation destinations. Notes and folders are addressed by vault path,
@@ -11,6 +12,8 @@ import WikiViewerKit
 enum Route: Hashable, Codable {
     case folder(path: String)
     case note(path: String, anchor: Anchor?)
+    /// An Obsidian Bases file (`.base`).
+    case base(path: String)
     case tag(name: String)
     case missing(target: String)
     case search
@@ -41,6 +44,7 @@ struct RouteView: View {
         switch route {
         case .folder(let path): FolderView(path: path)
         case .note(let path, let anchor): NoteView(path: path, anchor: anchor)
+        case .base(let path): BaseView(path: path)
         case .tag(let name): TagNotesView(name: name)
         case .missing(let target): MissingNoteView(target: target)
         case .search: SearchView()
@@ -56,7 +60,8 @@ struct LinkRouter {
     let navigation: NavigationModel
     let currentNoteID: Int64?
     let scrollTo: (Anchor) -> Void
-    let openAsset: (Int64) -> Void
+    /// Presents an attachment; bases are pushed as a screen instead.
+    let openAsset: (AssetInfo) -> Void
 
     func handle(_ url: URL) -> OpenURLAction.Result {
         guard let action = WikiLinkAction(url: url) else { return .discarded }
@@ -82,7 +87,14 @@ struct LinkRouter {
             navigation.push(.tag(name: name))
             return .handled
         case .asset(let id):
-            openAsset(id)
+            Task {
+                guard let asset = try? await session.assets.asset(id: id) else { return }
+                if asset.kind == .base {
+                    navigation.push(.base(path: asset.path))
+                } else {
+                    openAsset(asset)
+                }
+            }
             return .handled
         }
     }

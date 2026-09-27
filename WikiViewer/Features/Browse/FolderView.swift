@@ -51,6 +51,16 @@ struct FolderView: View {
                     if path.isEmpty { Text("Folders") }
                 }
             }
+            // Bases list notes, like folders do: they come before the notes.
+            if !model.bases.isEmpty {
+                Section("Bases") {
+                    ForEach(model.bases) { base in
+                        NavigationLink(value: Route.base(path: base.path)) {
+                            Label(VaultPath.basename(of: base.name), systemImage: AttachmentRow.symbol(for: .base))
+                        }
+                    }
+                }
+            }
             Section {
                 ForEach(model.notes) { note in
                     NavigationLink(value: Route.note(path: note.path, anchor: nil)) {
@@ -75,7 +85,7 @@ struct FolderView: View {
                     }
                 }
             } header: {
-                if path.isEmpty, !model.notes.isEmpty { Text("Notes") }
+                if path.isEmpty || !model.bases.isEmpty, !model.notes.isEmpty { Text("Notes") }
             } footer: {
                 if model.hasMoreNotes {
                     ProgressView().frame(maxWidth: .infinity)
@@ -96,7 +106,7 @@ struct FolderView: View {
         }
         .listStyle(.plain)
         .overlay {
-            if model.loaded, model.folders.isEmpty, model.notes.isEmpty, model.assets.isEmpty, model.error == nil {
+            if model.loaded, model.folders.isEmpty, model.notes.isEmpty, model.assets.isEmpty, model.bases.isEmpty, model.error == nil {
                 ContentUnavailableView("Empty Folder", systemImage: "folder")
             }
         }
@@ -232,6 +242,8 @@ final class FolderModel {
     private(set) var foldersTruncated = false
     private(set) var notes: [NoteSummary] = []
     private(set) var assets: [AssetInfo] = []
+    /// `.base` files: they open as a screen, not as an attachment.
+    private(set) var bases: [AssetInfo] = []
     private(set) var hasMoreNotes = false
     private(set) var loaded = false
     /// Recently Modified is offered only where it is cheap (no index).
@@ -249,7 +261,7 @@ final class FolderModel {
         do {
             guard let id = try await session.folders.folderID(path: path) else {
                 error = "This folder is not in the current snapshot."
-                folders = []; notes = []; assets = []; loaded = true
+                folders = []; notes = []; assets = []; bases = []; loaded = true
                 return
             }
             folderID = id
@@ -262,7 +274,8 @@ final class FolderModel {
             foldersTruncated = subfolders.hasMore
             notes = page.items
             hasMoreNotes = page.hasMore
-            assets = assetPage.items
+            assets = assetPage.items.filter { $0.kind != .base }
+            bases = assetPage.items.filter { $0.kind == .base }
             error = nil
         } catch {
             self.error = error.localizedDescription

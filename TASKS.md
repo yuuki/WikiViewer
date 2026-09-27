@@ -173,6 +173,17 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       Developer push key and a way to register device tokens with the Mac;
       background refresh + foreground long poll cover most of the benefit.
 
+## Phase N — Obsidian Bases
+- [x] Schema 2: `bases`, `base_cells`, `base_rows`, `base_groups`; `.base`
+      files are assets of kind `base`
+- [x] Indexer: Bases expression parser/evaluator, YAML definition, diffed
+      rebuild before each publication, order-preserving sort/group keys
+- [x] App: Bases section in folders, base screen (views in the title menu,
+      groups, paging), links and embeds open the base
+- [x] Updater: a source without chunks falls back to the whole database
+      (the bundled demo replacing an older demo generation)
+- [-] Bases summaries, `this`, ```` ```base ```` blocks, table/card layouts
+
 ## Deferred (explicit)
 - [-] Manifest signing (Ed25519). Hash validation is mandatory and implemented;
       signing needs key management outside the repo (THREAT_MODEL T3).

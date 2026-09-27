@@ -12,7 +12,7 @@ import WikiShared
         let indexer = try Indexer(configuration: env.config)
         let stats = try await indexer.reconcile()
         #expect(stats.index.notesWritten == 11)
-        #expect(stats.index.assetsWritten == 3)
+        #expect(stats.index.assetsWritten == 4, "three images and Notes.base")
         #expect(stats.index.unstable.isEmpty)
         let result = try #require(try await indexer.publish())
         #expect(result.manifest.noteCount == 11)
@@ -121,7 +121,7 @@ import WikiShared
         _ = try await indexer.reconcile()
         _ = try await indexer.publish()
         try await indexer.query { (db: Database) throws in
-            let rows = try Row.fetchAll(db, sql: "SELECT path, source_sha256, blob_sha256, blob_ext, width, height FROM assets ORDER BY path")
+            let rows = try Row.fetchAll(db, sql: "SELECT path, source_sha256, blob_sha256, blob_ext, width, height FROM assets WHERE kind = 0 ORDER BY path")
             #expect(rows.count == 3)
             let diagram = rows.first { $0["path"] == "attachments/diagram.png" }!
             let copy = rows.first { $0["path"] == "attachments/copy of diagram.png" }!

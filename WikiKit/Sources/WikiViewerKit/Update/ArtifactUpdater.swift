@@ -187,14 +187,26 @@ public actor ArtifactUpdater {
             // Staging may hold fetched chunks plus the assembled file.
             try requireSpace(manifest.database.byteSize * 2)
             let fallback = transfer.packFallback
+            func downloadWholeFile() async throws {
+                try await source.download(manifest.database.path, to: stagedDB, maximumBytes: manifest.database.byteSize)
+                transfer = TransferStats(mode: .fullDownload, fetchedBytes: manifest.database.byteSize)
+            }
             if let chunkList, !local.isEmpty {
                 // Delta: reuse chunks of the generations already on the device.
-                transfer = try await assemble(chunkList, local: local, source: source, into: stagedDB, staging: staging)
+                do {
+                    transfer = try await assemble(chunkList, local: local, source: source, into: stagedDB, staging: staging)
+                } catch UpdateError.transport(TransportError.notFound(_)) {
+                    // A source with the whole file but not its chunks (the
+                    // bundled demo, replacing an older demo generation).
+                    do {
+                        try await downloadWholeFile()
+                    } catch {
+                        throw UpdateError.transport(error)
+                    }
+                }
             } else {
                 do {
-                    try await source.download(manifest.database.path, to: stagedDB, maximumBytes: manifest.database.byteSize)
-                    transfer.mode = .fullDownload
-                    transfer.fetchedBytes = manifest.database.byteSize
+                    try await downloadWholeFile()
                 } catch TransportError.notFound(_) where chunkList != nil {
                     // Chunks-only publication: assemble from chunks alone.
                     transfer = try await assemble(chunkList!, local: [:], source: source, into: stagedDB, staging: staging)
