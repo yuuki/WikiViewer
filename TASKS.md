@@ -68,7 +68,7 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   Assets are selected by folder like notes (include the attachments folder);
   publishing only the assets that included notes embed is deferred. An include
   file listing no folder is an error, never "the whole vault".
-- D20 Graph (schema v2): the host clusters (Louvain, warm-started from the
+- D20 Graph (schema v3): the host clusters (Louvain, warm-started from the
   previous clusters) and lays out (ForceAtlas2 + Barnes-Hut per cluster; a
   bubble layout for the 60 largest clusters) before each publication and
   writes only changed rows of `graph_*`; state kept in `builder_state`. The
@@ -179,6 +179,17 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [-] APNs push from the Mac to wake the phone on publication: needs an Apple
       Developer push key and a way to register device tokens with the Mac;
       background refresh + foreground long poll cover most of the benefit.
+
+## Phase N — Obsidian Bases
+- [x] Schema 2: `bases`, `base_cells`, `base_rows`, `base_groups`; `.base`
+      files are assets of kind `base`
+- [x] Indexer: Bases expression parser/evaluator, YAML definition, diffed
+      rebuild before each publication, order-preserving sort/group keys
+- [x] App: Bases section in folders, base screen (views in the title menu,
+      groups, paging), links and embeds open the base
+- [x] Updater: a source without chunks falls back to the whole database
+      (the bundled demo replacing an older demo generation)
+- [-] Bases summaries, `this`, ```` ```base ```` blocks, table/card layouts
 
 ## Deferred (explicit)
 - [-] Manifest signing (Ed25519). Hash validation is mandatory and implemented;

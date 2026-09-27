@@ -331,7 +331,7 @@ public actor Indexer {
                     try builder.upsertNote(db, path: path, meta: meta, contentHash: hash, parsed: parsed, generation: generation, work: &work, folders: &folders)
                     stats.notesWritten += 1
                 case .asset(let path, let kind, let outcome):
-                    try builder.upsertAsset(db, path: path, kind: kind, meta: outcome.meta, sourceSHA256: outcome.sourceSHA256, blob: outcome.blob, work: &work, folders: &folders)
+                    try builder.upsertAsset(db, path: path, kind: kind, meta: outcome.meta, sourceSHA256: outcome.sourceSHA256, blob: outcome.blob, text: outcome.text, work: &work, folders: &folders)
                     if outcome.producedDerivative, let blob = outcome.blob {
                         try builder.recordDerivative(db, sourceSHA256: outcome.sourceSHA256, params: params, blob: blob)
                     }
@@ -373,6 +373,10 @@ public actor Indexer {
 
     public func publish(force: Bool = false, failpoint: PublishFailpoint? = nil) throws -> PublishResult? {
         guard force || hasUnpublishedChanges || publisher.currentManifest() == nil else { return nil }
+        // Bases depend on every note, so they are evaluated once per
+        // publication rather than per changed file.
+        let baseStats = try builder.writer.write { db in try BaseBuilder.rebuild(db) }
+        if baseStats.bases > 0 { Log.info("bases: \(baseStats)") }
         refreshGraph()
         let result = try publisher.publish(builder: builder, failpoint: failpoint)
         hasUnpublishedChanges = false

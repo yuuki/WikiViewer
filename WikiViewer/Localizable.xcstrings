@@ -126,6 +126,26 @@
         }
       }
     },
+    "Base": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base"
+          }
+        }
+      }
+    },
+    "Bases": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base"
+          }
+        }
+      }
+    },
     "Builder": {
       "localizations": {
         "ja": {
@@ -342,6 +362,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "画像を読み込めませんでした"
+          }
+        }
+      }
+    },
+    "Couldn't Load Base": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base を読み込めませんでした"
           }
         }
       }
@@ -1625,6 +1655,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vault 名"
+          }
+        }
+      }
+    },
+    "View": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ビュー"
           }
         }
       }

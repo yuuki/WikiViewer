@@ -56,6 +56,8 @@ public struct AssetOutcome: Sendable {
     public var blob: AssetBlobInfo?
     /// True if a derivative was produced now (for the derivative cache).
     public var producedDerivative: Bool
+    /// The text of a `.base` file, which the builder evaluates.
+    public var text: String?
 }
 
 public enum AssetProcessor {
@@ -78,6 +80,16 @@ public enum AssetProcessor {
         store: AssetStore,
         cachedDerivative: (String) -> AssetBlobInfo?
     ) -> Result {
+        if kind == .base {
+            switch StableReader.read(vault: vault, relativePath: path, maximumBytes: BaseDefinition.maximumBytes) {
+            case .missing: return .missing
+            case .unstable: return .unstable
+            case .failed(let e): return .failed(e)
+            case .tooLarge(let meta): return .failed("\(meta.size) bytes exceeds the base size limit")
+            case .stable(let data, let meta):
+                return .processed(AssetOutcome(meta: meta, sourceSHA256: Digest.sha256Hex(data), blob: nil, producedDerivative: false, text: String(decoding: data, as: UTF8.self)))
+            }
+        }
         guard kind == .image else {
             // PDFs, audio and video: metadata only for now (the viewer shows
             // a placeholder). Hash by streaming so large media never sits in memory.

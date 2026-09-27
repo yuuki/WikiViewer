@@ -281,6 +281,25 @@ syntax inside code or comments is not misinterpreted. LaTeX math (`$…$`,
 SwiftMath. Very long lists, code
 blocks and tables are split so that even a huge note is laid out lazily.
 
+### Obsidian Bases are evaluated on the host
+
+A `.base` file is a query over every note: filters, formulas, sorting and
+grouping. Evaluating it on the phone would mean reading all notes' properties,
+which is exactly what the phone must not do. So the indexer treats a `.base`
+file as an attachment (links, embeds and folder listings reach it like any
+other) and, before each publication, evaluates it with its own implementation
+of the Bases expression language. The result is stored as rows keyed by the
+base, the view, an order-preserving binary encoding of the group and sort
+values, and the note; the phone pages a view along that primary key, like
+every other list. Because the keys come from the note alone, a one-note edit
+rewrites only that note's rows, and the rebuild writes only differences, so
+delta packs stay small. Evaluating all bases takes under a second for 12k
+notes (7 bases, 56k rows).
+
+Cost: every publication re-evaluates every base (a base depends on every
+note). Formulas that depend on the current time (`now()`, `today()`) are only
+as fresh as the last publication.
+
 ### The link graph is analysed on the host, drawn a cluster at a time
 
 The Graph tab reproduces the network views of the vault's wiki-lens plugin
@@ -345,7 +364,8 @@ embeds of images, notes and note sections; Markdown links to notes and
 attachments; YAML frontmatter (shown as properties; wikilinks in string
 values such as `up: "[[Home]]"` are links and count as backlinks), aliases,
 frontmatter and inline tags (including nested tags); headings and callouts; unresolved links;
-inline and display LaTeX math.
+inline and display LaTeX math; Obsidian Bases (`.base` files: filters,
+formulas, property display names, sorting, grouping and several views).
 The reference is Obsidian's public documentation; no Obsidian code is used.
 
 ## Known limitations of the initial implementation
@@ -360,6 +380,12 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
 - PDF, audio and video have no preview yet.
 - Math is typeset by SwiftMath, which covers common LaTeX math but not all
   of MathJax; a formula it cannot parse is shown as its source.
+- Bases: views are shown as lists (table, cards and list views alike, one row
+  per note with its columns as label–value pairs); summaries, `this`,
+  `file.ctime`, embedded bases' own rendering and ```` ```base ```` code blocks
+  are not supported. Functions the indexer does not implement evaluate to
+  empty and are listed at the top of the base. The file-name column shows the
+  file name, as Obsidian does. Folder rows count bases as attachments.
 - The manifest is hashed but not signed; see THREAT_MODEL.md.
 - The indexer's own memory grows with vault size; it runs on the Mac, where
   this is acceptable for now (numbers in BENCHMARKS.md).

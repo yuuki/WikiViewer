@@ -159,7 +159,7 @@ note, preferring the frontmatter `type` values given by
 `status` also colour the notes in the app. `--no-graph` turns the graph off.
 Changing these options recomputes the graph on the next publication.
 
-The viewer database schema is version 2 since the graph was added: update the
+The viewer database schema is version 3 since the graph was added: update the
 indexer and the app together. The indexer rebuilds its builder database once
 (a full re-index), and the app installs the next generation it publishes.
 

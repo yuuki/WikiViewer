@@ -313,13 +313,20 @@ public final class BuilderDatabase: Sendable {
         work.sources.remove(id)
     }
 
-    func upsertAsset(_ db: Database, path: String, kind: ViewerSchema.AssetKind, meta: FileMeta, sourceSHA256: String, blob: AssetBlobInfo?, work: inout ResolutionWork, folders: inout FolderCache) throws {
+    func upsertAsset(_ db: Database, path: String, kind: ViewerSchema.AssetKind, meta: FileMeta, sourceSHA256: String, blob: AssetBlobInfo?, text: String? = nil, work: inout ResolutionWork, folders: inout FolderCache) throws {
         let name = VaultPath.fileName(of: path)
+        // A base's source; its rows are evaluated before publication.
+        func storeBase(_ id: Int64) throws {
+            guard kind == .base else { return }
+            try db.execute(sql: "INSERT INTO bases(asset_id, source) VALUES (?, ?) ON CONFLICT(asset_id) DO UPDATE SET source = excluded.source",
+                           arguments: [id, text ?? ""])
+        }
         if let id = try Int64.fetchOne(db, sql: "SELECT id FROM assets WHERE path = ?", arguments: [path]) {
             try db.execute(
                 sql: "UPDATE assets SET mtime_ns = ?, size = ?, source_sha256 = ?, blob_sha256 = ?, blob_ext = ?, blob_size = ?, width = ?, height = ? WHERE id = ?",
                 arguments: [meta.mtimeNs, meta.size, sourceSHA256, blob?.sha256, blob?.ext, blob?.size, blob?.width, blob?.height, id]
             )
+            try storeBase(id)
             return
         }
         let folderID = try ensureFolder(db, path: VaultPath.folder(of: path), cache: &folders)
@@ -331,6 +338,7 @@ public final class BuilderDatabase: Sendable {
             """,
             arguments: [path, folderID, name, key, VaultPath.fileExtension(of: path), kind.rawValue, meta.mtimeNs, meta.size, sourceSHA256, blob?.sha256, blob?.ext, blob?.size, blob?.width, blob?.height]
         )
+        try storeBase(db.lastInsertedRowID)
         try db.execute(sql: "UPDATE folders SET asset_count = asset_count + 1 WHERE id = ?", arguments: [folderID])
         work.keys.insert(key)
     }
@@ -347,6 +355,10 @@ public final class BuilderDatabase: Sendable {
         let id: Int64 = row["id"]
         let folderID: Int64 = row["folder_id"]
         try db.execute(sql: "DELETE FROM assets WHERE id = ?", arguments: [id])
+        try db.execute(sql: "DELETE FROM bases WHERE asset_id = ?", arguments: [id])
+        for table in ["base_cells", "base_rows", "base_groups"] {
+            try db.execute(sql: "DELETE FROM \(table) WHERE base_id = ?", arguments: [id])
+        }
         try db.execute(sql: "UPDATE folders SET asset_count = asset_count - 1 WHERE id = ?", arguments: [folderID])
         try pruneFolders(db, from: folderID, cache: &folders)
         work.keys.insert(row["name_key"])

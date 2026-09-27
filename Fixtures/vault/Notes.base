@@ -1,0 +1,40 @@
+filters:
+  and:
+    - file.ext == "md"
+    - not:
+        - file.inFolder("Archive")
+formulas:
+  tag_list: file.tags.map(value.replace("#", "")).filter(value != "index")
+properties:
+  formula.tag_list:
+    displayName: Tags
+  file.folder:
+    displayName: Folder
+views:
+  - type: table
+    name: By folder
+    groupBy:
+      property: file.folder
+      direction: ASC
+    order:
+      - file.name
+      - formula.tag_list
+    sort:
+      - property: file.name
+        direction: ASC
+  - type: table
+    name: Tagged
+    filters:
+      and:
+        - "!file.tags.isEmpty()"
+    order:
+      - file.name
+      - formula.tag_list
+      - rating
+    sort:
+      - property: file.name
+        direction: DESC
+  - type: list
+    name: Name
+    order:
+      - file.name

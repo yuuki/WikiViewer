@@ -57,6 +57,12 @@ struct AssetEmbedView: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint(Text("Opens the image full screen"))
                     .onTapGesture { viewing = asset }
+            } else if let asset, asset.kind == .base {
+                // ![[x.base]]: a link to the base's own screen.
+                NavigationLink(value: Route.base(path: asset.path)) {
+                    AttachmentRow(asset: asset, note: nil)
+                }
+                .buttonStyle(.plain)
             } else if let asset, asset.kind != .image || asset.blobSHA256 == nil || failure != nil {
                 Button { viewing = asset } label: {
                     AttachmentRow(asset: asset, note: failure)
@@ -149,12 +155,14 @@ struct AttachmentRow: View {
         case .audio: "waveform"
         case .video: "film"
         case .other: "doc"
+        case .base: "tablecells"
         }
     }
 
     var placeholder: String? {
         switch asset.kind {
         case .image: asset.blobSHA256 == nil ? "Not included in snapshot" : nil
+        case .base: String(localized: "Base")
         default: "Preview not supported yet"
         }
     }

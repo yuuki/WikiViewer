@@ -64,6 +64,31 @@ import WikiShared
         #expect(prepared.installed.generation == 1)
     }
 
+    /// The bundled demo lists chunks but ships only the whole database. A
+    /// device with an older generation must not stop at the missing chunks.
+    @Test func missingChunksFallBackToTheWholeFile() async throws {
+        let store = try store()
+        _ = try await installed(store, from: demoArtifact)
+        let next = tmp.sub("next")
+        try makeArtifact(at: next, generation: 2, mutate: { db in
+            try db.execute(sql: "UPDATE notes SET title = 'Changed' WHERE path = 'Home.md'")
+        }, editManifest: { manifest in
+            let db = next.appendingPathComponent(manifest.database.path)
+            let (list, _) = try! ChunkList.make(fileAt: db)
+            let data = list.encoded()
+            let path = ArtifactManifest.chunkListPath(generation: 2)
+            try! data.write(to: next.appendingPathComponent(path))
+            manifest.chunks = .init(path: path, byteSize: Int64(data.count), sha256: Digest.sha256Hex(data), chunkSize: list.chunkSize, count: list.digests.count)
+        })
+        let source = LocalFolderArtifactSource(root: next)
+        let updater = ArtifactUpdater(store: store)
+        guard case .available(let manifest) = try await updater.check(source: source) else { Issue.record("expected update"); return }
+        let prepared = try await updater.prepare(manifest, source: source)
+        #expect(prepared.transfer.mode == .fullDownload)
+        let db = try ViewerDatabase(url: prepared.databaseURL, options: .init(immutable: true))
+        #expect(try await NoteRepository(database: db).summary(id: try #require(try await NoteRepository(database: db).noteID(path: "Home.md")))?.title == "Changed")
+    }
+
     func expectRejected(_ source: ScriptedSource, _ check: (any Error) -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
         let store = try store()
         let first = try await installed(store, from: demoArtifact)

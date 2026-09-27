@@ -2,43 +2,25 @@
   "assetCount" : 3,
   "assets" : {
     "directory" : "assets",
-    "layout" : "sha256/2",
+    "layout" : "sha256\/2",
     "totalBytes" : 79233
   },
-  "builder" : "wikiindex/1",
+  "builder" : "wikiindex\/1",
   "chunks" : {
     "byteSize" : 231,
     "chunkSize" : 131072,
     "count" : 3,
-    "path" : "generations/viewer-000001.chunks",
-    "sha256" : "898f8d85c66d65181bc0325bb8be3481e3b245dfad708ba196601e7f7456eeaa"
+    "path" : "generations\/viewer-000001.chunks",
+    "sha256" : "c85b82c301035b2a48b39a0f9d5bc20c757e0d30319917e8b69aee378139affd"
   },
-  "createdAt" : "2026-09-27T05:57:33Z",
+  "createdAt" : "2026-09-27T07:37:51Z",
   "database" : {
-    "byteSize" : 352256,
-    "path" : "generations/viewer-000001.sqlite",
-    "sha256" : "0b11bbf121de3cd621fd794e8dcb13bed58db323448fa720c878aa7ab11d7464"
+    "byteSize" : 385024,
+    "path" : "generations\/viewer-000001.sqlite",
+    "sha256" : "bbbb000ac34a46f9da44885fef3c863b64f26597226db80496d3f70472e63cf8"
   },
   "formatVersion" : 1,
   "generation" : 1,
   "noteCount" : 11,
-  "packs" : {
-    "blockSize" : 8192,
-    "deltas" : [
-
-    ],
-    "keyframe" : {
-      "byteSize" : 352256,
-      "generation" : 1,
-      "parts" : [
-        {
-          "byteSize" : 14501,
-          "path" : "packs/62/62c9dfc25e1d90958861b05464a0417dafb96e3db62a87be06635797bb9fc14c",
-          "sha256" : "62c9dfc25e1d90958861b05464a0417dafb96e3db62a87be06635797bb9fc14c"
-        }
-      ],
-      "sha256" : "0b11bbf121de3cd621fd794e8dcb13bed58db323448fa720c878aa7ab11d7464"
-    }
-  },
-  "schemaVersion" : 2
+  "schemaVersion" : 3
 }

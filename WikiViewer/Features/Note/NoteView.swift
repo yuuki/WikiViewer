@@ -149,8 +149,8 @@ struct NoteView: View {
                 .environment(\.openURL, OpenURLAction { url in
                     LinkRouter(session: session, navigation: navigation, currentNoteID: detail.id) { anchor in
                         scroll(to: model.blockID(for: anchor))
-                    } openAsset: { id in
-                        Task { viewingAsset = try? await session.assets.asset(id: id) }
+                    } openAsset: { asset in
+                        viewingAsset = asset
                     }.handle(url)
                 })
             }
