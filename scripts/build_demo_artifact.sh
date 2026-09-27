@@ -14,5 +14,10 @@ mkdir -p "$OUT"
 cp "$WORK/publish/manifest.json" "$OUT/"
 cp -R "$WORK/publish/generations" "$OUT/"
 cp -R "$WORK/publish/assets" "$OUT/"
+# The app installs the demo from the whole database file. Packs (and the
+# chunks a keyframe is completed with) are for transfers; drop them.
+plutil -remove packs "$OUT/manifest.json"
+plutil -convert json -r "$OUT/manifest.json"
+rm -f "$OUT"/generations/*.packs
 echo "Wrote $OUT (work files left in $WORK)"
 find "$OUT" -type f | sort

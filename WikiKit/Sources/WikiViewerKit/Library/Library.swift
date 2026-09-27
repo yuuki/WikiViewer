@@ -24,6 +24,7 @@ public final class LibrarySession: Sendable, Identifiable {
     public let links: LinkRepository
     public let tags: TagRepository
     public let assets: AssetRepository
+    public let bases: BaseRepository
     public let search: any SearchEngine
 
     public var id: String { installed?.name ?? database.url.path }
@@ -37,6 +38,7 @@ public final class LibrarySession: Sendable, Identifiable {
         links = LinkRepository(database: database)
         tags = TagRepository(database: database)
         assets = AssetRepository(database: database)
+        bases = BaseRepository(database: database)
         search = TrigramSearchEngine(database: database)
     }
 }

@@ -3,7 +3,8 @@
 //  WikiShared
 //
 
-/// SQLite schema of the published viewer database (schema version 1).
+/// SQLite schema of the published viewer database (schema version 2:
+/// version 1 plus the Obsidian Bases tables).
 ///
 /// The builder database uses exactly these tables plus builder-only tables
 /// (see `builderOnlyTables`), which are emptied in every published snapshot.
@@ -36,6 +37,7 @@ public enum ViewerSchema {
     public static let requiredTables = [
         "meta", "folders", "notes", "tags", "note_tags", "aliases",
         "links", "headings", "blocks", "assets", "notes_fts",
+        "bases", "base_cells", "base_rows", "base_groups",
     ]
 
     public static let builderOnlyTables = ["builder_state", "asset_derivatives"]
@@ -51,9 +53,13 @@ public enum ViewerSchema {
         case audio = 2
         case video = 3
         case other = 4
+        /// An Obsidian Bases file (`.base`), evaluated by the indexer into
+        /// the `base_*` tables.
+        case base = 5
 
         public static func forExtension(_ ext: String) -> AssetKind? {
             switch ext {
+            case "base": .base
             case "png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "bmp", "tif", "tiff", "avif", "svg": .image
             case "pdf": .pdf
             case "mp3", "m4a", "wav", "ogg", "flac", "aac", "3gp", "webm_audio": .audio
@@ -215,6 +221,51 @@ public enum ViewerSchema {
           INSERT INTO notes_fts(notes_fts, rowid, title, body) VALUES ('delete', old.id, old.title, old.body);
           INSERT INTO notes_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
         END
+        """,
+        // Obsidian Bases. A `.base` file is an asset (so links, embeds and
+        // folder listings reach it); the indexer evaluates it over the notes
+        // before each publication. Rows are keyed by values derived from the
+        // note alone (group and sort keys are order-preserving encodings), so
+        // an edit rewrites only the rows of the notes it changed, and the
+        // viewer pages a view along the primary key.
+        //
+        // `definition` is the JSON of `BaseDocument`; `source` the YAML text.
+        """
+        CREATE TABLE bases(
+          asset_id INTEGER PRIMARY KEY,
+          source TEXT NOT NULL,
+          definition TEXT
+        )
+        """,
+        // One row per base and matching note: `cells` is the JSON object of
+        // `BaseCell` values for every column any view of the base shows.
+        """
+        CREATE TABLE base_cells(
+          base_id INTEGER NOT NULL,
+          note_id INTEGER NOT NULL,
+          cells TEXT NOT NULL,
+          PRIMARY KEY(base_id, note_id)
+        ) WITHOUT ROWID
+        """,
+        """
+        CREATE TABLE base_rows(
+          base_id INTEGER NOT NULL,
+          view INTEGER NOT NULL,
+          group_key BLOB NOT NULL,
+          sort_key BLOB NOT NULL,
+          note_id INTEGER NOT NULL,
+          PRIMARY KEY(base_id, view, group_key, sort_key, note_id)
+        ) WITHOUT ROWID
+        """,
+        """
+        CREATE TABLE base_groups(
+          base_id INTEGER NOT NULL,
+          view INTEGER NOT NULL,
+          group_key BLOB NOT NULL,
+          label TEXT,
+          row_count INTEGER NOT NULL,
+          PRIMARY KEY(base_id, view, group_key)
+        ) WITHOUT ROWID
         """,
         // Builder-only tables. Present in snapshots but emptied.
         """
