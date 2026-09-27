@@ -24,6 +24,9 @@ struct ContentView: View {
             Tab("Tags", systemImage: "number", value: AppTab.tags) {
                 TabRoot(root: .tags, storageKey: "WikiViewer.path.tags")
             }
+            Tab("Graph", systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.graph) {
+                TabRoot(root: .graph, storageKey: "WikiViewer.path.graph")
+            }
             Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
                 NavigationStack { SettingsView() }
             }

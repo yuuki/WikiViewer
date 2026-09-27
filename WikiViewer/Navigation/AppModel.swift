@@ -8,7 +8,7 @@
 import SwiftUI
 
 enum AppTab: String, Hashable {
-    case files, search, tags, settings
+    case files, search, tags, graph, settings
 }
 
 struct SearchFocusRequest: Equatable {

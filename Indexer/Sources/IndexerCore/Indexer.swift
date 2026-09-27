@@ -360,8 +360,20 @@ public actor Indexer {
 
     // MARK: Publication
 
+    /// Brings the graph tables up to date. A failure leaves the previous
+    /// graph in place and never blocks a publication.
+    private func refreshGraph() {
+        do {
+            let summary = try GraphBuilder.refresh(builder: builder, configuration: configuration.graph)
+            if summary.unchanged { Log.debug(summary.description) } else { Log.info(summary.description) }
+        } catch {
+            Log.warning("graph: \(error); publishing the previous graph")
+        }
+    }
+
     public func publish(force: Bool = false, failpoint: PublishFailpoint? = nil) throws -> PublishResult? {
         guard force || hasUnpublishedChanges || publisher.currentManifest() == nil else { return nil }
+        refreshGraph()
         let result = try publisher.publish(builder: builder, failpoint: failpoint)
         hasUnpublishedChanges = false
         try builder.setState("dirty", "0")

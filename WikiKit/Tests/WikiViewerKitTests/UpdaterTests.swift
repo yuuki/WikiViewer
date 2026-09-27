@@ -34,6 +34,20 @@ import WikiShared
         #expect(try await store.stagingIsEmpty())
     }
 
+    /// After a schema change the installed generation cannot be opened; the
+    /// same source's generation, rebuilt with the new schema, must then be
+    /// installed even though its number is not higher.
+    @Test func unopenableCurrentDoesNotCountAsUpToDate() async throws {
+        let store = try store()
+        let source = LocalFolderArtifactSource(root: demoArtifact)
+        let updater = ArtifactUpdater(store: store)
+        guard case .available(let manifest) = try await updater.check(source: source) else { Issue.record("expected update"); return }
+        let prepared = try await updater.prepare(manifest, source: source)
+        try await store.setCurrent(prepared.installed, lineage: source.identifier)
+        #expect(try await updater.check(source: source) == .upToDate(current: 1))
+        #expect(try await updater.check(source: source, ignoringCurrent: true) == .available(manifest))
+    }
+
     @Test func differentLineageWithSameGenerationNumberIsAccepted() async throws {
         let store = try store()
         _ = try await installed(store, from: demoArtifact)

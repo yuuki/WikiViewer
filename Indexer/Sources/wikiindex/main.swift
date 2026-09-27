@@ -62,6 +62,18 @@ OPTIONS
                        Without --include the whole vault is published
   --include-file FILE  read --include patterns from FILE, one per line; it
                        must list at least one folder; watch re-reads it
+  --graph-include PATTERN
+                       build the link graph (clusters and map) only from
+                       notes matching PATTERN; repeatable. A folder ("wiki")
+                       or an fnmatch pattern on the note path ("wiki/*.md");
+                       * also crosses "/". Default: every published note
+  --graph-exclude PATTERN
+                       leave matching notes out of the graph, e.g. index or
+                       log notes that link to everything; repeatable
+  --graph-label-types LIST
+                       comma-separated frontmatter types a cluster is named
+                       after first (default concept,question,entity,source)
+  --no-graph           do not build the link graph
   --force              publish even if nothing changed
   --verbose            debug logging
 
@@ -136,6 +148,12 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     if args.options["include-file"] != nil {
         config.includeFile = try args.url("include-file")
     }
+    config.graph.includePatterns = args.lists["graph-include"] ?? []
+    config.graph.excludePatterns = args.lists["graph-exclude"] ?? []
+    if let types = args.options["graph-label-types"] {
+        config.graph.labelTypes = types.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
+    }
+    config.graph.enabled = !args.flags.contains("no-graph")
     return config
 }
 

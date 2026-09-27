@@ -3,7 +3,7 @@
 //  WikiShared
 //
 
-/// SQLite schema of the published viewer database (schema version 1).
+/// SQLite schema of the published viewer database (schema version 2).
 ///
 /// The builder database uses exactly these tables plus builder-only tables
 /// (see `builderOnlyTables`), which are emptied in every published snapshot.
@@ -24,6 +24,10 @@
 ///   detail=full, and faster bounded queries (see BENCHMARKS.md).
 /// - Page size 8192 (set by the builder) packs 2–3 KB note rows better than
 ///   4096 (−16% for `notes`).
+/// - `graph_*` tables (version 2) hold the link graph the host has already
+///   analysed: Louvain clusters, a layout per cluster and one for the
+///   cluster overview. The phone reads them a cluster at a time and never
+///   lays out or clusters the graph itself (see GraphBuilder.swift).
 public enum ViewerSchema {
     public static let version = WikiVersions.schemaVersion
 
@@ -36,6 +40,7 @@ public enum ViewerSchema {
     public static let requiredTables = [
         "meta", "folders", "notes", "tags", "note_tags", "aliases",
         "links", "headings", "blocks", "assets", "notes_fts",
+        "graph_clusters", "graph_cluster_links", "graph_nodes", "graph_types",
     ]
 
     public static let builderOnlyTables = ["builder_state", "asset_derivatives"]
@@ -216,6 +221,57 @@ public enum ViewerSchema {
           INSERT INTO notes_fts(rowid, title, body) VALUES (new.id, new.title, new.body);
         END
         """,
+        // The link graph, analysed on the host (see GraphBuilder.swift).
+        // One row per cluster. x, y: centre in the overview layout, in the
+        // units of GraphGeometry.clusterRadius. Only the largest
+        // GraphGeometry.overviewClusters clusters are laid out; the others
+        // are at 0, 0 and are listed but never drawn.
+        """
+        CREATE TABLE graph_clusters(
+          id INTEGER PRIMARY KEY,
+          label TEXT NOT NULL,
+          size INTEGER NOT NULL,
+          x REAL NOT NULL,
+          y REAL NOT NULL
+        )
+        """,
+        "CREATE INDEX graph_clusters_size ON graph_clusters(size, id)",
+        // Links between two clusters (cluster_a < cluster_b), weight = link
+        // count. skeleton = 1 for the few drawn by default on the overview.
+        """
+        CREATE TABLE graph_cluster_links(
+          cluster_a INTEGER NOT NULL,
+          cluster_b INTEGER NOT NULL,
+          weight INTEGER NOT NULL,
+          skeleton INTEGER NOT NULL,
+          PRIMARY KEY(cluster_a, cluster_b)
+        ) WITHOUT ROWID
+        """,
+        "CREATE INDEX graph_cluster_links_b ON graph_cluster_links(cluster_b, cluster_a)",
+        // Notes in the graph. x, y: position within the cluster's own layout,
+        // inside the unit disk. weight: incoming links from other notes in
+        // the graph; degree: distinct neighbours. type and status come from
+        // the note's frontmatter.
+        """
+        CREATE TABLE graph_nodes(
+          note_id INTEGER PRIMARY KEY,
+          cluster_id INTEGER NOT NULL,
+          x REAL NOT NULL,
+          y REAL NOT NULL,
+          weight INTEGER NOT NULL,
+          degree INTEGER NOT NULL,
+          type TEXT,
+          status TEXT
+        )
+        """,
+        "CREATE INDEX graph_nodes_cluster ON graph_nodes(cluster_id, weight)",
+        // Distinct `type` values in the graph, for the type filter.
+        """
+        CREATE TABLE graph_types(
+          name TEXT PRIMARY KEY NOT NULL,
+          node_count INTEGER NOT NULL
+        ) WITHOUT ROWID
+        """,
         // Builder-only tables. Present in snapshots but emptied.
         """
         CREATE TABLE builder_state(
@@ -245,5 +301,8 @@ public enum ViewerSchema {
         public static let builder = "builder"
         public static let noteCount = "note_count"
         public static let assetCount = "asset_count"
+        /// Notes and clusters in the graph tables.
+        public static let graphNodeCount = "graph_node_count"
+        public static let graphClusterCount = "graph_cluster_count"
     }
 }

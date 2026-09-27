@@ -11,16 +11,34 @@
     "chunkSize" : 131072,
     "count" : 3,
     "path" : "generations/viewer-000001.chunks",
-    "sha256" : "3416f211c30770d4c53bcbada024b7446e11b3858abed0958282a03d1e1edda4"
+    "sha256" : "898f8d85c66d65181bc0325bb8be3481e3b245dfad708ba196601e7f7456eeaa"
   },
-  "createdAt" : "2026-09-25T02:13:49Z",
+  "createdAt" : "2026-09-27T05:57:33Z",
   "database" : {
-    "byteSize" : 294912,
+    "byteSize" : 352256,
     "path" : "generations/viewer-000001.sqlite",
-    "sha256" : "84d207f02e61feb553e774bd855aa11d3fa0e8838c377f643aee271959855675"
+    "sha256" : "0b11bbf121de3cd621fd794e8dcb13bed58db323448fa720c878aa7ab11d7464"
   },
   "formatVersion" : 1,
   "generation" : 1,
   "noteCount" : 11,
-  "schemaVersion" : 1
+  "packs" : {
+    "blockSize" : 8192,
+    "deltas" : [
+
+    ],
+    "keyframe" : {
+      "byteSize" : 352256,
+      "generation" : 1,
+      "parts" : [
+        {
+          "byteSize" : 14501,
+          "path" : "packs/62/62c9dfc25e1d90958861b05464a0417dafb96e3db62a87be06635797bb9fc14c",
+          "sha256" : "62c9dfc25e1d90958861b05464a0417dafb96e3db62a87be06635797bb9fc14c"
+        }
+      ],
+      "sha256" : "0b11bbf121de3cd621fd794e8dcb13bed58db323448fa720c878aa7ab11d7464"
+    }
+  },
+  "schemaVersion" : 2
 }

@@ -180,6 +180,8 @@ public final class Publisher: Sendable {
                 blobNames = try String.fetchAll(db, sql: "SELECT DISTINCT blob_sha256 || '.' || blob_ext FROM assets WHERE blob_sha256 IS NOT NULL ORDER BY 1")
                 noteCount = try Int.fetchOne(db, sql: "SELECT count(*) FROM notes") ?? 0
                 assetCount = try Int.fetchOne(db, sql: "SELECT count(*) FROM assets WHERE blob_sha256 IS NOT NULL") ?? 0
+                let graphNodes = try Int.fetchOne(db, sql: "SELECT count(*) FROM graph_nodes") ?? 0
+                let graphClusters = try Int.fetchOne(db, sql: "SELECT count(*) FROM graph_clusters") ?? 0
                 assetBytes = try Int64.fetchOne(db, sql: "SELECT coalesce(sum(blob_size), 0) FROM (SELECT DISTINCT blob_sha256, blob_size FROM assets WHERE blob_sha256 IS NOT NULL)") ?? 0
                 let meta: [(String, String)] = [
                     (ViewerSchema.MetaKey.schemaVersion, String(ViewerSchema.version)),
@@ -189,6 +191,8 @@ public final class Publisher: Sendable {
                     (ViewerSchema.MetaKey.builder, Self.builderIdentifier),
                     (ViewerSchema.MetaKey.noteCount, String(noteCount)),
                     (ViewerSchema.MetaKey.assetCount, String(assetCount)),
+                    (ViewerSchema.MetaKey.graphNodeCount, String(graphNodes)),
+                    (ViewerSchema.MetaKey.graphClusterCount, String(graphClusters)),
                 ]
                 for (key, value) in meta {
                     try db.execute(sql: "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)", arguments: [key, value])

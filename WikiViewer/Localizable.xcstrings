@@ -63,6 +63,46 @@
     "%lld": {
       "shouldTranslate": false
     },
+    "%lld backlinks": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "被リンク %lld"
+          }
+        }
+      }
+    },
+    "%lld clusters · %lld notes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld クラスタ · %2$lld ノート"
+          }
+        }
+      }
+    },
+    "%lld links": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld リンク"
+          }
+        }
+      }
+    },
+    "%lld notes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ノート"
+          }
+        }
+      }
+    },
     "%lld.": {
       "shouldTranslate": false
     },
@@ -102,6 +142,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "起動できません"
+          }
+        }
+      }
+    },
+    "Center Here": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ここを中心に"
           }
         }
       }
@@ -186,12 +236,42 @@
         }
       }
     },
+    "Cluster": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラスタ"
+          }
+        }
+      }
+    },
+    "Cluster Not Found": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラスタが見つかりません"
+          }
+        }
+      }
+    },
     "Collapsed": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "折りたたみ"
+          }
+        }
+      }
+    },
+    "Color By": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色分け"
           }
         }
       }
@@ -262,6 +342,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "画像を読み込めませんでした"
+          }
+        }
+      }
+    },
+    "Couldn't Load Graph": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グラフを読み込めません"
           }
         }
       }
@@ -356,6 +446,16 @@
         }
       }
     },
+    "Display": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示"
+          }
+        }
+      }
+    },
     "Downloading generation %lld…": {
       "localizations": {
         "ja": {
@@ -436,6 +536,16 @@
         }
       }
     },
+    "Find a note in the graph": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グラフ内のノートを検索"
+          }
+        }
+      }
+    },
     "Find in Vault": {
       "localizations": {
         "ja": {
@@ -482,6 +592,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "世代"
+          }
+        }
+      }
+    },
+    "Graph": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グラフ"
           }
         }
       }
@@ -536,12 +656,32 @@
         }
       }
     },
+    "Linked Clusters": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "つながりのあるクラスタ"
+          }
+        }
+      }
+    },
     "Linked from": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "リンク元"
+          }
+        }
+      }
+    },
+    "Linked from this note, but there is no note by that name yet.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このノートからリンクされていますが、その名前のノートはまだありません。"
           }
         }
       }
@@ -556,12 +696,82 @@
         }
       }
     },
+    "Linked:": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "つながり:"
+          }
+        }
+      }
+    },
+    "List": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リスト"
+          }
+        }
+      }
+    },
+    "Local Graph": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカルグラフ"
+          }
+        }
+      }
+    },
+    "Local graph of %@ with %lld linked notes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ のローカルグラフ(リンク先 %2$lld ノート)"
+          }
+        }
+      }
+    },
     "Local storage": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "ローカルストレージ"
+          }
+        }
+      }
+    },
+    "Map": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マップ"
+          }
+        }
+      }
+    },
+    "Map of %lld clusters": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個のクラスタのマップ"
+          }
+        }
+      }
+    },
+    "Map of %lld notes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld ノートのマップ"
           }
         }
       }
@@ -586,12 +796,32 @@
         }
       }
     },
+    "Most Linked Notes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンクの多いノート"
+          }
+        }
+      }
+    },
     "Most Used": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "使用数順"
+          }
+        }
+      }
+    },
+    "Most linked %lld of %lld notes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$lld ノート中、リンクの多い %1$lld 件"
           }
         }
       }
@@ -632,6 +862,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "下位タグ"
+          }
+        }
+      }
+    },
+    "No Graph": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グラフがありません"
           }
         }
       }
@@ -765,6 +1005,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "開く"
+          }
+        }
+      }
+    },
+    "Open Cluster": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラスタを開く"
+          }
+        }
+      }
+    },
+    "Open Note": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノートを開く"
           }
         }
       }
@@ -929,6 +1189,16 @@
         }
       }
     },
+    "Selects this linked note": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このリンク先ノートを選択します"
+          }
+        }
+      }
+    },
     "Set the vault name in Settings": {
       "localizations": {
         "ja": {
@@ -969,6 +1239,26 @@
         }
       }
     },
+    "Show All Types": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべての種類を表示"
+          }
+        }
+      }
+    },
+    "Show Details": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詳細を表示"
+          }
+        }
+      }
+    },
     "Show More Folders": {
       "localizations": {
         "ja": {
@@ -985,6 +1275,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "さらに表示"
+          }
+        }
+      }
+    },
+    "Show Types": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "表示する種類"
+          }
+        }
+      }
+    },
+    "Show in Cluster": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラスタで表示"
           }
         }
       }
@@ -1089,6 +1399,26 @@
         }
       }
     },
+    "Switch to the list to browse clusters with VoiceOver": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VoiceOver でクラスタを見るにはリストに切り替えます"
+          }
+        }
+      }
+    },
+    "Switch to the list to browse notes with VoiceOver": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VoiceOver でノートを見るにはリストに切り替えます"
+          }
+        }
+      }
+    },
     "Tags": {
       "localizations": {
         "ja": {
@@ -1109,12 +1439,32 @@
         }
       }
     },
+    "The graph changed with the latest snapshot. Go back to the overview to find the notes again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最新のスナップショットでグラフが変わりました。概観に戻ってノートを探し直してください。"
+          }
+        }
+      }
+    },
     "The vault's name as shown in Obsidian. Used by Edit in Obsidian and shared links.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "Obsidian に表示される Vault の名前。「Obsidian で編集」と共有リンクに使います。"
+          }
+        }
+      }
+    },
+    "This snapshot has no clusters of linked notes. The Mac's indexer builds them from notes that link to each other.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このスナップショットには、リンクし合うノートのクラスタがありません。クラスタは Mac のインデクサが、互いにリンクするノートから作成します。"
           }
         }
       }
@@ -1155,6 +1505,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "今日のノート"
+          }
+        }
+      }
+    },
+    "Type": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "種類"
           }
         }
       }
