@@ -236,11 +236,80 @@ import WikiShared
         #expect(NoteRenderer.excerpt(body: body, heading: nil, blockID: "blk").contains("b1"))
     }
 
+    func math(in text: AttributedString) -> [String] {
+        text.runs.compactMap { $0[MathAttribute.self] }
+    }
+
+    @Test func inlineMathIsNotMarkdown() {
+        let body = #"Energy $E = mc^2$ and $a_1 * b_1 \cdot x_{i}$, not `$code$` or \$5 or $5 and $6."#
+        let rendered = NoteRenderer.render(body: body, noteID: 1, links: [])
+        let text = paragraphs(rendered)[0]
+        #expect(math(in: text) == ["E = mc^2", #"a_1 * b_1 \cdot x_{i}"#])
+        #expect(String(text.characters) == #"Energy E = mc^2 and a_1 * b_1 \cdot x_{i}, not $code$ or $5 or $5 and $6."#)
+        #expect(!text.runs.contains { $0.inlinePresentationIntent?.contains(.emphasized) == true }, "* and _ inside math are not emphasis")
+    }
+
+    @Test func displayMathBecomesBlocks() {
+        let body = """
+        Before
+        $$
+        \\sum_{i=1}^n i = \\frac{n(n+1)}{2}
+        $$
+        After ^after
+
+        > [!note] Formula
+        > $$x^2$$
+
+        Inline $$y$$ display
+        ```
+        $$not math$$
+        ```
+        """
+        let rendered = NoteRenderer.render(body: body, noteID: 1, links: [])
+        let blocks = rendered.blocks.map { block -> String in
+            switch block.kind {
+            case .math(let latex): "math:" + latex
+            case .paragraph(let text): "p:" + String(text.characters)
+            case .callout(_, _, _, let children): "callout:" + children.map { if case .math(let l) = $0.kind { l } else { "?" } }.joined()
+            case .code(_, let code, _): "code:" + code
+            default: "?"
+            }
+        }
+        #expect(blocks == ["p:Before", #"math:\sum_{i=1}^n i = \frac{n(n+1)}{2}"#, "p:After", "callout:x^2", "p:Inline", "math:y", "p:display", "code:$$not math$$"])
+        let after = try? #require(rendered.blocks.first { if case .paragraph(let t) = $0.kind { String(t.characters) == "After" } else { false } })
+        #expect(rendered.blockAnchors["after"] == after?.id, "line numbers survive a multi-line math block")
+        #expect(rendered.blocks[1].plainText.hasPrefix(#"\sum"#))
+        let titled = NoteRenderer.render(body: "> [!tip] First $n$ **bold** things", noteID: 1, links: [])
+        guard case .callout(_, let title, _, _) = titled.blocks.first?.kind else { Issue.record("callout"); return }
+        #expect(String(title.characters) == "First n bold things")
+    }
+
+    @Test func mathHidesTagsAndSpansQuotes() {
+        let body = "Set $a #b$ here\n\n> $$\n> \\alpha\n> $$\n> still quoted"
+        let rendered = NoteRenderer.render(body: body, noteID: 1, links: [])
+        #expect(math(in: paragraphs(rendered)[0]) == ["a #b"])
+        #expect(links(in: paragraphs(rendered)[0]).isEmpty, "a # inside math is not a tag")
+        guard case .quote(let children) = rendered.blocks.last?.kind else { Issue.record("quote"); return }
+        #expect(children.map(\.plainText) == [#"\alpha"#, "still quoted"])
+    }
+
+    @Test func unclosedMathIsText() {
+        let rendered = NoteRenderer.render(body: "$$\nnot closed\n\nCost $ 5 and $x $.", noteID: 1, links: [])
+        #expect(!rendered.blocks.contains { if case .math = $0.kind { true } else { false } })
+        #expect(rendered.blocks.allSatisfy { math(in: ($0.kind.paragraphText ?? AttributedString())).isEmpty })
+    }
+
     @Test func urlRoundTrip() {
         for action: WikiLinkAction in [.note(id: 3, heading: "日本 語", blockID: nil), .note(id: 4, heading: nil, blockID: "b-1"), .missing(target: "a/b c#?"), .missing(target: "Tom & Jerry = x+y"), .note(id: 5, heading: "Q&A", blockID: nil), .tag("タグ/x"), .asset(id: 9)] {
             #expect(WikiLinkAction(url: action.url) == action)
         }
         #expect(WikiLinkAction(url: URL(string: "javascript:alert(1)")!) == nil)
         #expect(WikiLinkAction(url: URL(string: "file:///etc/passwd")!) == nil)
+    }
+}
+
+private extension RenderBlock.Kind {
+    var paragraphText: AttributedString? {
+        if case .paragraph(let t) = self { t } else { nil }
     }
 }
