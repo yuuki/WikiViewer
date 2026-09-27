@@ -19,6 +19,11 @@ enum Route: Hashable, Codable {
     case search
     case tags
     case recents
+    /// The Graph tab's cluster overview.
+    case graph
+    /// One cluster; `focus` is a note path to select on arrival.
+    case graphCluster(id: Int64, focus: String?)
+    case localGraph(path: String)
 }
 
 struct Anchor: Hashable, Codable {
@@ -50,6 +55,9 @@ struct RouteView: View {
         case .search: SearchView()
         case .tags: TagsView()
         case .recents: RecentNotesView()
+        case .graph: GraphOverviewView()
+        case .graphCluster(let id, let focus): ClusterGraphView(id: id, focus: focus)
+        case .localGraph(let path): LocalGraphView(path: path)
         }
     }
 }

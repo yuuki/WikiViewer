@@ -40,6 +40,13 @@ struct NoteView: View {
                 if let detail = model.detail, let session = library.session {
                     NoteActionItems(detail: detail, session: session)
                 }
+                if model.detail != nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
+                            navigation.push(.localGraph(path: path))
+                        }
+                    }
+                }
                 if let rendered = model.rendered, !rendered.headings.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {

@@ -68,6 +68,13 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   Assets are selected by folder like notes (include the attachments folder);
   publishing only the assets that included notes embed is deferred. An include
   file listing no folder is an error, never "the whole vault".
+- D20 Graph (schema v3): the host clusters (Louvain, warm-started from the
+  previous clusters) and lays out (ForceAtlas2 + Barnes-Hut per cluster; a
+  bubble layout for the 60 largest clusters) before each publication and
+  writes only changed rows of `graph_*`; state kept in `builder_state`. The
+  phone draws one cluster (≤ 400 most linked notes) or a local graph (≤ 36
+  notes ranked from links) in a SwiftUI Canvas. `--graph-include`,
+  `--graph-exclude`, `--graph-label-types`, `--no-graph`.
 
 ## Phase A — repository baseline
 - [x] Inspect repo, Xcode project, targets, git status
@@ -200,6 +207,9 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [-] Publish-directory lock (only the state directory is locked).
 - [-] Asset downloads are not cancelled when rows scroll away (bounded to 4).
 - [-] PDF/audio/video preview (metadata + placeholder today).
-- [-] Unlinked mentions, graph view, Canvas, Dataview (out of scope).
+- [-] Unlinked mentions, Canvas, Dataview (out of scope).
+- [-] Graph: wiki-lens's Health Dashboard, Gap Finder, Growth Timeline and 3D
+      Layers are not reproduced; the Graph tab covers Backbone Graph and Local
+      Lens. There is no all-notes view: the overview drills into clusters.
 - [-] With `--include`, publish images outside the included folders that
       included notes embed (today the attachments folder must be included).

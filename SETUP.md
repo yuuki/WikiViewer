@@ -139,6 +139,30 @@ applies other edits to the `--include-file` within about a second, like edits
 to the `--exclude-file`. The next generation drops notes in folders that are no
 longer included.
 
+### The link graph
+
+The app's Graph tab shows clusters of linked notes, which the indexer computes
+before each publication. By default the graph covers every published note.
+Leave out notes that link to almost everything (indexes, logs), since they
+pull all clusters together, and optionally limit the graph to one folder:
+
+```sh
+$BIN build --vault "<VAULT>" --state "<STATE>" --publish "<PUBLISH>" \
+  --graph-include wiki \
+  --graph-exclude wiki/index.md --graph-exclude wiki/log.md --graph-exclude wiki/meta
+```
+
+A pattern is a folder or an fnmatch(3) pattern on the note path (`*` also
+crosses `/`), case-insensitive. Clusters are named after their most linked
+note, preferring the frontmatter `type` values given by
+`--graph-label-types` (default `concept,question,entity,source`); `type` and
+`status` also colour the notes in the app. `--no-graph` turns the graph off.
+Changing these options recomputes the graph on the next publication.
+
+The viewer database schema is version 3 since the graph was added: update the
+indexer and the app together. The indexer rebuilds its builder database once
+(a full re-index), and the app installs the next generation it publishes.
+
 To keep the snapshot up to date, run `watch` instead of `build`. See the
 LaunchAgent example in [README.md](README.md#publishing-your-vault-mac-mini).
 `watch` publishes an edit of up to 5 notes about 3 seconds after the vault goes

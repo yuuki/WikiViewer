@@ -86,7 +86,10 @@ public actor ArtifactUpdater {
         self.store = store
     }
 
-    public func check(source: any ArtifactSource) async throws -> UpdateCheck {
+    /// - ignoringCurrent: the current generation could not be opened (for
+    ///   example one written with an older schema), so any generation the
+    ///   source has counts as an update, even with the same number.
+    public func check(source: any ArtifactSource, ignoringCurrent: Bool = false) async throws -> UpdateCheck {
         let data: Data
         do {
             data = try await source.fetchManifest()
@@ -104,7 +107,7 @@ public actor ArtifactUpdater {
         } catch {
             throw UpdateError.invalidManifest(error)
         }
-        let current = await store.currentGeneration()
+        let current = ignoringCurrent ? nil : await store.currentGeneration()
         let sameLineage = await store.lineage() == source.identifier
         if let current, sameLineage, manifest.generation <= current.generation {
             return .upToDate(current: current.generation)

@@ -24,6 +24,7 @@ public final class LibrarySession: Sendable, Identifiable {
     public let links: LinkRepository
     public let tags: TagRepository
     public let assets: AssetRepository
+    public let graph: GraphRepository
     public let bases: BaseRepository
     public let search: any SearchEngine
 
@@ -38,6 +39,7 @@ public final class LibrarySession: Sendable, Identifiable {
         links = LinkRepository(database: database)
         tags = TagRepository(database: database)
         assets = AssetRepository(database: database)
+        graph = GraphRepository(database: database)
         bases = BaseRepository(database: database)
         search = TrigramSearchEngine(database: database)
     }
@@ -314,7 +316,7 @@ public final class Library {
         updateStatus = .checking
         lastCheck = Date()
         do {
-            switch try await updater.check(source: source) {
+            switch try await updater.check(source: source, ignoringCurrent: session == nil) {
             case .upToDate:
                 updateStatus = .upToDate(Date())
             case .available(let manifest):

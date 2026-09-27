@@ -31,7 +31,8 @@ follow links, see backlinks and search, quickly and offline.
 
 ## Non-goals
 
-Editing, syncing changes back, Obsidian plugins, Dataview, Canvas, arbitrary
+Editing, syncing changes back, Obsidian plugins (the Graph tab re-creates
+the wiki-lens network views natively; it does not run the plugin), Dataview, Canvas, arbitrary
 JavaScript, and exact reproduction of Obsidian's rendering. PDF, audio and
 video are recognized but not yet previewed.
 
@@ -299,6 +300,35 @@ Cost: every publication re-evaluates every base (a base depends on every
 note). Formulas that depend on the current time (`now()`, `today()`) are only
 as fresh as the last publication.
 
+### The link graph is analysed on the host, drawn a cluster at a time
+
+The Graph tab reproduces the network views of the vault's wiki-lens plugin
+(Backbone Graph and Local Lens) in a form suited to a phone. Clustering and
+layout need the whole graph, so like link resolution they run on the Mac:
+before each publication the indexer finds Louvain communities among the notes
+in scope, lays out each cluster with ForceAtlas2 (Barnes-Hut above a few
+hundred notes), lays out the largest clusters as non-overlapping bubbles for
+the overview, and stores the result in the `graph_*` tables. The phone reads
+at most 60 clusters for the overview, at most 400 notes (the most linked) of
+one cluster, and a few dozen notes for a note's local graph, which it ranks
+from the link rows in about a dozen bounded queries.
+
+The map must not reshuffle with every edit, and a one-note edit must not
+rewrite thousands of rows (every delta pack would grow). So Louvain starts
+from the previous clusters, clusters keep their id (and colour) by overlap
+with the previous ones, a cluster whose members and inner links are unchanged
+keeps its layout exactly, a changed one starts from its previous layout, and
+only rows that differ are written. Nothing is recomputed when the notes and
+links in scope are unchanged.
+
+On the phone, touch replaces hover: a tap selects a node, brings out its links
+and neighbours and opens a card with the next steps (open the note, its local
+graph, a neighbour, the cluster). A list replaces the map for browsing and for
+VoiceOver. `--graph-include` / `--graph-exclude` choose which notes the graph
+covers, typically leaving out index and log notes that link to everything.
+Cost: the graph is as fresh as the last publication, and the phone sees one
+cluster at a time rather than all notes at once.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the
@@ -324,7 +354,8 @@ install path is exercised on every fresh install.
 - Generation numbers never go backwards, even if the builder is rebuilt.
 - Derived state (builder database, published artifacts, on-device
   generations) can be deleted and rebuilt from the vault.
-- No screen loads a number of rows proportional to the size of the vault.
+- No screen loads a number of rows proportional to the size of the vault
+  (the graph included: it is clustered and laid out on the host).
 
 ## Compatibility with Obsidian
 
