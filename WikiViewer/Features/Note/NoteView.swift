@@ -29,6 +29,9 @@ struct NoteView: View {
     /// Block briefly highlighted after arriving at a search match.
     @State private var highlightedBlock: Int?
     @State private var viewingAsset: AssetInfo?
+    /// Set once the note has first been shown: a note re-rendered after
+    /// `releaseIfLarge` returns to where the reader was, not to `anchor`.
+    @State private var arrived = false
 
     var body: some View {
         content
@@ -70,10 +73,13 @@ struct NoteView: View {
                 guard let session = library.session else { return }
                 let firstLoad = await model.load(path: path, session: session)
                 if let detail = model.detail { history.recordVisit(path: path, title: detail.title) }
-                if firstLoad, let anchor, let target = model.blockID(for: anchor) {
+                guard firstLoad else { return }
+                let returning = arrived
+                arrived = true
+                if !returning, let anchor, let target = model.blockID(for: anchor) {
                     initialPosition = target
                     if anchor.text != nil { await flashHighlight(target) }
-                } else if firstLoad, anchor == nil, let saved = history.position(of: path),
+                } else if returning || anchor == nil, let saved = history.position(of: path),
                           model.rendered?.blocks.contains(where: { $0.id == saved }) == true {
                     // Continue where the reader left this note.
                     initialPosition = saved
@@ -82,7 +88,11 @@ struct NoteView: View {
             .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
-            .onDisappear { model.releaseIfLarge() }
+            .onDisappear {
+                // The scroll view made on return starts at the top; `position`
+                // must change for it to scroll back to the saved block.
+                if model.releaseIfLarge() { position = nil }
+            }
     }
 
     private func scroll(to block: Int?) {
@@ -146,6 +156,7 @@ struct NoteView: View {
                     // nil (header or backlinks at the top) keeps the last block.
                     if let position { history.setPosition(position, of: path) }
                 }
+                .environment(\.embeddedAssets, model.embeddedAssets)
                 .environment(\.openURL, OpenURLAction { url in
                     LinkRouter(session: session, navigation: navigation, currentNoteID: detail.id) { anchor in
                         scroll(to: model.blockID(for: anchor))
@@ -182,6 +193,8 @@ final class NoteModel {
     private(set) var backlinks: [Backlink] = []
     private(set) var backlinkTotal = 0
     private(set) var backlinksHaveMore = false
+    /// Embedded assets, so image embeds know their size before they load.
+    private(set) var embeddedAssets: [Int64: AssetInfo] = [:]
     private var loadedKey: String?
     private var loadingMoreBacklinks = false
 
@@ -205,6 +218,7 @@ final class NoteModel {
             let rendered = await NoteRenderer.renderInBackground(body: detail.body, noteID: id, links: links)
             tags = try await session.tags.tags(of: id)
             self.links = links
+            embeddedAssets = try await session.assets.assets(ids: links.filter(\.isEmbed).compactMap(\.targetAssetID))
             let page = try await session.links.backlinks(to: id, limit: Self.backlinkPage)
             backlinkTotal = try await session.links.backlinkCount(to: id, cap: Self.backlinkCountCap)
             backlinks = page.items
@@ -225,10 +239,16 @@ final class NoteModel {
         }
     }
 
-    func releaseIfLarge() {
-        guard let detail, detail.size > Self.retainLimitBytes else { return }
+    /// Returns true if the rendered blocks were released.
+    @discardableResult
+    func releaseIfLarge() -> Bool {
+        guard let detail, detail.size > Self.retainLimitBytes else { return false }
         rendered = nil
         loadedKey = nil
+        // Not .loaded: with no blocks the content would be an empty view,
+        // which never appears again, so its `.task` would never reload it.
+        phase = .loading
+        return true
     }
 
     var backlinkTotalLabel: String {
