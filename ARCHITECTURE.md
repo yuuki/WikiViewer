@@ -180,7 +180,18 @@ trigram (not positions): measured, this made the index about six times
 smaller (17 vs 110 MiB at 20k notes) and common queries faster. The exact
 match is then verified on a bounded set of candidates, so no query reads an
 unbounded amount of text. Terms shorter than three characters cannot use a
-trigram index; they are matched against titles, aliases and tags only.
+trigram index; a query made only of them is matched against titles, aliases
+and tags.
+
+Every term of a query must match, in any order, and each bound applies only
+after all terms have filtered. Titles and aliases are matched exhaustively
+against every term by scanning their small indexes (about 2 ms at 100k
+notes), so a note whose title contains the whole query is found however
+many other notes share one of its words; name matches rank above text
+matches. An earlier design took title and text candidates from the longest
+term alone, capped them (50 titles in title order, 400 text matches), and
+only then applied the other terms, which lost such notes whenever that term
+was common (e.g. "2024 振り返り" among hundreds of "2024-…" daily notes).
 
 The UI talks to a search interface, not to this implementation, so a
 better Japanese tokenizer or a bigram index can replace it later.
@@ -373,8 +384,9 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
 - When several notes share a name, the link target is chosen by a
   deterministic rule (closest folder, then shortest path) that approximates
   Obsidian, whose exact rule is not documented.
-- Search folds case for ASCII only; for extremely common words only the most
-  recent candidates are considered; multi-word queries can miss older notes.
+- Search folds case for ASCII only. When the words of a query occur in the
+  text of very many notes, only the most recent of those are checked for
+  text matches (titles and aliases are always checked in full).
 - Backlinks and tag lists are ordered by recency, not by title.
 - Remote images in notes are shown as links and not fetched (privacy, memory).
 - PDF, audio and video have no preview yet.

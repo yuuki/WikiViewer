@@ -21,33 +21,44 @@ public protocol SearchEngine: Sendable {
     func quickSwitch(_ query: String, limit: Int) async throws -> [SearchHit]
 }
 
-/// Substring search over an FTS5 `trigram` index with `detail='none'`.
+/// Substring search over note names (titles, aliases, tags) and an FTS5
+/// `trigram` index of note text with `detail='none'`.
 ///
-/// Query handling:
-/// - The query is split on whitespace into terms, which are ANDed.
-/// - Candidates come from the most selective (longest) term of ≥ 3
-///   characters. Stage 1 asks the index only: every trigram of the term must
-///   occur in the note (`"abc" AND "bcd" AND …`), newest rows first, at most
-///   `candidateLimit` rows — no note text is read. Stage 2 verifies the exact
-///   substring with `LIKE` on those candidates only (ASCII case-insensitive)
-///   and keeps at most `matchLimit`. So even a rare phrase made of very
-///   common trigrams reads a bounded number of note bodies.
-/// - Title matches are added from `notes_title`; remaining terms (including
-///   those shorter than 3 characters, common in Japanese, e.g. "東京") filter
-///   the matches.
-/// - Ranking (title hit, occurrence count, recency) and snippets are computed
-///   only for the bounded match set.
-/// - If every term is shorter than 3 characters a bounded fallback searches
-///   titles, aliases and tags (indexed), never note bodies.
+/// Every term of the query (split on whitespace, NFC) must match, in any
+/// order, and every bound below applies only after all terms have filtered —
+/// never to candidates that one term alone selected, which would drop notes
+/// matching the whole query whenever that one term is common.
 ///
-/// Limitation: for extremely common terms only the newest `candidateLimit`
-/// candidates are considered.
+/// 1. Names: notes whose title, or one of whose aliases, contains every term.
+///    Titles and aliases are small and indexed, so they are matched
+///    exhaustively (a prefix range scan, then a scan of the `notes_title` and
+///    `aliases_alias` indexes; no note text is read) up to `nameMatchLimit`
+///    matches, then ranked: exact name, prefix, substring; titles before
+///    aliases; shorter names first; then recency. Queries made only of terms
+///    shorter than a trigram (common in Japanese, e.g. "東京") also match tags
+///    whose name contains every term, and never read note text.
+/// 2. Text, when a term has ≥ 3 characters: stage 1 asks the index only —
+///    every trigram of every such term must occur in the note, newest rows
+///    first, at most `candidateLimit` rows. Stage 2 checks every term
+///    (including short ones) with `LIKE` on the title or the body of those
+///    candidates (ASCII case-insensitive) and keeps at most `matchLimit`. So a
+///    rare phrase made of very common trigrams still reads a bounded number of
+///    note bodies. Ranking (primary term in the title, occurrence count,
+///    recency) and snippets are computed only for that bounded set.
+///
+/// Name matches rank above text matches.
+///
+/// Limitation: when the trigrams of the long terms occur in more than
+/// `candidateLimit` notes, only the newest of those are checked for text
+/// matches. Name matches are not affected.
 public struct TrigramSearchEngine: SearchEngine {
     public let database: ViewerDatabase
     /// Upper bound on index candidates verified per query.
     public static let candidateLimit = 2000
-    /// Upper bound on verified matches ranked per query.
+    /// Upper bound on verified text matches ranked per query.
     public static let matchLimit = 400
+    /// Upper bound on title and alias matches ranked per query.
+    public static let nameMatchLimit = 1000
 
     public init(database: ViewerDatabase) {
         self.database = database
@@ -55,10 +66,14 @@ public struct TrigramSearchEngine: SearchEngine {
 
     public static let minimumTrigramLength = 3
 
+    /// Query terms: whitespace-separated, quotes trimmed, NFC (titles and
+    /// paths are stored NFC), without case-insensitive duplicates.
     public static func terms(_ query: String) -> [String] {
-        query.split(whereSeparator: { $0.isWhitespace })
+        var seen = Set<String>()
+        return query.precomposedStringWithCanonicalMapping
+            .split(whereSeparator: { $0.isWhitespace })
             .map { String($0).trimmingCharacters(in: CharacterSet(charactersIn: "\"")) }
-            .filter { !$0.isEmpty }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
     }
 
     /// Whether `search` reads note text for this query. It does not when
@@ -69,74 +84,91 @@ public struct TrigramSearchEngine: SearchEngine {
     }
 
     /// FTS5 query requiring every trigram (3 Unicode scalars, as the trigram
-    /// tokenizer counts) of `term`. Each trigram is a quoted one-token string.
-    static func trigramQuery(_ term: String) -> String? {
-        let scalars = Array(term.unicodeScalars)
-        guard scalars.count >= 3 else { return nil }
+    /// tokenizer counts) of every term. Each trigram is a quoted one-token
+    /// string. nil if no term is long enough.
+    static func trigramQuery(_ terms: [String]) -> String? {
         var seen = Set<String>()
         var parts: [String] = []
-        for i in 0...(scalars.count - 3) {
-            var trigram = String.UnicodeScalarView()
-            trigram.append(contentsOf: scalars[i..<(i + 3)])
-            let token = String(trigram)
-            guard seen.insert(token.lowercased()).inserted else { continue }
-            parts.append("\"" + token.replacingOccurrences(of: "\"", with: "\"\"") + "\"")
+        for term in terms {
+            let scalars = Array(term.unicodeScalars)
+            guard scalars.count >= 3 else { continue }
+            for i in 0...(scalars.count - 3) {
+                var trigram = String.UnicodeScalarView()
+                trigram.append(contentsOf: scalars[i..<(i + 3)])
+                let token = String(trigram)
+                guard seen.insert(token.lowercased()).inserted else { continue }
+                parts.append("\"" + token.replacingOccurrences(of: "\"", with: "\"\"") + "\"")
+            }
         }
-        return parts.joined(separator: " AND ")
+        return parts.isEmpty ? nil : parts.joined(separator: " AND ")
     }
 
     public func search(_ query: String, limit: Int = 50) async throws -> [SearchHit] {
         let terms = Self.terms(query)
         guard !terms.isEmpty else { return [] }
         let limit = clampLimit(limit)
-        guard let primary = terms.filter({ $0.unicodeScalars.count >= Self.minimumTrigramLength }).max(by: { $0.unicodeScalars.count < $1.unicodeScalars.count }),
-              let match = Self.trigramQuery(primary) else {
-            return try await shortQueryFallback(terms, limit: limit)
+        let searchesText = terms.contains { $0.unicodeScalars.count >= Self.minimumTrigramLength }
+        return try await database.searchReader.read { db in
+            var hits = try Self.nameHits(db, terms: terms, limit: limit, includeTags: !searchesText)
+            if searchesText {
+                try Self.addSnippets(db, to: &hits, terms: terms)
+                if hits.count < limit {
+                    let named = Set(hits.map(\.id))
+                    let text = try Self.textHits(db, terms: terms, limit: limit - hits.count + named.count)
+                    hits += text.lazy.filter { !named.contains($0.id) }.prefix(limit - hits.count)
+                }
+            }
+            return hits
         }
-        var others = terms
-        if let i = others.firstIndex(of: primary) { others.remove(at: i) }
-        let escapedPrimary = "%" + likeEscaped(primary) + "%"
+    }
 
-        var sql = """
+    /// Notes whose text contains every term (see the type comment, step 2).
+    static func textHits(_ db: Database, terms: [String], limit: Int) throws -> [SearchHit] {
+        guard let match = trigramQuery(terms),
+              let primary = terms.max(by: { $0.unicodeScalars.count < $1.unicodeScalars.count }) else { return [] }
+        let filter = terms.map { _ in "(n.body LIKE ? ESCAPE '\\' OR n.title LIKE ? ESCAPE '\\')" }.joined(separator: " AND ")
+        let sql = """
             WITH candidates(id) AS (
-              SELECT rowid FROM notes_fts WHERE notes_fts MATCH ? ORDER BY rowid DESC LIMIT \(Self.candidateLimit)
+              SELECT rowid FROM notes_fts WHERE notes_fts MATCH ? ORDER BY rowid DESC LIMIT \(candidateLimit)
             ),
-            body_hits(id) AS (
+            matches(id) AS (
               SELECT n.id FROM candidates c JOIN notes n ON n.id = c.id
-              WHERE n.body LIKE ? ESCAPE '\\' LIMIT \(Self.matchLimit)
-            ),
-            title_hits(id) AS (
-              SELECT id FROM notes INDEXED BY notes_title WHERE title LIKE ? ESCAPE '\\' LIMIT 50
-            ),
-            hits(id) AS (SELECT id FROM body_hits UNION SELECT id FROM title_hits)
+              WHERE \(filter) LIMIT \(matchLimit)
+            )
             SELECT n.id, n.title, n.path,
               (n.title LIKE ? ESCAPE '\\') AS in_title,
               (length(n.body) - length(replace(lower(n.body), lower(?), ''))) AS occurrences,
               substr(n.body, max(1, instr(lower(n.body), lower(?)) - 60), 220) AS excerpt
-            FROM hits JOIN notes n ON n.id = hits.id
+            FROM matches JOIN notes n ON n.id = matches.id
+            ORDER BY in_title DESC, occurrences DESC, n.mtime_ns DESC LIMIT \(limit)
             """
-        var args: [String] = [match, escapedPrimary, escapedPrimary, escapedPrimary, primary, primary]
-        if !others.isEmpty {
-            sql += " WHERE " + others.map { _ in "(n.body LIKE ? ESCAPE '\\' OR n.title LIKE ? ESCAPE '\\')" }.joined(separator: " AND ")
-            for term in others {
-                let pattern = "%" + likeEscaped(term) + "%"
-                args.append(pattern)
-                args.append(pattern)
-            }
+        var args: [String] = [match]
+        for term in terms {
+            let pattern = "%" + likeEscaped(term) + "%"
+            args += [pattern, pattern]
         }
-        sql += " ORDER BY in_title DESC, occurrences DESC, n.mtime_ns DESC LIMIT \(limit)"
-        let highlightTerms = terms
-        let finalSQL = sql
-        let finalArgs = args
-        return try await database.searchReader.read { db in
-            try Row.fetchAll(db, sql: finalSQL, arguments: StatementArguments(finalArgs)).map { row in
-                let excerpt: String? = row["excerpt"]
-                return SearchHit(
-                    note: NoteSummary(row: row),
-                    snippet: excerpt.map { Self.snippet($0, terms: highlightTerms) },
-                    match: (row["in_title"] as Bool? ?? false) ? .title : .content
-                )
-            }
+        args += ["%" + likeEscaped(primary) + "%", primary, primary]
+        return try Row.fetchAll(db, sql: sql, arguments: StatementArguments(args)).map { row in
+            let excerpt: String? = row["excerpt"]
+            return SearchHit(note: NoteSummary(row: row), snippet: excerpt.map { snippet($0, terms: terms) }, match: .content)
+        }
+    }
+
+    /// Fills in snippets of name hits from their bodies, around the longest
+    /// term (the start of the note if the body does not contain it).
+    static func addSnippets(_ db: Database, to hits: inout [SearchHit], terms: [String]) throws {
+        guard !hits.isEmpty, let primary = terms.max(by: { $0.unicodeScalars.count < $1.unicodeScalars.count }) else { return }
+        let ids = hits.map(\.id)
+        let sql = """
+            SELECT id, substr(body, max(1, instr(lower(body), lower(?)) - 60), 220) AS excerpt
+            FROM notes WHERE id IN (\(ids.map { _ in "?" }.joined(separator: ",")))
+            """
+        var excerpts: [Int64: String] = [:]
+        for row in try Row.fetchAll(db, sql: sql, arguments: StatementArguments([primary] as [any DatabaseValueConvertible] + ids)) {
+            excerpts[row["id"]] = row["excerpt"]
+        }
+        for i in hits.indices {
+            hits[i].snippet = excerpts[hits[i].id].flatMap { $0.isEmpty ? nil : snippet($0, terms: terms) }
         }
     }
 
@@ -176,69 +208,98 @@ public struct TrigramSearchEngine: SearchEngine {
         return prefix + out + suffix
     }
 
-    /// For queries shorter than a trigram: titles (prefix, then substring),
-    /// aliases and tags. Bounded by `limit`; bodies are not scanned.
-    func shortQueryFallback(_ terms: [String], limit: Int) async throws -> [SearchHit] {
-        let term = terms.max(by: { $0.count < $1.count }) ?? ""
-        return try await matchNames(term, limit: limit, includeTags: true)
-    }
-
     public func quickSwitch(_ query: String, limit: Int = 30) async throws -> [SearchHit] {
-        let q = query.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return [] }
-        return try await matchNames(q, limit: clampLimit(limit), includeTags: false)
+        let terms = Self.terms(query)
+        guard !terms.isEmpty else { return [] }
+        let limit = clampLimit(limit)
+        return try await database.searchReader.read { db in
+            try Self.nameHits(db, terms: terms, limit: limit, includeTags: false)
+        }
     }
 
-    func matchNames(_ q: String, limit: Int, includeTags: Bool) async throws -> [SearchHit] {
-        let prefix = likeEscaped(q) + "%"
-        let infix = "%" + likeEscaped(q) + "%"
-        return try await database.searchReader.read { db in
-            var hits: [SearchHit] = []
-            var seen = Set<Int64>()
-            func add(_ hit: SearchHit) {
-                guard hits.count < limit, seen.insert(hit.note.id).inserted else { return }
-                hits.append(hit)
+    /// A title or alias that contains every term.
+    struct NameMatch {
+        var id: Int64
+        var name: String
+        var isAlias: Bool
+    }
+
+    /// Notes whose title or one alias (or, with `includeTags`, one tag)
+    /// contains every term, ranked (see the type comment, step 1). Matching
+    /// and ranking read only the covering `notes_title` and `aliases_alias`
+    /// indexes; notes are looked up for the returned hits only.
+    static func nameHits(_ db: Database, terms: [String], limit: Int, includeTags: Bool) throws -> [SearchHit] {
+        let patterns: [any DatabaseValueConvertible] = terms.map { "%" + likeEscaped($0) + "%" }
+        let prefix = likeEscaped(terms[0]) + "%"
+        let titleFilter = patterns.map { _ in "title LIKE ? ESCAPE '\\'" }.joined(separator: " AND ")
+        let aliasFilter = patterns.map { _ in "alias LIKE ? ESCAPE '\\'" }.joined(separator: " AND ")
+        var matches: [NameMatch] = []
+
+        func collect(_ sql: String, _ arguments: [any DatabaseValueConvertible], isAlias: Bool) throws {
+            guard matches.count < nameMatchLimit else { return }
+            for row in try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments + [nameMatchLimit - matches.count])) {
+                matches.append(NameMatch(id: row[0], name: row[1], isAlias: isAlias))
             }
-            // 1. Title prefix: range scan on notes_title (NOCASE column → LIKE optimization).
-            for row in try Row.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE title LIKE ? ESCAPE '\\' ORDER BY title LIMIT ?", arguments: [prefix, limit]) {
-                add(SearchHit(note: NoteSummary(row: row), snippet: nil, match: .title))
-            }
-            // 2. Alias prefix (aliases_alias).
-            if hits.count < limit {
-                for row in try Row.fetchAll(db, sql: """
-                    SELECT n.id, n.title, n.path, a.alias FROM aliases a JOIN notes n ON n.id = a.note_id
-                    WHERE a.alias LIKE ? ESCAPE '\\' ORDER BY a.alias LIMIT ?
-                    """, arguments: [prefix, limit]) {
-                    add(SearchHit(note: NoteSummary(row: row), snippet: nil, match: .alias(row["alias"])))
-                }
-            }
-            // 3. Title substring: full scan of the small notes_title index
-            //    (title + rowid only), stopped by LIMIT.
-            if hits.count < limit {
-                for row in try Row.fetchAll(db, sql: "SELECT id, title, path FROM notes INDEXED BY notes_title WHERE title LIKE ? ESCAPE '\\' LIMIT ?", arguments: [infix, limit * 2]) {
-                    add(SearchHit(note: NoteSummary(row: row), snippet: nil, match: .title))
-                }
-            }
-            // 4. Alias substring.
-            if hits.count < limit {
-                for row in try Row.fetchAll(db, sql: """
-                    SELECT n.id, n.title, n.path, a.alias FROM aliases a JOIN notes n ON n.id = a.note_id
-                    WHERE a.alias LIKE ? ESCAPE '\\' LIMIT ?
-                    """, arguments: [infix, limit]) {
-                    add(SearchHit(note: NoteSummary(row: row), snippet: nil, match: .alias(row["alias"])))
-                }
-            }
-            // 5. Tags (short-query search only).
-            if includeTags, hits.count < limit {
-                for row in try Row.fetchAll(db, sql: """
-                    SELECT n.id, n.title, n.path, t.name FROM tags t
-                    JOIN note_tags nt ON nt.tag_id = t.id JOIN notes n ON n.id = nt.note_id
-                    WHERE t.name LIKE ? ESCAPE '\\' LIMIT ?
-                    """, arguments: [infix, limit]) {
-                    add(SearchHit(note: NoteSummary(row: row), snippet: nil, match: .tag(row["name"])))
-                }
-            }
-            return hits
         }
+
+        // Prefix range scans first (NOCASE columns → LIKE optimization), so
+        // exact and prefix matches are ranked even when a common query has
+        // more than `nameMatchLimit` substring matches.
+        try collect("SELECT id, title FROM notes WHERE title LIKE ? ESCAPE '\\' AND \(titleFilter) ORDER BY title LIMIT ?",
+                    [prefix] + patterns, isAlias: false)
+        try collect("SELECT note_id, alias FROM aliases WHERE alias LIKE ? ESCAPE '\\' AND \(aliasFilter) ORDER BY alias LIMIT ?",
+                    [prefix] + patterns, isAlias: true)
+        // Substring matches rank below every prefix match, so they are needed
+        // only when prefix matches do not fill the page. Scans of the small
+        // title and alias indexes, stopped by LIMIT.
+        if Set(matches.map(\.id)).count < limit {
+            try collect("SELECT id, title FROM notes INDEXED BY notes_title WHERE \(titleFilter) LIMIT ?",
+                        patterns, isAlias: false)
+            try collect("SELECT note_id, alias FROM aliases INDEXED BY aliases_alias WHERE \(aliasFilter) LIMIT ?",
+                        patterns, isAlias: true)
+        }
+
+        var best: [NameMatch] = []
+        var seen = Set<Int64>()
+        for match in rankNames(matches, terms: terms) where best.count < limit && seen.insert(match.id).inserted {
+            best.append(match)
+        }
+        var notes: [Int64: NoteSummary] = [:]
+        if !best.isEmpty {
+            let ids = best.map(\.id)
+            for row in try Row.fetchAll(db, sql: "SELECT id, title, path FROM notes WHERE id IN (\(ids.map { _ in "?" }.joined(separator: ",")))",
+                                        arguments: StatementArguments(ids)) {
+                notes[row["id"]] = NoteSummary(row: row)
+            }
+        }
+        var hits = best.compactMap { match in
+            notes[match.id].map { SearchHit(note: $0, snippet: nil, match: match.isAlias ? .alias(match.name) : .title) }
+        }
+        // Tags (queries without a trigram only), after every name match.
+        if includeTags, hits.count < limit {
+            let tagFilter = patterns.map { _ in "t.name LIKE ? ESCAPE '\\'" }.joined(separator: " AND ")
+            for row in try Row.fetchAll(db, sql: """
+                SELECT n.id, n.title, n.path, t.name FROM tags t
+                JOIN note_tags nt ON nt.tag_id = t.id JOIN notes n ON n.id = nt.note_id
+                WHERE \(tagFilter) LIMIT ?
+                """, arguments: StatementArguments(patterns + [limit])) where hits.count < limit {
+                let hit = SearchHit(note: NoteSummary(row: row), snippet: nil, match: .tag(row["name"]))
+                if seen.insert(hit.id).inserted { hits.append(hit) }
+            }
+        }
+        return hits
+    }
+
+    /// Exact name, then prefix of the first term, then substring; titles
+    /// before aliases; shorter names; newest rows first.
+    static func rankNames(_ matches: [NameMatch], terms: [String]) -> [NameMatch] {
+        let whole = terms.joined(separator: " ").lowercased()
+        let first = terms[0].lowercased()
+        func key(_ m: NameMatch) -> (Int, Int, Int, Int64) {
+            let name = m.name.lowercased()
+            let quality = name == whole ? 0 : name.hasPrefix(first) ? 1 : 2
+            return (quality, m.isAlias ? 1 : 0, m.name.count, -m.id)
+        }
+        return matches.map { (key($0), $0) }.sorted { $0.0 < $1.0 }.map(\.1)
     }
 }
