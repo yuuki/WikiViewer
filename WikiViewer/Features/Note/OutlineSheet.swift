@@ -43,7 +43,8 @@ struct OutlineSheet: View {
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .listRowBackground(heading.blockID == current ? Color.accentColor.opacity(0.12) : nil)
+                    // Inset and rounded, like a selection on a glass sheet.
+                    .listRowBackground(heading.blockID == current ? RoundedRectangle(cornerRadius: 10).fill(Color.accentColor.opacity(0.14)).padding(.horizontal, 8) : nil)
                     .accessibilityAddTraits(heading.blockID == current ? .isSelected : [])
                 }
                 .listStyle(.plain)

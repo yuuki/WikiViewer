@@ -106,12 +106,12 @@
     "%lld.": {
       "shouldTranslate": false
     },
-    "A folder can be any location in the Files app, including an iCloud Drive folder the Mac mini publishes into. An address points at a published directory served over HTTPS.": {
+    "A folder can be any location in the Files app, including an iCloud Drive folder your Mac publishes into. An address points at a published directory served over HTTPS.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "フォルダには「ファイル」App の任意の場所を選べます。Mac mini が公開する iCloud Drive のフォルダも使えます。アドレスには HTTPS で配信している公開ディレクトリを指定します。"
+            "value": "フォルダには、Mac が公開先にしている iCloud Drive のフォルダなど、ファイル App の任意の場所を指定できます。アドレスには HTTPS で配信されている公開ディレクトリを指定します。"
           }
         }
       }
@@ -206,16 +206,6 @@
         }
       }
     },
-    "Choose Update Source": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更新元を選択"
-          }
-        }
-      }
-    },
     "Clear": {
       "localizations": {
         "ja": {
@@ -306,22 +296,12 @@
         }
       }
     },
-    "Connect the folder or address your Mac publishes the vault to.": {
+    "Connect the folder or URL where your Mac publishes your vault.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mac が Vault を公開しているフォルダまたはアドレスに接続してください。"
-          }
-        }
-      }
-    },
-    "Connect the folder or address your Mac publishes your vault to.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mac があなたの Vault を公開しているフォルダまたはアドレスに接続してください。"
+            "value": "Mac が Vault を公開しているフォルダまたは URL に接続してください。"
           }
         }
       }
@@ -456,6 +436,16 @@
         }
       }
     },
+    "Demo Vault": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デモ Vault"
+          }
+        }
+      }
+    },
     "Demo vault": {
       "localizations": {
         "ja": {
@@ -482,6 +472,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "表示"
+          }
+        }
+      }
+    },
+    "Done": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了"
           }
         }
       }
@@ -582,6 +582,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vault 内を検索"
+          }
+        }
+      }
+    },
+    "Find notes by title, alias or text.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイトル・別名・本文でノートを探せます。"
           }
         }
       }
@@ -696,6 +706,16 @@
         }
       }
     },
+    "Linked Mentions (%@)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このノートへのリンク（%@）"
+          }
+        }
+      }
+    },
     "Linked from": {
       "localizations": {
         "ja": {
@@ -712,16 +732,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "このノートからリンクされていますが、その名前のノートはまだありません。"
-          }
-        }
-      }
-    },
-    "Linked mentions (%@)": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このノートへのリンク（%@）"
           }
         }
       }
@@ -1519,16 +1529,6 @@
         }
       }
     },
-    "Titles, aliases and note text. Terms of 3+ characters search note text; shorter terms match titles, aliases and tags.": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "タイトル・別名・本文を検索します。本文は3文字以上の語で検索し、それより短い語はタイトル・別名・タグに一致します。"
-          }
-        }
-      }
-    },
     "Today's Note": {
       "localizations": {
         "ja": {
@@ -1675,16 +1675,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "アプリを開いている間は更新元を監視し、新しいスナップショットをダウンロードして検証したら切り替えます。"
-          }
-        }
-      }
-    },
-    "You're viewing the demo vault": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "デモ Vault を表示しています"
           }
         }
       }

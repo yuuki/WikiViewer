@@ -326,8 +326,11 @@ struct GraphCanvas: View {
             guard let ia = scene.index[edge.a], let ib = scene.index[edge.b] else { continue }
             let touchesSelection = selection != nil && (edge.a == selection || edge.b == selection)
             if edge.onlyWhenSelected && !touchesSelection { continue }
-            let a = cam.screen(scene.nodes[ia].position, in: size)
-            let b = cam.screen(scene.nodes[ib].position, in: size)
+            // Bubble links stop at the rims, clear of the labels inside.
+            guard let (a, b) = Self.trimmed(cam.screen(scene.nodes[ia].position, in: size),
+                                             cam.screen(scene.nodes[ib].position, in: size),
+                                             scene.nodes[ia].style == .bubble ? screenRadius(scene.nodes[ia], cam) : 0,
+                                             scene.nodes[ib].style == .bubble ? screenRadius(scene.nodes[ib], cam) : 0) else { continue }
             guard viewRect.contains(a) || viewRect.contains(b) || CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y)).intersects(viewRect) else { continue }
             if touchesSelection {
                 accent.move(to: a)
@@ -436,6 +439,17 @@ struct GraphCanvas: View {
                 context.draw(title, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
             }
         }
+    }
+
+    /// The segment a–b less `ra` at a's end and `rb` at b's; nil when the
+    /// circles overlap and nothing would be left.
+    static func trimmed(_ a: CGPoint, _ b: CGPoint, _ ra: CGFloat, _ rb: CGFloat) -> (CGPoint, CGPoint)? {
+        guard ra > 0 || rb > 0 else { return (a, b) }
+        let dx = b.x - a.x, dy = b.y - a.y
+        let length = hypot(dx, dy)
+        guard length > ra + rb else { return nil }
+        let ux = dx / length, uy = dy / length
+        return (CGPoint(x: a.x + ux * ra, y: a.y + uy * ra), CGPoint(x: b.x - ux * rb, y: b.y - uy * rb))
     }
 
     static func truncated(_ s: String, to limit: Int) -> String {

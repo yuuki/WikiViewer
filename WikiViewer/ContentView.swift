@@ -27,13 +27,20 @@ struct ContentView: View {
             Tab("Graph", systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.graph) {
                 TabRoot(root: .graph, storageKey: "WikiViewer.path.graph")
             }
-            Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
-                NavigationStack { SettingsView() }
-            }
             // The system search tab: its field takes titles and full text,
             // replacing the separate quick switcher.
             Tab(value: AppTab.search, role: .search) {
                 TabRoot(root: .search, storageKey: "WikiViewer.path.search")
+            }
+        }
+        .sheet(isPresented: $app.showingSettings) {
+            NavigationStack {
+                SettingsView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done", systemImage: "checkmark") { app.showingSettings = false }
+                        }
+                    }
             }
         }
         // Reopen the tab the reader left.
@@ -83,9 +90,9 @@ struct TabRoot: View {
                     ContentUnavailableView {
                         Label("No Snapshot", systemImage: "tray")
                     } description: {
-                        Text("Connect the folder or address your Mac publishes the vault to.")
+                        Text("Connect the folder or URL where your Mac publishes your vault.")
                     } actions: {
-                        Button("Choose Update Source") { app.showSettings() }
+                        Button("Connect Your Vault") { app.showSettings() }
                             .buttonStyle(.borderedProminent)
                     }
                 case .failed(let message):
