@@ -60,8 +60,12 @@ public enum MathRenderer {
 extension Text {
     /// `text` with its inline math runs (see `MathAttribute`) typeset at
     /// `mathSize` points. A formula SwiftMath cannot parse stays as source.
+    /// Inline code gets a tinted background and a slightly smaller
+    /// monospaced face: monospaced glyphs look larger than the text around
+    /// them. `mathSize` is that text's point size.
     @MainActor
-    public init(math text: AttributedString, mathSize: CGFloat) {
+    public init(math source: AttributedString, mathSize: CGFloat) {
+        let text = Self.styledCode(source, size: mathSize)
         guard text.runs.contains(where: { $0[MathAttribute.self] != nil }) else {
             self.init(text)
             return
@@ -79,6 +83,16 @@ extension Text {
             pending = AttributedString()
         }
         self = Text("\(result)\(Text(pending))")
+    }
+
+    @MainActor
+    static func styledCode(_ text: AttributedString, size: CGFloat) -> AttributedString {
+        var styled = text
+        for run in text.runs where run.inlinePresentationIntent?.contains(.code) == true {
+            styled[run.range].font = .system(size: (size * 0.88).rounded(), design: .monospaced)
+            styled[run.range].backgroundColor = Color(uiColor: .tertiarySystemFill)
+        }
+        return styled
     }
 }
 #endif

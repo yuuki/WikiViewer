@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var pickingFolder = false
     @State private var httpURL = ""
     @State private var folderError: String?
+    @State private var showsURLError = false
     @AppStorage(ObsidianLink.vaultNameKey) private var obsidianVaultName = ""
 
     var body: some View {
@@ -40,17 +41,25 @@ struct SettingsView: View {
             Section {
                 Button("Choose Folder…", systemImage: "folder") { pickingFolder = true }
                 if let folderError { Text(folderError).font(.footnote).foregroundStyle(.red) }
-                HStack {
-                    TextField("https://host/publish", text: $httpURL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                        .submitLabel(.go)
-                        .onSubmit(useHTTPSource)
-                    Button("Use", action: useHTTPSource)
-                        .disabled(Self.validSourceURL(httpURL) == nil)
+                // A label, so the field lines up with Choose Folder above it.
+                Label {
+                    HStack {
+                        TextField("https://host/publish", text: $httpURL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .submitLabel(.go)
+                            .onSubmit(useHTTPSource)
+                        Button("Use", action: useHTTPSource)
+                            .disabled(httpURL.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                } icon: {
+                    Image(systemName: "globe")
+                        .foregroundStyle(.tint)
                 }
-                if !httpURL.trimmingCharacters(in: .whitespaces).isEmpty, Self.validSourceURL(httpURL) == nil {
+                // Only after the address is submitted: an address being typed
+                // is not yet wrong.
+                if showsURLError {
                     Text("Enter an address starting with https:// (or http://) and a host name.")
                         .font(.footnote)
                         .foregroundStyle(.red)
@@ -58,7 +67,7 @@ struct SettingsView: View {
             } header: {
                 Text("Update Source")
             } footer: {
-                Text("A folder can be any location in the Files app, including an iCloud Drive folder the Mac mini publishes into. An address points at a published directory served over HTTPS.")
+                Text("A folder can be any location in the Files app, including an iCloud Drive folder your Mac publishes into. An address points at a published directory served over HTTPS.")
             }
 
             Section {
@@ -76,6 +85,7 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .onChange(of: httpURL) { showsURLError = false }
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
             chooseFolder(result)
         }
@@ -115,7 +125,11 @@ struct SettingsView: View {
     }
 
     func useHTTPSource() {
-        guard let url = Self.validSourceURL(httpURL) else { return }
+        guard let url = Self.validSourceURL(httpURL) else {
+            showsURLError = true
+            return
+        }
+        showsURLError = false
         library.setSource(.http(url))
         Task { await library.checkForUpdates() }
     }

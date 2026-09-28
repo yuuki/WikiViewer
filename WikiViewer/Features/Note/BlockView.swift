@@ -12,20 +12,29 @@ import WikiViewerKit
 struct BlockView: View {
     let block: RenderBlock
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.headingLevelOffset) private var headingLevelOffset
+
+    /// Extra leading for running text: long notes read more easily.
+    static let bodyLineSpacing: CGFloat = 3
 
     var body: some View {
         switch block.kind {
-        case .heading(let level, let text):
+        case .heading(let rawLevel, let text):
+            // Headings of an embedded note rank below the host's own.
+            let level = min(rawLevel + headingLevelOffset, 6)
             Text(math: text, mathSize: MathRenderer.fontSize(Self.headingStyle(level), typeSize))
                 .font(Self.headingFont(level))
                 .fontWeight(level <= 2 ? .bold : level <= 4 ? .semibold : .medium)
                 .foregroundStyle(level >= 6 ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
-                .padding(.top, level <= 2 ? 10 : 6)
+                // More space above than below, so a heading groups with the
+                // section it introduces rather than the one it ends.
+                .padding(.top, level <= 2 ? 16 : 8)
                 .textSelection(.enabled)
                 .accessibilityAddTraits(.isHeader)
         case .paragraph(let text):
             Text(math: text, mathSize: MathRenderer.fontSize(.body, typeSize))
                 .font(.body)
+                .lineSpacing(Self.bodyLineSpacing)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         case .code(let language, let code, let continuation):
@@ -65,6 +74,9 @@ struct BlockView: View {
                 .textSelection(.enabled)
         }
     }
+
+    /// Shared by code blocks, callouts, embeds and attachments.
+    static let cornerRadius: CGFloat = 10
 
     /// Never smaller than body text, so a deep heading still ranks above the
     /// paragraph it introduces; H5 and H6 differ by weight and color only.
@@ -152,7 +164,7 @@ struct CodeBlockView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 4))
+        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: BlockView.cornerRadius))
     }
 }
 
@@ -183,12 +195,15 @@ struct CalloutView: View {
                 ForEach(children) { BlockView(block: $0) }
             }
         }
-        .padding(10)
+        .padding(.vertical, 10)
+        .padding(.leading, 13)
+        .padding(.trailing, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(style.color.opacity(0.08))
         .overlay(alignment: .leading) {
             Rectangle().fill(style.color).frame(width: 3)
         }
+        .clipShape(.rect(cornerRadius: BlockView.cornerRadius))
     }
 
     private var titleRow: some View {
@@ -256,4 +271,10 @@ struct TableBlockView: View {
             .padding(.vertical, 4)
         }
     }
+}
+
+extension EnvironmentValues {
+    /// Added to heading levels, so an embedded note's "# Title" does not
+    /// outrank the headings of the note it is shown in.
+    @Entry var headingLevelOffset = 0
 }

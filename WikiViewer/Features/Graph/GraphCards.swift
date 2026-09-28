@@ -28,11 +28,14 @@ struct GraphCard<Content: View>: View {
                 .labelStyle(.iconOnly)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .padding(10)
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
+                .padding(4)
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .padding(.horizontal, 12)
-        .padding(.bottom, 6)
+        // Apart from the tab bar, so the two glass shapes do not merge.
+        .padding(.bottom, 12)
     }
 }
 
@@ -89,9 +92,12 @@ struct NodeCard: View {
                                     }
                                 }
                                 .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 5)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
                                 .background(.fill.tertiary, in: Capsule())
+                                // The chip is drawn compact; the hit area is not.
+                                .frame(minHeight: 44)
+                                .contentShape(.rect)
                             }
                             .buttonStyle(.plain)
                             .accessibilityHint(Text("Selects this linked note"))

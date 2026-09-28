@@ -39,17 +39,8 @@ struct NoteView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // The outline is the main way around a long note, so it sits
-                // in the toolbar itself rather than behind an overflow menu.
-                if let detail = model.detail, let session = library.session {
-                    NoteActionItems(detail: detail, session: session)
-                }
-                if model.detail != nil {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
-                            navigation.push(.localGraph(path: path))
-                        }
-                    }
-                }
+                // in the toolbar itself; the local graph joins the overflow
+                // menu, leaving room for the title.
                 if let rendered = model.rendered, !rendered.headings.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -58,6 +49,16 @@ struct NoteView: View {
                             Label("Outline", systemImage: "list.bullet.indent")
                         }
                     }
+                }
+                if model.detail != nil {
+                    ToolbarItem(placement: .secondaryAction) {
+                        Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
+                            navigation.push(.localGraph(path: path))
+                        }
+                    }
+                }
+                if let detail = model.detail, let session = library.session {
+                    NoteActionItems(detail: detail, session: session)
                 }
             }
             .sheet(isPresented: $showingOutline) {
@@ -95,6 +96,19 @@ struct NoteView: View {
             }
     }
 
+    private func blockRow(_ block: RenderBlock) -> some View {
+        BlockView(block: block)
+            .background {
+                if highlightedBlock == block.id {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color("Highlight").opacity(0.35))
+                        .padding(-4)
+                        .transition(.opacity)
+                }
+            }
+            .id(block.id)
+    }
+
     private func scroll(to block: Int?) {
         guard let block else { return }
         withAnimation(.easeOut(duration: 0.2)) { position = block }
@@ -120,19 +134,14 @@ struct NoteView: View {
             if let session = library.session, let detail = model.detail, let rendered = model.rendered {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 10) {
-                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: !Self.startsWithTitleHeading(rendered, title: detail.title))
+                        // A note that opens with "# Title" keeps that heading as
+                        // its title; the folder, tags and properties follow it.
+                        let titleBlock = Self.startsWithTitleHeading(rendered, title: detail.title) ? rendered.blocks.first : nil
+                        if let titleBlock { blockRow(titleBlock) }
+                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil)
                             .id("header")
-                        ForEach(rendered.blocks) { block in
-                            BlockView(block: block)
-                                .background {
-                                    if highlightedBlock == block.id {
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color.yellow.opacity(0.3))
-                                            .padding(-4)
-                                            .transition(.opacity)
-                                    }
-                                }
-                                .id(block.id)
+                        ForEach(rendered.blocks.dropFirst(titleBlock == nil ? 0 : 1)) { block in
+                            blockRow(block)
                         }
                         BacklinksSection(model: model, session: session)
                             .id("backlinks")
@@ -310,8 +319,15 @@ struct NoteHeader: View {
                 }
                 .tint(.secondary)
             }
-            Divider().padding(.top, 4)
+            // Only under something: a lone rule under the toolbar says nothing.
+            if hasMetadata {
+                Divider().padding(.top, 4)
+            }
         }
+    }
+
+    private var hasMetadata: Bool {
+        !VaultPath.folder(of: detail.path).isEmpty || !tags.isEmpty || !detail.properties.isEmpty
     }
 }
 
@@ -326,21 +342,30 @@ struct FolderBreadcrumb: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     Image(systemName: "folder")
+                        .foregroundStyle(.secondary)
                         .accessibilityHidden(true)
                     ForEach(components.indices, id: \.self) { i in
                         if i > 0 {
                             Image(systemName: "chevron.compact.right")
+                                .foregroundStyle(.secondary)
                                 .accessibilityHidden(true)
                         }
                         NavigationLink(value: Route.folder(path: components[...i].joined(separator: "/"))) {
                             Text(components[i])
+                                // A caption-sized link is too small to hit.
+                                .frame(minHeight: 44)
+                                .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.footnote)
+                .foregroundStyle(.tint)
             }
+            // The links' 44pt hit areas overlap the lines around the
+            // breadcrumb instead of pushing them apart.
+            .scrollClipDisabled()
+            .padding(.vertical, -12)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text("Folder"))
         }
@@ -389,7 +414,7 @@ struct BacklinksSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Linked mentions (\(model.backlinkTotalLabel))")
+            Text("Linked Mentions (\(model.backlinkTotalLabel))")
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
             if model.backlinks.isEmpty {
@@ -434,7 +459,7 @@ struct BacklinkRow: View {
                     if !backlink.note.folderPath.isEmpty {
                         Text("\(Image(systemName: "folder")) \(backlink.note.folderPath)")
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 0)

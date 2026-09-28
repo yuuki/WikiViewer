@@ -8,7 +8,7 @@
 import SwiftUI
 
 enum AppTab: String, Hashable {
-    case files, search, tags, graph, settings
+    case files, search, tags, graph
 }
 
 struct SearchFocusRequest: Equatable {
@@ -36,7 +36,10 @@ final class AppModel {
         searchFocusRequest = SearchFocusRequest(id: searchFocusRequest.id + 1, resetNavigation: true)
     }
 
+    /// Settings open as a sheet over whichever tab is showing.
+    var showingSettings = false
+
     func showSettings() {
-        tab = .settings
+        showingSettings = true
     }
 }

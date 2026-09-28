@@ -66,7 +66,8 @@ struct SearchView: View {
             if !query.isEmpty, hits.isEmpty, titleHits.isEmpty, !searching, error == nil {
                 ContentUnavailableView.search(text: query)
             } else if query.isEmpty {
-                ContentUnavailableView("Search Notes", systemImage: "magnifyingglass", description: Text("Titles, aliases and note text. Terms of 3+ characters search note text; shorter terms match titles, aliases and tags."))
+                // The 3-character rule is explained next to the results it affects.
+                ContentUnavailableView("Search Notes", systemImage: "magnifyingglass", description: Text("Find notes by title, alias or text."))
             }
         }
         .navigationTitle("Search")
@@ -168,7 +169,7 @@ struct SearchHitRow: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
     }

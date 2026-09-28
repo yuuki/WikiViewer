@@ -63,22 +63,39 @@ struct UpdateFailureBanner: View {
 }
 
 /// Shown at the top of the Files tab while the bundled demo is the source,
-/// so the demo is never mistaken for the reader's own vault.
+/// so the demo is never mistaken for the reader's own vault. One row, like
+/// the update failure banner, so the vault stays on the first screen.
 struct DemoVaultBanner: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
         Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("You're viewing the demo vault", systemImage: "sparkles")
-                    .font(.subheadline.weight(.semibold))
-                Text("Connect the folder or address your Mac publishes your vault to.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Button("Connect Your Vault") { app.showSettings() }
-                    .buttonStyle(.bordered)
+            Button {
+                app.showSettings()
+            } label: {
+                HStack {
+                    // A label, so the text lines up with the rows below.
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Demo Vault")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Connect Your Vault")
+                                .font(.footnote)
+                                .foregroundStyle(.tint)
+                        }
+                    } icon: {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(.tint)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.forward")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(.rect)
             }
-            .padding(.vertical, 4)
+            .buttonStyle(.plain)
+            .accessibilityHint(Text("Opens update settings"))
         }
     }
 }

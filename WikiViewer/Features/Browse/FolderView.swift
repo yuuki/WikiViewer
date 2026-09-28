@@ -13,6 +13,7 @@ import WikiViewerKit
 struct FolderView: View {
     let path: String
     @Environment(Library.self) private var library
+    @Environment(AppModel.self) private var app
     @State private var model = FolderModel()
     @State private var today: NoteSummary?
     @State private var viewingAsset: AssetInfo?
@@ -114,6 +115,11 @@ struct FolderView: View {
         .navigationBarTitleDisplayMode(path.isEmpty ? .large : .inline)
         .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
         .toolbar {
+            if path.isEmpty {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Settings", systemImage: "gearshape") { app.showSettings() }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 // One tap shows the orders (not a submenu of an overflow menu).
                 Menu {

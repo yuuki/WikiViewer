@@ -62,6 +62,7 @@ struct AssetEmbedView: View {
                 Image(decorative: image, scale: displayScale)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .clipShape(.rect(cornerRadius: 6))
                     .frame(maxWidth: maxWidth(pixelWidth: asset?.width ?? image.width))
                     .accessibilityLabel(name)
                     .accessibilityAddTraits(.isButton)
@@ -84,7 +85,7 @@ struct AssetEmbedView: View {
                 // Otherwise a row above the scroll anchor that changes height
                 // shifts the scroll offset, and one at the edge of the screen
                 // can flip between the two sizes, appearing and disappearing.
-                Rectangle()
+                RoundedRectangle(cornerRadius: 6)
                     .fill(.quaternary)
                     .aspectRatio(aspectRatio, contentMode: .fit)
                     .frame(maxWidth: asset?.width.map { maxWidth(pixelWidth: $0) } ?? requestedWidth)
@@ -165,7 +166,7 @@ struct AttachmentRow: View {
             }
         }
         .padding(8)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 4))
+        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: BlockView.cornerRadius))
     }
 
     var symbol: String { Self.symbol(for: asset.kind) }
@@ -218,11 +219,13 @@ struct NoteEmbedView: View {
                 ProgressView()
             }
         }
-        .padding(.leading, 12)
-        .padding(.vertical, 6)
-        .overlay(alignment: .leading) {
-            Rectangle().fill(Color.accentColor.opacity(0.6)).frame(width: 2)
+        // A card, unlike the bar of a quote or callout: this is another note.
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay {
+            RoundedRectangle(cornerRadius: BlockView.cornerRadius).strokeBorder(.separator)
         }
+        .environment(\.headingLevelOffset, 2)
         .onDisappear { rendered = nil }
         .task(id: library.session?.id) {
             guard let session = library.session else { return }

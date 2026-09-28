@@ -91,7 +91,7 @@ struct GraphOverviewView: View {
     static func scene(_ overview: GraphOverview) -> GraphScene {
         let nodes = overview.clusters.map { c in
             GraphScene.Node(id: c.id, position: CGPoint(x: c.x, y: -c.y), radius: c.radius, color: GraphPalette.cluster(c.id),
-                            label: c.label, sublabel: c.size.formatted(), priority: Double(c.size), style: .bubble)
+                            label: c.label, sublabel: String(localized: "\(c.size) notes"), priority: Double(c.size), style: .bubble)
         }
         let strongest = Double(overview.links.map(\.weight).max() ?? 1)
         let edges = overview.links.map { l in
