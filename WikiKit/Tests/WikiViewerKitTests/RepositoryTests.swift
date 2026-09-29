@@ -270,10 +270,82 @@ import WikiShared
         #expect(try await search.quickSwitch("%", limit: 10).isEmpty, "LIKE wildcards are escaped")
     }
 
+    @Test func namesMatchEveryTermInAnyOrder() async throws {
+        #expect(try await search.quickSwitch("notes meeting", limit: 10).map(\.note.path).sorted()
+            == ["Archive/2024/Meeting Notes.md", "Meetings/Meeting Notes.md"])
+        // Short terms (no trigram) are ANDed too, not dropped.
+        #expect(try await search.search("東京 メモ", limit: 10).map(\.note.path) == ["日本語/東京メモ.md"])
+        #expect(try await search.search("東京 犬猫", limit: 10).isEmpty)
+    }
+
     @Test func maliciousQueriesAreSafe() async throws {
         for q in ["\"", "\"\"\"", "a\" OR \"b", "NEAR(", "*", "^", "title:x", "); DROP TABLE notes; --"] {
             _ = try await search.search(q, limit: 10)
             _ = try await search.quickSwitch(q, limit: 10)
         }
+    }
+}
+
+/// Notes whose title contains every query term must be found however many
+/// other notes share one of the terms: candidate limits apply after all
+/// terms have filtered, never before.
+@Suite struct SearchCrowdedTitleTests {
+    let dir = TempDir()
+    let search: any SearchEngine
+    let target = SearchCrowdedTitleTests.target
+    let shortTarget = SearchCrowdedTitleTests.shortTarget
+    static let target = "Reviews/振り返り 2024.md"
+    static let shortTarget = "Meetings/定例 会議.md"
+
+    init() throws {
+        let (target, shortTarget) = (Self.target, Self.shortTarget)
+        let manifest = try makeArtifact(at: dir.url, generation: 2) { db in
+            func insert(_ path: String, _ title: String, mtime: Int64, body: String) throws {
+                try db.execute(sql: """
+                    INSERT INTO notes(path, folder_id, basename, basename_key, title, mtime_ns, size, content_hash, body)
+                    VALUES (?, 1, ?, ?, ?, ?, 0, '', ?)
+                    """, arguments: [path, title, title.lowercased(), title, mtime, body])
+            }
+            // The target is the oldest note and its body does not repeat the title.
+            try insert(target, "振り返り 2024", mtime: 1, body: "今年の反省。")
+            try insert(shortTarget, "定例 会議", mtime: 1, body: "議題なし。")
+            for i in 1...500 {
+                let day = String(format: "%03d", i)
+                try insert("Daily/2024-\(day).md", "2024-\(day) 日記", mtime: Int64(i + 1), body: "2024年の日記 第\(day)号。")
+                try insert("Meetings/会議 \(day).md", "会議 \(day)", mtime: Int64(i + 1), body: "会議の記録。")
+            }
+            try db.execute(sql: "INSERT INTO aliases(note_id, alias) SELECT id, 'Year review 2024' FROM notes WHERE path = ?", arguments: [target])
+        }
+        search = TrigramSearchEngine(database: try ViewerDatabase(url: dir.sub(manifest.database.path), options: .init(immutable: true)))
+    }
+
+    @Test func titleWithEveryTermIsFound() async throws {
+        for q in ["2024 振り返り", "振り返り 2024", "振り返り\u{3000}2024"] {
+            let hits = try await search.search(q, limit: 50)
+            #expect(hits.first?.note.path == target, "\(q): \(hits.prefix(3).map(\.note.path))")
+            #expect(hits.first?.match == .title)
+            #expect(try await search.quickSwitch(q, limit: 6).first?.note.path == target, "\(q)")
+        }
+    }
+
+    @Test func singleTermFindsTitle() async throws {
+        #expect(try await search.search("振り返り", limit: 10).first?.note.path == target)
+    }
+
+    @Test func shortTermsAreAllApplied() async throws {
+        #expect(try await search.search("会議 定例", limit: 10).map(\.note.path) == [shortTarget])
+        #expect(try await search.quickSwitch("会議 定例", limit: 6).map(\.note.path) == [shortTarget])
+    }
+
+    @Test func aliasWithEveryTermIsFound() async throws {
+        let hits = try await search.search("review 2024", limit: 10)
+        #expect(hits.first?.note.path == target)
+        #expect(hits.first?.match == .alias("Year review 2024"))
+    }
+
+    @Test func bodyMatchesAreFilteredBeforeTheyAreBounded() async throws {
+        // Every daily note contains "2024年の日記"; only the oldest one is 第001号.
+        let hits = try await search.search("2024年の日記 第001号", limit: 10)
+        #expect(hits.map(\.note.path) == ["Daily/2024-001.md"])
     }
 }

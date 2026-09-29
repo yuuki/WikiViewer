@@ -123,6 +123,8 @@ public struct QueryBenchmark: Sendable {
         try await measure("quick switcher: prefix 'Note 1'") { _ in try await s.search.quickSwitch("Note 1", limit: 30).count }
         try await measure("quick switcher: infix 'system'") { _ in try await s.search.quickSwitch("system", limit: 30).count }
         try await measure("quick switcher: Japanese 'メモ 12'") { _ in try await s.search.quickSwitch("メモ 12", limit: 30).count }
+        try await measure("quick switcher: two common terms 'search note'") { _ in try await s.search.quickSwitch("search note", limit: 30).count }
+        try await measure("search: title terms reversed '測定 メモ 627'") { _ in try await s.search.search("測定 メモ 627", limit: 50).count }
         try await measure("FTS: common English 'latency'") { _ in try await s.search.search("latency", limit: 50).count }
         try await measure("FTS: Japanese '全文検索'") { _ in try await s.search.search("全文検索", limit: 50).count }
         try await measure("FTS: two terms 'query budget'") { _ in try await s.search.search("query budget", limit: 50).count }

@@ -150,6 +150,14 @@ Median / p95 in ms.
 | note fetch + render | 0.26 / 0.41 | 0.26 / 0.32 | 0.27 / 0.36 |
 | tags top 200 | 0.13 / 0.14 | 0.13 / 0.15 | 0.12 / 0.13 |
 
+Search now matches every query term against all titles and aliases before
+any bound applies (see ARCHITECTURE.md), which adds a scan of the title and
+alias indexes to each search. Measured at 100k notes on the host (median ms,
+before → after): quick switcher prefix 0.03 → 0.51, infix 0.17 → 1.99;
+FTS common English 3.28 → 3.30, Japanese 6.69 → 5.61, two terms 5.05 → 8.53,
+rare phrase 9.17 → 13.31, no match 3.24 → 3.55; short query fallback
+2.93 → 3.75. The tables above predate this change.
+
 ### Viewer queries — iOS Simulator (iPhone 17, iOS 27.0, on the M6 host)
 
 Same `QueryBenchmark` code in the simulator test process. **Simulator, not a
