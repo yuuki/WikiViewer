@@ -18,12 +18,17 @@ struct SearchView: View {
     @State private var titleHits: [SearchHit] = []
     /// Everything else the full-text search found.
     @State private var hits: [SearchHit] = []
+    /// Whether every title match is shown, not only the first `titlePreview`.
+    @State private var showsAllTitles = false
     @State private var searching = false
     @State private var error: String?
     @FocusState private var fieldFocused: Bool
     @State private var handledFocusRequest = 0
 
-    static let titleLimit = 6
+    /// Title and alias matches fetched per query.
+    static let titleLimit = 200
+    /// Title matches shown before "Show All", so text matches stay in view.
+    static let titlePreview = 6
 
     var body: some View {
         List {
@@ -40,11 +45,18 @@ struct SearchView: View {
             }
             if !titleHits.isEmpty {
                 Section("Titles") {
-                    ForEach(titleHits) { hit in
+                    ForEach(showsAllTitles ? titleHits : Array(titleHits.prefix(Self.titlePreview))) { hit in
                         NavigationLink(value: Route.note(path: hit.note.path, anchor: nil)) {
                             SearchHitRow(hit: hit)
                         }
                         .notePreviewMenu(path: hit.note.path, title: hit.note.title)
+                    }
+                    if !showsAllTitles, titleHits.count > Self.titlePreview {
+                        Button {
+                            showsAllTitles = true
+                        } label: {
+                            Text(titleHits.count < Self.titleLimit ? "Show All \(titleHits.count) Titles" : "Show \(titleHits.count)+ Titles")
+                        }
                     }
                 }
             }
@@ -131,11 +143,13 @@ struct SearchView: View {
         do {
             try await Task.sleep(for: .milliseconds(200))
             async let titles = session.search.quickSwitch(q, limit: Self.titleLimit)
-            async let full = session.search.search(q, limit: 100)
+            // Title matches come first here too; leave room for 100 text matches.
+            async let full = session.search.search(q, limit: Self.titleLimit + 100)
             let (titleResult, fullResult) = try await (titles, full)
             // A superseded query may still finish; never let it overwrite a newer one.
             try Task.checkCancellation()
             let titleIDs = Set(titleResult.map(\.id))
+            if titleResult.map(\.id) != titleHits.map(\.id) { showsAllTitles = false }
             titleHits = titleResult
             hits = fullResult.filter { !titleIDs.contains($0.id) }
             error = nil

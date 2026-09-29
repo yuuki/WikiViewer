@@ -1279,6 +1279,26 @@
         }
       }
     },
+    "Show All %lld Titles": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld件のタイトルをすべて表示"
+          }
+        }
+      }
+    },
+    "Show %lld+ Titles": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld件以上のタイトルを表示"
+          }
+        }
+      }
+    },
     "Show All Types": {
       "localizations": {
         "ja": {
