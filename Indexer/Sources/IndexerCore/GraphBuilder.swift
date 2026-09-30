@@ -83,12 +83,13 @@ public enum GraphBuilder {
         var state = (try builder.state(stateKey)).flatMap { try? JSONDecoder().decode(State.self, from: Data($0.utf8)) } ?? State()
         let input = configuration.enabled ? try builder.writer.read { try Input.load($0, configuration: configuration) } : Input()
         let fingerprint = input.fingerprint(configuration)
-        if fingerprint == state.fingerprint {
+        if fingerprint == state.fingerprint, state.layoutVersion == State.layoutVersion {
             return Summary(unchanged: true)
         }
         let previous = try builder.writer.read { try Rows.load($0) }
         let rows = compute(input: input, previous: previous, state: &state, configuration: configuration)
         state.fingerprint = fingerprint
+        state.layoutVersion = State.layoutVersion
         let stateJSON = String(decoding: try JSONEncoder().encode(state), as: UTF8.self)
         let written = try builder.writer.write { db in
             let n = try rows.write(db, replacing: previous)
@@ -107,7 +108,14 @@ public enum GraphBuilder {
     // MARK: State kept between publications (builder only)
 
     struct State: Codable {
+        /// Raised when layouts from earlier versions need repairing: the
+        /// next refresh then runs even if the graph did not change (only
+        /// the clusters that need it are laid out again). 1: layouts that
+        /// diverged before steps were bounded.
+        static let layoutVersion = 1
+
         var fingerprint = ""
+        var layoutVersion: Int?
         /// Cluster ids are never reused, so a removed cluster's colour does
         /// not jump to an unrelated one.
         var nextClusterID: Int64 = 1
@@ -434,9 +442,19 @@ public enum GraphBuilder {
         }
         let digest = Digest.hex(hasher.finalize())
 
-        let old = members.map { i -> SIMD2<Double>? in
+        let m = members.count
+        let spread = 10 * Double(m).squareRoot()
+        var old = members.map { i -> SIMD2<Double>? in
             guard let row = previous.nodes[nodes[i].id], row.cluster == id else { return nil }
             return SIMD2(row.x, row.y)
+        }
+        // A layout spans about `spread`. One far larger diverged (before
+        // steps were bounded) and left most notes on a single point after
+        // normalization: lay the cluster out afresh.
+        var previousLayout = previousLayout
+        if let layout = previousLayout, !(spread / 10...spread * 10).contains(layout.scale) {
+            previousLayout = nil
+            old = old.map { _ in nil }
         }
         if let previousLayout, previousLayout.digest == digest, old.allSatisfy({ $0 != nil }) {
             return (old.map { $0! }, previousLayout, false)
@@ -444,14 +462,20 @@ public enum GraphBuilder {
 
         // Start from the previous layout (at its original scale) where
         // there is one; place newcomers next to their placed neighbours.
-        let m = members.count
-        let spread = 10 * Double(m).squareRoot()
+        func direction(_ k: Int) -> SIMD2<Double> {
+            let angle = 2 * Double.pi * SplitMix64.unit(UInt64(bitPattern: nodes[members[k]].id))
+            return SIMD2(cos(angle), sin(angle))
+        }
         let scale = previousLayout?.scale ?? spread
         var positions = [SIMD2<Double>](repeating: .zero, count: m)
         var placed = [Bool](repeating: false, count: m)
+        var taken = Set<SIMD2<Double>>()
         for k in 0..<m {
             if let p = old[k] {
                 positions[k] = p * scale
+                // Notes on the same point repel each other with no force
+                // at all, so they would never come apart.
+                if !taken.insert(positions[k]).inserted { positions[k] += direction(k) * (scale * 0.01) }
                 placed[k] = true
             }
         }
@@ -463,8 +487,7 @@ public enum GraphBuilder {
         }
         for k in 0..<m where !placed[k] {
             let seed = UInt64(bitPattern: nodes[members[k]].id)
-            let angle = 2 * Double.pi * SplitMix64.unit(seed)
-            let jitter = SIMD2(cos(angle), sin(angle))
+            let jitter = direction(k)
             let anchors = neighbours[k].filter { placed[$0] }
             if warm, !anchors.isEmpty {
                 let centre = anchors.reduce(SIMD2<Double>.zero) { $0 + positions[$1] } / Double(anchors.count)

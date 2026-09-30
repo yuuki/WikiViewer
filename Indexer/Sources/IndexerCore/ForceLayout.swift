@@ -23,11 +23,18 @@ struct ForceAtlas2 {
         var barnesHutThreshold = 300
         /// Exponent applied to link weights.
         var edgeWeightInfluence = 1.0
+        /// Longest move of a node in one step. Two hubs that start almost on
+        /// top of each other repel each other with a force of millions; left
+        /// unbounded, the move overshoots, gravity throws the node back
+        /// further still, and the layout diverges.
+        var maximumStep = Double.infinity
 
-        /// graphology's inferSettings for a graph of `n` nodes.
+        /// graphology's inferSettings for a graph of `n` nodes, with steps
+        /// bounded to a tenth of the layout's extent (about 10√n).
         static func inferred(nodeCount n: Int) -> Settings {
             var s = Settings()
             s.slowDown = 1 + log(Double(max(n, 1)))
+            s.maximumStep = Double(max(n, 1)).squareRoot()
             return s
         }
     }
@@ -101,7 +108,10 @@ struct ForceAtlas2 {
                 let traction = (tractionVector * tractionVector).sum().squareRoot() / 2
                 let speed = convergence[i] * log(1 + traction) / (1 + swinging.squareRoot())
                 convergence[i] = min(1, (speed * (f * f).sum() / (1 + swinging.squareRoot())).squareRoot())
-                positions[i] += f * (speed / settings.slowDown)
+                var step = f * (speed / settings.slowDown)
+                let length = (step * step).sum().squareRoot()
+                if length > settings.maximumStep { step *= settings.maximumStep / length }
+                positions[i] += step
             }
         }
     }
