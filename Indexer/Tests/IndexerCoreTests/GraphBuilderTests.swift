@@ -78,6 +78,61 @@ import WikiShared
         let error = ((approx - direct) * (approx - direct)).sum().squareRoot() / (direct * direct).sum().squareRoot()
         #expect(error < 0.1)
     }
+
+    /// A hub with many notes and a single-link note that passes right by it:
+    /// the repulsion between them is in the millions. Unbounded, that one
+    /// step threw the note several times the layout's width away, and the
+    /// normalization that followed squashed every other note onto a point.
+    @Test func nearCollisionDoesNotThrowANodeAway() {
+        let leaves = 300
+        var positions = [SIMD2<Double>.zero]
+        var edges: [ForceAtlas2.Edge] = []
+        var rng = SplitMix64(state: 3)
+        for k in 1...leaves {
+            edges.append((0, k, 1))
+            let angle = Double(rng.int(10_000)) / 10_000 * 2 * .pi
+            positions.append(SIMD2(cos(angle), sin(angle)) * Double(50 + rng.int(150)))
+        }
+        // A note linked to one of the leaves, a hair's breadth from the hub.
+        edges.append((1, positions.count, 1))
+        positions.append(SIMD2(0.001, 0))
+        let n = positions.count
+        let settings = ForceAtlas2.Settings.inferred(nodeCount: n)
+        ForceAtlas2.run(positions: &positions, edges: edges, iterations: 1, settings: settings)
+        // It moves away from the hub, by at most a step (a tenth of the layout).
+        let moved = (positions[n - 1] * positions[n - 1]).sum().squareRoot()
+        #expect(moved > 0.001)
+        #expect(moved < 2 * Double(n).squareRoot(), "moved \(moved)")
+    }
+
+    /// A hub and notes linked only to it.
+    static func star(_ n: Int) -> (WeightedGraph, [GraphBuilder.Node]) {
+        let edges = (1..<n).map { (a: 0, b: $0, weight: 1.0) }
+        let nodes = (0..<n).map { GraphBuilder.Node(id: Int64($0 + 1), title: "\($0)", type: nil, status: nil) }
+        return (WeightedGraph(nodeCount: n, edges: edges), nodes)
+    }
+
+    /// A layout that diverged before steps were bounded is laid out afresh,
+    /// even if the cluster did not change.
+    @Test func divergedLayoutIsReplaced() {
+        let n = 300
+        let (graph, nodes) = Self.star(n)
+        let members = Array(0..<n)
+        let clusterOf = [Int64?](repeating: 1, count: n)
+        let fresh = GraphBuilder.layoutCluster(id: 1, members: members, graph: graph, clusterOf: clusterOf, nodes: nodes,
+                                               previous: .init(), previousLayout: nil)
+        // Everything but one far note on the same point.
+        let collapsed = (0..<n).map { $0 == 0 ? SIMD2(1.0, 0) : SIMD2(0.0003, 0.0033) }
+        var previous = GraphBuilder.Rows()
+        for (k, node) in nodes.enumerated() {
+            previous.nodes[node.id] = .init(cluster: 1, x: collapsed[k].x, y: collapsed[k].y, weight: 0, degree: 0, type: nil, status: nil)
+        }
+        let result = GraphBuilder.layoutCluster(id: 1, members: members, graph: graph, clusterOf: clusterOf, nodes: nodes,
+                                                previous: previous, previousLayout: .init(digest: fresh.1.digest, scale: 1.9e27))
+        #expect(result.2)
+        #expect(result.1.scale < 3 * 10 * Double(n).squareRoot())
+        #expect(Set(result.0).count > n * 9 / 10)
+    }
 }
 
 @Suite struct GraphBuilderTests {
