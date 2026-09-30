@@ -76,6 +76,15 @@ public enum GraphBuilder {
 
     static let stateKey = "graph_state"
 
+    /// True if the stored graph was laid out by an earlier version whose
+    /// layouts need repairing (State.layoutVersion). The indexer then
+    /// publishes on start, since refresh only runs with a publication.
+    public static func needsLayoutRepair(builder: BuilderDatabase, configuration: GraphConfiguration) throws -> Bool {
+        guard configuration.enabled, let json = try builder.state(stateKey),
+              let state = try? JSONDecoder().decode(State.self, from: Data(json.utf8)) else { return false }
+        return state.layoutVersion != State.layoutVersion
+    }
+
     /// Recomputes the graph tables if the notes or links in scope changed.
     @discardableResult
     public static func refresh(builder: BuilderDatabase, configuration: GraphConfiguration) throws -> Summary {
