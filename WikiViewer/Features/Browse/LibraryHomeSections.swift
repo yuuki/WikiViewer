@@ -14,10 +14,28 @@ struct LibraryHomeSections: View {
     /// Today's daily note, if the vault has one (see `findTodaysNote`).
     let today: NoteSummary?
     @Environment(ReadingHistory.self) private var history
+    /// The recent notes as listed. Reading a note moves it to the top of the
+    /// history. On macOS, while only notes already listed are read again
+    /// (going through the list with the arrow keys reads each one), the
+    /// list keeps its order, so the next row stays the next note.
+    @State private var recents: [HistoryEntry] = []
 
     static let recentLimit = 5
 
     var body: some View {
+        Group { sections }
+            .onChange(of: history.recents, initial: true) {
+                let latest = Array(history.recents.prefix(Self.recentLimit))
+                #if os(macOS)
+                if Set(latest.map(\.path)) != Set(recents.map(\.path)) { recents = latest }
+                #else
+                recents = latest
+                #endif
+            }
+    }
+
+    @ViewBuilder
+    private var sections: some View {
         if let today {
             Section {
                 RouteLink(Route.note(path: today.path, anchor: nil)) {
@@ -46,9 +64,9 @@ struct LibraryHomeSections: View {
                 .onMove { history.movePins(from: $0, to: $1) }
             }
         }
-        if !history.recents.isEmpty {
+        if !recents.isEmpty {
             Section {
-                ForEach(history.recents.prefix(Self.recentLimit), id: \.[row: "recents"]) { entry in
+                ForEach(recents, id: \.[row: "recents"]) { entry in
                     HistoryRow(entry: entry, systemImage: "clock")
                         .swipeActions {
                             Button("Remove", systemImage: "minus.circle", role: .destructive) {
@@ -109,7 +127,7 @@ struct RecentNotesView: View {
     @State private var confirmClear = false
 
     var body: some View {
-        List {
+        RouteList {
             ForEach(history.recents) { entry in
                 HistoryRow(entry: entry, systemImage: "clock")
                     .swipeActions {

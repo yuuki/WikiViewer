@@ -28,7 +28,7 @@ struct TagsView: View {
     }
 
     var body: some View {
-        List {
+        RouteList {
             if filtering {
                 ForEach(tags) { tag in
                     RouteLink(Route.tag(name: tag.name)) {
@@ -57,7 +57,11 @@ struct TagsView: View {
             }
         }
         .navigationTitle("Tags")
+        #if os(iOS)
         .searchable(text: $filter, prompt: "Filter tags")
+        #else
+        .inlineSearchField(text: $filter, prompt: "Filter tags")
+        #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -150,7 +154,7 @@ struct TagNotesView: View {
     @State private var loaded = false
 
     var body: some View {
-        List {
+        RouteList {
             if !children.isEmpty {
                 Section("Nested Tags") {
                     ForEach(children) { node in

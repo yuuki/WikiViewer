@@ -21,7 +21,11 @@ struct MacRootView: View {
     @Environment(\.openWindow) private var openWindow
     /// One stack of lists per section, so each section keeps its place.
     @State private var lists = Dictionary(uniqueKeysWithValues: AppTab.allCases.map { ($0, NavigationModel()) })
-    @State private var documents = NavigationModel()
+    @State private var documents = NavigationModel(maxDepth: 100)
+    @State private var selection = ListSelection()
+    /// The document a list selection opened, while it is on top: browsing
+    /// a list replaces it instead of adding a step to the history.
+    @State private var selectedDocument: Route?
     @State private var restored = false
     @SceneStorage("WikiViewer.mac.lists") private var savedLists: Data?
     @SceneStorage("WikiViewer.mac.documents") private var savedDocuments: Data?
@@ -35,9 +39,7 @@ struct MacRootView: View {
                 .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
                 .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
         } content: {
-            ListColumn(tab: app.tab, navigation: list)
-                .environment(list)
-                .environment(\.openRoute, OpenRouteAction(handler: openFromList))
+            ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 320, max: 480)
         } detail: {
             DocumentColumn(navigation: documents)
@@ -54,11 +56,16 @@ struct MacRootView: View {
         }
         .onAppear(perform: restore)
         .onChange(of: lists.mapValues(\.path)) { save() }
-        .onChange(of: documents.path) { save() }
+        .onChange(of: documents.path) {
+            save()
+            // The selection follows the document, so its row can be
+            // clicked again after a link inside it moved on.
+            if let top = documents.path.last, selection.selected != top { selection.selected = top }
+        }
         .onChange(of: app.showsInspector) { savedInspector = app.showsInspector }
         // The Graph section lists clusters; its map belongs in the detail column.
         .onChange(of: app.tab) {
-            if app.tab == .graph, documents.path.last != .graph { documents.push(.graph) }
+            if app.tab == .graph, documents.path.last != .graph { openDocument(.graph) }
         }
     }
 
@@ -82,11 +89,44 @@ struct MacRootView: View {
     private func openFromList(_ route: Route, _ target: RouteTarget) {
         let target = target == .automatic ? RouteTarget.fromCurrentEvent : target
         guard target == .automatic else { return openElsewhere(route, target) }
+        switch RouteDispatch.dispatch(route, from: .list) {
+        case .pushList(let route): lists[app.tab]?.push(route)
+        case .showList(let tab, let routes):
+            app.tab = tab
+            lists[tab]?.reset(to: routes)
+        case .openDocument(let route): openDocument(route)
+        }
+    }
+
+    /// A row of a content-column list was selected (ListSelection).
+    private func select(_ route: Route, _ input: ListSelection.Input) {
+        if input == .click {
+            let target = RouteTarget.fromCurrentEvent
+            // A new tab or window; the selection stays where it was.
+            guard target == .automatic else { return openElsewhere(route, target) }
+        }
         if route.isList {
+            // A folder or tag replaces the list: not while arrowing through.
+            guard input != .arrow else {
+                selection.selected = route
+                return
+            }
+            selection.selected = nil
+            selection.focusesNextList = input == .activate
             lists[app.tab]?.push(route)
+        } else {
+            selection.selected = route
+            openDocument(route, fromSelection: true)
+        }
+    }
+
+    private func openDocument(_ route: Route, fromSelection: Bool = false) {
+        if fromSelection, let selectedDocument, documents.path.last == selectedDocument {
+            documents.replaceTop(with: route)
         } else {
             documents.push(route)
         }
+        selectedDocument = fromSelection ? route : nil
     }
 
     /// From a document or the sidebar: documents stack up in detail; a list
@@ -98,31 +138,15 @@ struct MacRootView: View {
     }
 
     private func show(_ route: Route) {
-        switch route {
-        case .folder(let path):
-            showList(in: .files, Self.folderChain(path))
-        case .recents:
-            showList(in: .files, [.recents])
-        case .tag(let name):
-            showList(in: .tags, [.tag(name: name)])
-        case .tags:
-            showList(in: .tags, [])
-        case .search:
-            app.tab = .search
-        case .note, .base, .missing, .graph, .graphCluster, .localGraph:
-            documents.push(route)
+        switch RouteDispatch.dispatch(route, from: .document) {
+        case .pushList(let route):
+            lists[app.tab]?.push(route)
+        case .showList(let tab, let routes):
+            app.tab = tab
+            lists[tab]?.reset(to: routes)
+        case .openDocument(let route):
+            openDocument(route)
         }
-    }
-
-    private func showList(in tab: AppTab, _ routes: [Route]) {
-        app.tab = tab
-        lists[tab]?.reset(to: routes)
-    }
-
-    /// A folder with its parents, so going back walks up the tree.
-    static func folderChain(_ path: String) -> [Route] {
-        let components = path.split(separator: "/").map(String.init)
-        return components.indices.map { .folder(path: components[...$0].joined(separator: "/")) }
     }
 
     private func openElsewhere(_ route: Route, _ target: RouteTarget) {
@@ -134,6 +158,7 @@ struct MacRootView: View {
 
     private func restore() {
         app.documentNavigation = documents
+        selection.handler = select
         guard !restored else { return }
         restored = true
         app.showsInspector = savedInspector
@@ -230,53 +255,44 @@ private struct DocumentColumn: View {
     }
 }
 
-/// The section's list, or the list opened from it, with a way back. The
-/// way back is a bar above the list: the toolbar's back and forward
-/// buttons, next to the window title, are the documents' history.
+/// The section's lists in a NavigationStack, so the lists left behind keep
+/// their place. Going back is a bar above the list (or ←): the stack's own
+/// back button, like the toolbar's back and forward buttons next to the
+/// window title, would read as the documents' history.
 private struct ListColumn: View {
     let tab: AppTab
     let navigation: NavigationModel
+    let openRoute: OpenRouteAction
+    let selection: ListSelection
 
     var body: some View {
-        LibraryReady {
-            let route = navigation.path.last
-            Group {
-                if let route {
+        @Bindable var navigation = navigation
+        NavigationStack(path: $navigation.path) {
+            LibraryReady { root }
+                .listColumnEnvironment(navigation: navigation, openRoute: openRoute, selection: selection)
+                .navigationDestination(for: Route.self) { route in
                     RouteView(route: route)
-                } else {
-                    root
-                }
-            }
-            // A new list starts from its own state (FolderView keeps its
-            // model per instance).
-            .id(ListID(tab: tab, route: route))
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if navigation.canGoBack {
-                    VStack(spacing: 0) {
-                        Button {
-                            navigation.back()
-                        } label: {
-                            Label(parentTitle, systemImage: "chevron.backward")
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(.rect)
+                        .navigationBarBackButtonHidden()
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            BackBar(title: parentTitle(of: route)) {
+                                selection.focusesNextList = true
+                                navigation.back()
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.tint)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        Divider()
-                    }
-                    .background(.bar)
+                        // Pushed screens do not inherit environment set
+                        // around the NavigationStack on macOS.
+                        .listColumnEnvironment(navigation: navigation, openRoute: openRoute, selection: selection)
                 }
-            }
         }
+        .listColumnEnvironment(navigation: navigation, openRoute: openRoute, selection: selection)
+        // Each section has its own stack.
+        .id(tab)
     }
 
-    /// The list going back returns to.
-    private var parentTitle: String {
-        let parent = navigation.path.dropLast().last
-        switch parent {
+    /// The list going back from `route` returns to.
+    private func parentTitle(of route: Route) -> String {
+        let index = navigation.path.lastIndex(of: route) ?? 0
+        switch index > 0 ? navigation.path[index - 1] : nil {
         case .folder(let path): return VaultPath.fileName(of: path)
         case .tag(let name): return "#" + name
         case .recents: return String(localized: "Recent")
@@ -299,10 +315,36 @@ private struct ListColumn: View {
         case .graph: ClusterListView().navigationTitle("Clusters")
         }
     }
+}
 
-    struct ListID: Hashable {
-        var tab: AppTab
-        var route: Route?
+private struct BackBar: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: action) {
+                Label(title, systemImage: "chevron.backward")
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .help("Back (←)")
+            Divider()
+        }
+        .background(.bar)
+    }
+}
+
+private extension View {
+    func listColumnEnvironment(navigation: NavigationModel, openRoute: OpenRouteAction, selection: ListSelection) -> some View {
+        environment(navigation)
+            .environment(\.openRoute, openRoute)
+            .environment(\.listSelection, selection)
     }
 }
 #endif

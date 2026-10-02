@@ -31,7 +31,7 @@ struct SearchView: View {
     static let titlePreview = 6
 
     var body: some View {
-        List {
+        RouteList {
             if let error {
                 Text(error).foregroundStyle(.secondary)
             }
@@ -85,16 +85,11 @@ struct SearchView: View {
         .navigationTitle("Search")
         #if os(iOS)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Titles and text")
-        #else
-        .searchable(text: $query, placement: .toolbar, prompt: "Titles and text")
-        #endif
         .searchFocused($fieldFocused)
-        .onSubmit(of: .search) {
-            // Return opens the best title match, like the quick switcher did.
-            if let first = titleHits.first ?? hits.first {
-                openRoute(.note(path: first.note.path, anchor: nil))
-            }
-        }
+        .onSubmit(of: .search, openBestMatch)
+        #else
+        .inlineSearchField(text: $query, prompt: "Titles and text", focused: $fieldFocused, onSubmit: openBestMatch)
+        #endif
         .onAppear(perform: focusIfRequested)
         .onChange(of: app.searchFocusRequest) { focusIfRequested() }
         .task(id: SearchKey(query: query, session: library.session?.id)) {
@@ -105,11 +100,18 @@ struct SearchView: View {
     @Environment(NavigationModel.self) private var navigation
     @Environment(\.openRoute) private var openRoute
 
+    /// Return opens the best title match, like the quick switcher did.
+    private func openBestMatch() {
+        if let first = titleHits.first ?? hits.first {
+            openRoute(.note(path: first.note.path, anchor: nil))
+        }
+    }
+
     /// Opens a note-text match at the block containing the query.
-    private func matchAnchor(for hit: SearchHit) -> Anchor? {
+    private func matchAnchor(for hit: SearchHit) -> NoteAnchor? {
         let q = query.trimmingCharacters(in: .whitespaces)
         guard hit.snippet != nil, !q.isEmpty else { return nil }
-        return Anchor(text: q)
+        return NoteAnchor(text: q)
     }
 
     private var searchesTitlesOnly: Bool {

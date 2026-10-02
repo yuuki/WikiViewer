@@ -207,7 +207,7 @@ struct NoteEmbedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let path {
-                RouteLink(Route.note(path: path, anchor: heading != nil || blockID != nil ? Anchor(heading: heading, blockID: blockID) : nil)) {
+                RouteLink(Route.note(path: path, anchor: heading != nil || blockID != nil ? NoteAnchor(heading: heading, blockID: blockID) : nil)) {
                     Label(title + (heading.map { " › \($0)" } ?? ""), systemImage: "arrow.turn.down.right")
                         .font(.footnote)
                 }

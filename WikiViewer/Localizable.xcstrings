@@ -2004,6 +2004,16 @@
           }
         }
       }
+    },
+    "Back (←)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "戻る（←）"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

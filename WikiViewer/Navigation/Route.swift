@@ -10,37 +10,6 @@ import AppKit
 #endif
 import WikiViewerKit
 
-/// Navigation destinations. Notes and folders are addressed by vault path,
-/// not database id, so a navigation stack survives a generation switch.
-enum Route: Hashable, Codable {
-    case folder(path: String)
-    case note(path: String, anchor: Anchor?)
-    /// An Obsidian Bases file (`.base`).
-    case base(path: String)
-    case tag(name: String)
-    case missing(target: String)
-    case search
-    case tags
-    case recents
-    /// The Graph tab's cluster overview.
-    case graph
-    /// One cluster; `focus` is a note path to select on arrival.
-    case graphCluster(id: Int64, focus: String?)
-    case localGraph(path: String)
-}
-
-extension Route {
-    /// A list to browse (folder, tag, tag list, search, recent notes), as
-    /// opposed to a document to read. On macOS lists open in the content
-    /// column and documents in the detail column.
-    var isList: Bool {
-        switch self {
-        case .folder, .tag, .tags, .search, .recents: true
-        case .note, .base, .missing, .graph, .graphCluster, .localGraph: false
-        }
-    }
-}
-
 /// Where a route opens. `automatic` is the current tab or column, or on
 /// macOS a new tab (⌘-click) or window (⌥⌘-click) when those keys are held.
 enum RouteTarget {
@@ -79,66 +48,36 @@ extension EnvironmentValues {
     }
 }
 
-struct Anchor: Hashable, Codable {
-    var heading: String?
-    var blockID: String?
-    /// Text to find in the note (a search match), highlighted on arrival.
-    var text: String?
-}
-
-/// One stack of screens with browser-like history: going back keeps the
-/// screens left for going forward again, until something new is opened.
+/// One stack of screens with browser-like history (NavigationHistory),
+/// observable by the views that show it.
 @Observable
 final class NavigationModel {
-    var path: [Route] = [] {
-        didSet {
-            guard !adjusting else { return }
-            if path.count < oldValue.count, Array(oldValue.prefix(path.count)) == path {
-                // Popped, by back() or the stack's own back button.
-                forwardPath += oldValue[path.count...].reversed()
-            } else {
-                forwardPath.removeAll()
-            }
-        }
-    }
-    /// Screens to go forward to, the next one last.
-    private(set) var forwardPath: [Route] = []
-    @ObservationIgnored private var adjusting = false
+    private(set) var history: NavigationHistory<Route>
     /// The note on top of this stack, set by NoteView while it is showing.
     var note: NoteFocus?
 
-    /// Bounds a stack that grows with every note opened (macOS detail column).
-    static let maxDepth = 100
-
-    func push(_ route: Route) {
-        path.append(route)
-        if path.count > Self.maxDepth {
-            adjust { path.removeFirst(path.count - Self.maxDepth) }
-        }
+    /// `maxDepth` bounds a stack that grows with every note opened (the
+    /// macOS detail column).
+    init(maxDepth: Int = .max) {
+        history = NavigationHistory(maxDepth: maxDepth)
     }
 
-    var canGoBack: Bool { !path.isEmpty }
-    var canGoForward: Bool { !forwardPath.isEmpty }
-
-    func back() {
-        _ = path.popLast()
+    /// Settable for NavigationStack: a shorter prefix is going back.
+    var path: [Route] {
+        get { history.path }
+        set { history.setPath(newValue) }
     }
 
-    func forward() {
-        guard let route = forwardPath.popLast() else { return }
-        adjust { path.append(route) }
-    }
+    var canGoBack: Bool { history.canGoBack }
+    var canGoForward: Bool { history.canGoForward }
+
+    func push(_ route: Route) { history.push(route) }
+    func replaceTop(with route: Route) { history.replaceTop(with: route) }
+    func back() { history.back() }
+    func forward() { history.forward() }
 
     /// Replaces the whole stack, e.g. to show a folder with its parents.
-    func reset(to routes: [Route]) {
-        path = routes
-    }
-
-    private func adjust(_ change: () -> Void) {
-        adjusting = true
-        change()
-        adjusting = false
-    }
+    func reset(to routes: [Route]) { history.setPath(routes) }
 }
 
 struct RouteView: View {
@@ -166,7 +105,7 @@ struct LinkRouter {
     let session: LibrarySession
     let openRoute: OpenRouteAction
     let currentNoteID: Int64?
-    let scrollTo: (Anchor) -> Void
+    let scrollTo: (NoteAnchor) -> Void
     /// Presents an attachment; bases are pushed as a screen instead.
     let openAsset: (AssetInfo) -> Void
 
@@ -177,7 +116,7 @@ struct LinkRouter {
         case .external:
             return .systemAction
         case .note(let id, let heading, let blockID):
-            let anchor = (heading != nil || blockID != nil) ? Anchor(heading: heading, blockID: blockID) : nil
+            let anchor = (heading != nil || blockID != nil) ? NoteAnchor(heading: heading, blockID: blockID) : nil
             if id == currentNoteID {
                 if let anchor { scrollTo(anchor) }
                 return .handled

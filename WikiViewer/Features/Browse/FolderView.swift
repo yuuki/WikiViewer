@@ -22,7 +22,7 @@ struct FolderView: View {
     @State private var order: NoteOrder = .titleAscending
 
     var body: some View {
-        List {
+        RouteList {
             if let error = model.error {
                 Text(error).foregroundStyle(.secondary)
             }

@@ -161,7 +161,7 @@ struct ClusterListView: View {
     @State private var hasMore = false
 
     var body: some View {
-        List {
+        RouteList {
             ForEach(clusters) { cluster in
                 RouteLink(Route.graphCluster(id: cluster.id, focus: nil)) {
                     ClusterRow(cluster: cluster)

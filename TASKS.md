@@ -210,8 +210,11 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       history with back/forward), Inspector (outline, backlinks, info),
       OpenRouteAction (lists to the content column, documents to detail,
       ⌘-click new tab, ⌥⌘-click new window), window tabs, per-window state
-- [ ] Unit tests for NavigationModel history and macOS route dispatch (the
-      app target has no test target yet)
+- [x] M2 follow-ups: content column as a NavigationStack (lists keep their
+      scroll position), selectable lists with keyboard navigation (↑↓ open
+      notes, Return/→ open lists, ← back), inline search fields, a window
+      at launch; Route/NavigationHistory/RouteDispatch moved to
+      WikiViewerKit with unit tests
 - [ ] M3: Quick Open palette, find in note, link hover previews, graph hover,
       text size, Handoff
 - [ ] CI: build the macOS app

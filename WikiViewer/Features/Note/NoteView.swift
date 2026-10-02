@@ -12,7 +12,7 @@ import WikiViewerKit
 
 struct NoteView: View {
     let path: String
-    let anchor: Anchor?
+    let anchor: NoteAnchor?
     @Environment(Library.self) private var library
     @Environment(NavigationModel.self) private var navigation
     @Environment(\.openRoute) private var openRoute
@@ -337,7 +337,7 @@ final class NoteModel {
         }
     }
 
-    func blockID(for anchor: Anchor) -> Int? {
+    func blockID(for anchor: NoteAnchor) -> Int? {
         guard let rendered else { return nil }
         if let block = anchor.blockID { return rendered.blockAnchors[block] }
         if let heading = anchor.heading { return rendered.headingAnchors[HeadingKey.make(heading)] }

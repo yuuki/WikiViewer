@@ -6,10 +6,7 @@
 //
 
 import SwiftUI
-
-enum AppTab: String, Hashable, CaseIterable {
-    case files, search, tags, graph
-}
+import WikiViewerKit
 
 struct SearchFocusRequest: Equatable {
     var id = 0
