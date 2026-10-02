@@ -15,8 +15,10 @@ struct NoteView: View {
     let anchor: Anchor?
     @Environment(Library.self) private var library
     @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
     @Environment(ReadingHistory.self) private var history
     @Environment(\.openURL) private var openURL
+    @Environment(AppModel.self) private var app
     @State private var model = NoteModel()
     /// Top-level block at the top of the screen. Setting it scrolls there,
     /// and it follows the reader's scrolling (outline, reading position).
@@ -27,6 +29,7 @@ struct NoteView: View {
     /// `position`, so a value set with the first load would be lost.
     @State private var initialPosition: Int?
     @State private var showingOutline = false
+    @AppStorage("WikiViewer.inspectorPane") private var inspectorPane: NoteInspector.Pane = .outline
     /// Block briefly highlighted after arriving at a search match.
     @State private var highlightedBlock: Int?
     @State private var viewingAsset: AssetInfo?
@@ -42,6 +45,17 @@ struct NoteView: View {
                 // The outline is the main way around a long note, so it sits
                 // in the toolbar itself; the local graph joins the overflow
                 // menu, leaving room for the title.
+                #if os(macOS)
+                // The outline, backlinks and properties are in the inspector.
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        app.showsInspector.toggle()
+                    } label: {
+                        Label(app.showsInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
+                    }
+                    .help("Outline, backlinks and properties (⌥⌘I)")
+                }
+                #else
                 if let rendered = model.rendered, !rendered.headings.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -51,10 +65,11 @@ struct NoteView: View {
                         }
                     }
                 }
+                #endif
                 if model.detail != nil {
                     ToolbarItem(placement: .secondaryAction) {
                         Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
-                            navigation.push(.localGraph(path: path))
+                            openRoute(.localGraph(path: path))
                         }
                     }
                 }
@@ -65,12 +80,26 @@ struct NoteView: View {
             .sheet(isPresented: $showingOutline) {
                 if let rendered = model.rendered {
                     OutlineSheet(headings: rendered.headings.map { OutlineSheet.Heading(level: $0.level, text: $0.text, blockID: $0.blockID) },
-                                 current: OutlineSheet.currentHeading(in: rendered.headings.map(\.blockID), top: position)) { blockID in
+                                 current: currentHeading) { blockID in
                         showingOutline = false
                         scroll(to: blockID)
                     }
                 }
             }
+            #if os(macOS)
+            .inspector(isPresented: Bindable(app).showsInspector) {
+                Group {
+                    if let session = library.session, let detail = model.detail {
+                        NoteInspector(model: model, session: session, currentHeading: currentHeading,
+                                      onSelectHeading: { scroll(to: $0) }, pane: $inspectorPane)
+                            .environment(\.openURL, linkAction(session: session, detail: detail))
+                    } else {
+                        Color.clear
+                    }
+                }
+                .inspectorColumnWidth(min: 220, ideal: 280, max: 420)
+            }
+            #endif
             .task(id: library.session?.id) {
                 guard let session = library.session else { return }
                 let firstLoad = await model.load(path: path, session: session)
@@ -114,6 +143,23 @@ struct NoteView: View {
             .id(block.id)
     }
 
+    /// The heading whose section is at the top of the screen.
+    private var currentHeading: Int? {
+        guard let headings = model.rendered?.headings else { return nil }
+        return OutlineSheet.currentHeading(in: headings.map(\.blockID), top: position)
+    }
+
+    /// Opens the links in the note and in its inspector.
+    private func linkAction(session: LibrarySession, detail: NoteDetail) -> OpenURLAction {
+        OpenURLAction { url in
+            LinkRouter(session: session, openRoute: openRoute, currentNoteID: detail.id) { anchor in
+                scroll(to: model.blockID(for: anchor))
+            } openAsset: { asset in
+                viewingAsset = asset
+            }.handle(url)
+        }
+    }
+
     /// Makes this note the target of the Note menu.
     private func publishNote() {
         guard let detail = model.detail, let session = library.session else { return }
@@ -149,14 +195,17 @@ struct NoteView: View {
                         // its title; the folder, tags and properties follow it.
                         let titleBlock = Self.startsWithTitleHeading(rendered, title: detail.title) ? rendered.blocks.first : nil
                         if let titleBlock { blockRow(titleBlock) }
-                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil)
+                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil,
+                                   showsProperties: !Self.hasInspector)
                             .id("header")
                         ForEach(rendered.blocks.dropFirst(titleBlock == nil ? 0 : 1)) { block in
                             blockRow(block)
                         }
-                        BacklinksSection(model: model, session: session)
-                            .id("backlinks")
-                            .padding(.top, 24)
+                        if !Self.hasInspector {
+                            BacklinksSection(model: model, session: session)
+                                .id("backlinks")
+                                .padding(.top, 24)
+                        }
                     }
                     .scrollTargetLayout()
                     .padding(.horizontal, 16)
@@ -177,19 +226,22 @@ struct NoteView: View {
                     if let position { history.setPosition(position, of: path) }
                 }
                 .environment(\.embeddedAssets, model.embeddedAssets)
-                .environment(\.openURL, OpenURLAction { url in
-                    LinkRouter(session: session, navigation: navigation, currentNoteID: detail.id) { anchor in
-                        scroll(to: model.blockID(for: anchor))
-                    } openAsset: { asset in
-                        viewingAsset = asset
-                    }.handle(url)
-                })
+                .environment(\.openURL, linkAction(session: session, detail: detail))
             }
         }
     }
 }
 
 extension NoteView {
+    /// macOS shows backlinks and properties in the inspector, not in the note.
+    static var hasInspector: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
     /// Avoids showing the title twice when the note starts with "# Title".
     static func startsWithTitleHeading(_ rendered: RenderedNote, title: String) -> Bool {
         guard case .heading(1, let text) = rendered.blocks.first?.kind else { return false }
@@ -305,6 +357,7 @@ struct NoteHeader: View {
     let tags: [TagSummary]
     let links: [OutgoingLink]
     let showsTitle: Bool
+    var showsProperties = true
     @State private var showProperties = false
 
     var body: some View {
@@ -318,7 +371,7 @@ struct NoteHeader: View {
             if !tags.isEmpty {
                 TagLine(tags: tags.map(\.name))
             }
-            if !detail.properties.isEmpty {
+            if showsProperties, !detail.properties.isEmpty {
                 DisclosureGroup(isExpanded: $showProperties) {
                     PropertiesView(properties: detail.properties, noteID: detail.id, links: links)
                         .padding(.top, 4)
@@ -338,7 +391,7 @@ struct NoteHeader: View {
     }
 
     private var hasMetadata: Bool {
-        !VaultPath.folder(of: detail.path).isEmpty || !tags.isEmpty || !detail.properties.isEmpty
+        !VaultPath.folder(of: detail.path).isEmpty || !tags.isEmpty || (showsProperties && !detail.properties.isEmpty)
     }
 }
 

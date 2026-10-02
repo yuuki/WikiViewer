@@ -108,13 +108,13 @@ final class MemoryPressureMonitor {
     }
 }
 
-/// Opens `route` in the current tab: a NavigationLink on iOS. On macOS a
-/// List keeps a NavigationLink's row selected after going back, and clicking
-/// that row again does nothing; a button pushes on every click.
+/// Opens `route`: a NavigationLink on iOS. On macOS a button that opens it
+/// with `openRoute` (a List keeps a NavigationLink's row selected after
+/// going back, and clicking that row again does nothing).
 struct RouteLink<Label: View>: View {
     let route: Route
     let label: Label
-    @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
 
     init(_ route: Route, @ViewBuilder label: () -> Label) {
         self.route = route
@@ -123,7 +123,7 @@ struct RouteLink<Label: View>: View {
 
     var body: some View {
         #if os(macOS)
-        Button { navigation.push(route) } label: {
+        Button { openRoute(route) } label: {
             label
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)

@@ -92,7 +92,7 @@ struct SearchView: View {
         .onSubmit(of: .search) {
             // Return opens the best title match, like the quick switcher did.
             if let first = titleHits.first ?? hits.first {
-                navigation.push(.note(path: first.note.path, anchor: nil))
+                openRoute(.note(path: first.note.path, anchor: nil))
             }
         }
         .onAppear(perform: focusIfRequested)
@@ -103,6 +103,7 @@ struct SearchView: View {
     }
 
     @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
 
     /// Opens a note-text match at the block containing the query.
     private func matchAnchor(for hit: SearchHit) -> Anchor? {

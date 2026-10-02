@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-enum AppTab: String, Hashable {
+enum AppTab: String, Hashable, CaseIterable {
     case files, search, tags, graph
 }
 
@@ -36,11 +36,16 @@ final class AppModel {
         searchFocusRequest = SearchFocusRequest(id: searchFocusRequest.id + 1, resetNavigation: true)
     }
 
-    /// Each tab's navigation stack, registered by the tab.
+    /// Each tab's navigation stack, registered by the tab (iOS).
     @ObservationIgnored var navigations: [AppTab: NavigationModel] = [:]
+    /// The stack documents open in, whatever the tab (macOS detail column).
+    @ObservationIgnored var documentNavigation: NavigationModel?
 
-    /// The navigation stack of the tab that is showing.
-    var navigation: NavigationModel? { navigations[tab] }
+    /// The stack the Go and Note menus act on.
+    var navigation: NavigationModel? { documentNavigation ?? navigations[tab] }
+
+    /// Whether notes show the inspector (macOS).
+    var showsInspector = true
 
     /// Settings open as a sheet over whichever tab is showing.
     var showingSettings = false

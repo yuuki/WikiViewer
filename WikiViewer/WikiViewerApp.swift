@@ -18,21 +18,32 @@ struct WikiViewerApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
-        WindowGroup {
-            LibraryGate(startup: startup) {
-                // Each window has its own tab and navigation; the library
-                // and the reading history are shared by all of them.
-                WindowRoot()
-            }
-            .environment(history)
-        }
         #if os(macOS)
+        // Windows and tabs open to a route (⌘-click, New Tab); ⌘N opens
+        // one with none.
+        WindowGroup(for: WindowRequest.self) { $request in
+            window(request: request)
+        }
         .defaultSize(width: 1100, height: 760)
-        #endif
         .commands {
             AppCommands(startup: startup, history: history)
         }
-        #if os(iOS)
+
+        Settings {
+            LibraryGate(startup: startup) {
+                NavigationStack { SettingsView() }
+                    .formStyle(.grouped)
+            }
+            .environment(history)
+            .frame(minWidth: 480, idealWidth: 520, minHeight: 440, idealHeight: 560)
+        }
+        #else
+        WindowGroup {
+            window(request: nil)
+        }
+        .commands {
+            AppCommands(startup: startup, history: history)
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { BackgroundRefresh.schedule() }
         }
@@ -42,17 +53,17 @@ struct WikiViewerApp: App {
             await BackgroundRefresh.run()
         }
         #endif
+    }
+}
 
-        #if os(macOS)
-        Settings {
-            LibraryGate(startup: startup) {
-                NavigationStack { SettingsView() }
-                    .formStyle(.grouped)
-            }
-            .environment(history)
-            .frame(minWidth: 480, idealWidth: 520, minHeight: 440, idealHeight: 560)
+extension WikiViewerApp {
+    private func window(request: WindowRequest?) -> some View {
+        LibraryGate(startup: startup) {
+            // Each window has its own tab and navigation; the library and
+            // the reading history are shared by all of them.
+            WindowRoot(request: request)
         }
-        #endif
+        .environment(history)
     }
 }
 
@@ -96,10 +107,11 @@ struct LibraryGate<Content: View>: View {
 
 /// One window's UI state.
 struct WindowRoot: View {
+    var request: WindowRequest?
     @State private var app = AppModel()
 
     var body: some View {
-        ContentView()
+        ContentView(request: request)
             .environment(app)
             .focusedSceneValue(\.appModel, app)
     }

@@ -20,13 +20,13 @@ private struct NotePreviewMenu: ViewModifier {
     let path: String
     let title: String
     @Environment(Library.self) private var library
-    @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
     @Environment(ReadingHistory.self) private var history
 
     func body(content: Content) -> some View {
         content.contextMenu {
             Button("Open", systemImage: "doc.text") {
-                navigation.push(.note(path: path, anchor: nil))
+                openRoute(.note(path: path, anchor: nil))
             }
             let pinned = history.isPinned(path)
             Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {

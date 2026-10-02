@@ -206,8 +206,12 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [x] M1: sidebar tabs, Settings window, per-window AppModel, Go/Note menus,
       Quick Look for images, app-wide UpdateCoordinator; macOS List fixes
       (RouteLink, section-qualified row ids)
-- [ ] M2: three-column window + Inspector (outline, backlinks, properties),
-      OpenRouteAction, back/forward, tabs and windows
+- [x] M2: three-column window (sidebar, per-section list stacks, document
+      history with back/forward), Inspector (outline, backlinks, info),
+      OpenRouteAction (lists to the content column, documents to detail,
+      ⌘-click new tab, ⌥⌘-click new window), window tabs, per-window state
+- [ ] Unit tests for NavigationModel history and macOS route dispatch (the
+      app target has no test target yet)
 - [ ] M3: Quick Open palette, find in note, link hover previews, graph hover,
       text size, Handoff
 - [ ] CI: build the macOS app

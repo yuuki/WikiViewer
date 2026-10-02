@@ -26,6 +26,9 @@ struct AppCommands: Commands {
     let startup: LibraryStartup
     let history: ReadingHistory
     @FocusedValue(\.appModel) private var app
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
 
     private var navigation: NavigationModel? { app?.navigation }
     private var note: NoteFocus? { navigation?.note }
@@ -33,9 +36,23 @@ struct AppCommands: Commands {
     var body: some Commands {
         #if os(macOS)
         SidebarCommands()
+        CommandGroup(after: .sidebar) {
+            Button(app?.showsInspector == false ? "Show Inspector" : "Hide Inspector") {
+                app?.showsInspector.toggle()
+            }
+            .keyboardShortcut("i", modifiers: [.command, .option])
+            .disabled(app == nil)
+        }
         #endif
 
         CommandGroup(after: .newItem) {
+            #if os(macOS)
+            Button("New Tab") {
+                openWindow(value: MacWindowTabs.asTab(WindowRequest()))
+            }
+            .keyboardShortcut("t", modifiers: .command)
+            Divider()
+            #endif
             Button("Search Notes") { app?.showSearch() }
                 .keyboardShortcut("o", modifiers: .command)
                 .disabled(app == nil)
@@ -53,7 +70,10 @@ struct AppCommands: Commands {
         CommandMenu("Go") {
             Button("Back") { navigation?.back() }
                 .keyboardShortcut("[", modifiers: .command)
-                .disabled(navigation?.path.isEmpty ?? true)
+                .disabled(!(navigation?.canGoBack ?? false))
+            Button("Forward") { navigation?.forward() }
+                .keyboardShortcut("]", modifiers: .command)
+                .disabled(!(navigation?.canGoForward ?? false))
             Divider()
             tabButton("Files", .files, key: "1")
             tabButton("Tags", .tags, key: "2")

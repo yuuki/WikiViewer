@@ -16,7 +16,7 @@ import WikiViewerKit
 struct LocalGraphView: View {
     let path: String
     @Environment(Library.self) private var library
-    @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
     @AppStorage(GraphPreferences.colorModeKey) private var colorMode: GraphColorMode = .type
     @AppStorage(GraphPreferences.hiddenTypesKey) private var hiddenTypes = ""
     @State private var centerPath: String?
@@ -46,7 +46,7 @@ struct LocalGraphView: View {
                     GraphDisplayMenu(types: types)
                     if let cluster = graph?.center.cluster {
                         Button("Show in Cluster", systemImage: "circle.hexagongrid") {
-                            navigation.push(.graphCluster(id: cluster, focus: current))
+                            openRoute(.graphCluster(id: cluster, focus: current))
                         }
                     }
                 }
@@ -174,7 +174,7 @@ struct LocalGraphView: View {
                     Text("Linked from this note, but there is no note by that name yet.")
                         .font(.caption).foregroundStyle(.secondary)
                     Button("Show Details", systemImage: "doc.questionmark") {
-                        navigation.push(.missing(target: target))
+                        openRoute(.missing(target: target))
                     }
                     .buttonStyle(.glass)
                     .controlSize(.small)
@@ -184,7 +184,7 @@ struct LocalGraphView: View {
             let node = member.node
             NodeCard(node: node, color: GraphPalette.color(for: node, mode: effectiveColorMode),
                      secondary: member.depth == 0 ? [] : [.init(title: "Center Here", systemImage: "scope") { recenter(on: node.path) }],
-                     onOpen: { navigation.push(.note(path: node.path, anchor: nil)) },
+                     onOpen: { openRoute(.note(path: node.path, anchor: nil)) },
                      onNeighbour: { neighbour in
                          if graph.members.contains(where: { $0.id == neighbour.id }) {
                              withAnimation(.snappy) { self.selection = neighbour.id }
