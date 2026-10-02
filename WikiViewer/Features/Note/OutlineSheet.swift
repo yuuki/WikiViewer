@@ -53,7 +53,7 @@ struct OutlineSheet: View {
                 }
             }
             .navigationTitle("Outline")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { dismiss() }

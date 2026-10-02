@@ -36,6 +36,12 @@ final class AppModel {
         searchFocusRequest = SearchFocusRequest(id: searchFocusRequest.id + 1, resetNavigation: true)
     }
 
+    /// Each tab's navigation stack, registered by the tab.
+    @ObservationIgnored var navigations: [AppTab: NavigationModel] = [:]
+
+    /// The navigation stack of the tab that is showing.
+    var navigation: NavigationModel? { navigations[tab] }
+
     /// Settings open as a sheet over whichever tab is showing.
     var showingSettings = false
 

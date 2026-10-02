@@ -28,8 +28,8 @@ let package = Package(
                 "WikiShared",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "Markdown", package: "swift-markdown"),
-                // LaTeX typesetting for $…$ and $$…$$ (iOS only, see MathRenderer).
-                .product(name: "SwiftMath", package: "SwiftMath", condition: .when(platforms: [.iOS])),
+                // LaTeX typesetting for $…$ and $$…$$ (the apps only, see MathRenderer).
+                .product(name: "SwiftMath", package: "SwiftMath", condition: .when(platforms: [.iOS, .macOS])),
             ],
             resources: [.copy("Resources/DemoArtifact")]
         ),

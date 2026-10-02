@@ -46,7 +46,7 @@ struct SearchView: View {
             if !titleHits.isEmpty {
                 Section("Titles") {
                     ForEach(showsAllTitles ? titleHits : Array(titleHits.prefix(Self.titlePreview))) { hit in
-                        NavigationLink(value: Route.note(path: hit.note.path, anchor: nil)) {
+                        RouteLink(Route.note(path: hit.note.path, anchor: nil)) {
                             SearchHitRow(hit: hit)
                         }
                         .notePreviewMenu(path: hit.note.path, title: hit.note.title)
@@ -65,7 +65,7 @@ struct SearchView: View {
                     // Identity includes the snippet so a row is rebuilt whenever the
                     // result for the same note changes between queries.
                     ForEach(hits, id: \.self) { hit in
-                        NavigationLink(value: Route.note(path: hit.note.path, anchor: matchAnchor(for: hit))) {
+                        RouteLink(Route.note(path: hit.note.path, anchor: matchAnchor(for: hit))) {
                             SearchHitRow(hit: hit)
                         }
                         .notePreviewMenu(path: hit.note.path, title: hit.note.title)
@@ -83,7 +83,11 @@ struct SearchView: View {
             }
         }
         .navigationTitle("Search")
+        #if os(iOS)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Titles and text")
+        #else
+        .searchable(text: $query, placement: .toolbar, prompt: "Titles and text")
+        #endif
         .searchFocused($fieldFocused)
         .onSubmit(of: .search) {
             // Return opens the best title match, like the quick switcher did.

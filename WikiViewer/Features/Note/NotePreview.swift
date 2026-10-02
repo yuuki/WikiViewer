@@ -33,7 +33,7 @@ private struct NotePreviewMenu: ViewModifier {
                 history.togglePin(path: path, title: title)
             }
             Button("Copy Wikilink", systemImage: "curlybraces") {
-                UIPasteboard.general.string = "[[\(VaultPath.basename(of: path))]]"
+                Pasteboard.copy("[[\(VaultPath.basename(of: path))]]")
             }
         } preview: {
             NotePreviewCard(path: path, title: title, session: library.session)

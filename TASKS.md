@@ -76,6 +76,14 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   notes ranked from links) in a SwiftUI Canvas. `--graph-include`,
   `--graph-exclude`, `--graph-label-types`, `--no-graph`.
 
+- D21 macOS app (MACOS.md): the same multiplatform app target built natively
+  for macOS (not Catalyst or "Designed for iPad"); shared feature views,
+  platform shells in `WikiViewer/Platform/`. Personal use only (Apple
+  Development signing). Sandbox: user-selected read-only files with
+  security-scoped bookmarks, outgoing network. One app-wide update watcher
+  instead of the per-window foreground one. Worktree builds get their own
+  bundle ID (`WV_BUNDLE_ID_SUFFIX`) and so their own container.
+
 ## Phase A — repository baseline
 - [x] Inspect repo, Xcode project, targets, git status
 - [x] Build untouched project for iOS Simulator (BUILD SUCCEEDED, Xcode 27.0)
@@ -190,6 +198,19 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [x] Updater: a source without chunks falls back to the whole database
       (the bundled demo replacing an older demo generation)
 - [-] Bases summaries, `this`, ```` ```base ```` blocks, table/card layouts
+
+## Phase O — macOS app (MACOS.md)
+- [x] M0: builds and runs on macOS (platform helpers, AppKit math, security-
+      scoped folder bookmarks renewed when stale, network entitlement,
+      `scripts/mac.sh`, `scripts/check.sh mac`)
+- [x] M1: sidebar tabs, Settings window, per-window AppModel, Go/Note menus,
+      Quick Look for images, app-wide UpdateCoordinator; macOS List fixes
+      (RouteLink, section-qualified row ids)
+- [ ] M2: three-column window + Inspector (outline, backlinks, properties),
+      OpenRouteAction, back/forward, tabs and windows
+- [ ] M3: Quick Open palette, find in note, link hover previews, graph hover,
+      text size, Handoff
+- [ ] CI: build the macOS app
 
 ## Deferred (explicit)
 - [-] Manifest signing (Ed25519). Hash validation is mandatory and implemented;

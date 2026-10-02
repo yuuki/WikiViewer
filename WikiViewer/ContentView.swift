@@ -13,26 +13,38 @@ struct ContentView: View {
     @Environment(AppModel.self) private var app
     @Environment(ReadingHistory.self) private var history
     @Environment(\.scenePhase) private var scenePhase
+    #if os(macOS)
+    @Environment(\.openSettings) private var openSettings
+    #endif
     @SceneStorage("WikiViewer.tab") private var savedTab: AppTab = .files
 
     var body: some View {
         @Bindable var app = app
         TabView(selection: $app.tab) {
             Tab("Files", systemImage: "folder", value: AppTab.files) {
-                TabRoot(root: .folder(path: ""), storageKey: "WikiViewer.path.files")
+                TabRoot(tab: .files, root: .folder(path: ""), storageKey: "WikiViewer.path.files")
             }
             Tab("Tags", systemImage: "number", value: AppTab.tags) {
-                TabRoot(root: .tags, storageKey: "WikiViewer.path.tags")
+                TabRoot(tab: .tags, root: .tags, storageKey: "WikiViewer.path.tags")
             }
             Tab("Graph", systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.graph) {
-                TabRoot(root: .graph, storageKey: "WikiViewer.path.graph")
+                TabRoot(tab: .graph, root: .graph, storageKey: "WikiViewer.path.graph")
             }
             // The system search tab: its field takes titles and full text,
             // replacing the separate quick switcher.
             Tab(value: AppTab.search, role: .search) {
-                TabRoot(root: .search, storageKey: "WikiViewer.path.search")
+                TabRoot(tab: .search, root: .search, storageKey: "WikiViewer.path.search")
             }
         }
+        #if os(macOS)
+        // The tabs become a sidebar; Settings is its own window (⌘,).
+        .tabViewStyle(.sidebarAdaptable)
+        .onChange(of: app.showingSettings) {
+            guard app.showingSettings else { return }
+            app.showingSettings = false
+            openSettings()
+        }
+        #else
         .sheet(isPresented: $app.showingSettings) {
             NavigationStack {
                 SettingsView()
@@ -43,19 +55,23 @@ struct ContentView: View {
                     }
             }
         }
+        #endif
         // Reopen the tab the reader left.
         .onAppear { app.tab = savedTab }
         .onChange(of: app.tab) { savedTab = app.tab }
         .onChange(of: scenePhase) {
             if scenePhase != .active { history.save() }
         }
+        #if os(iOS)
         // While the app is in the foreground, keep the snapshot current:
         // check on activation, then follow the source (long poll or polling).
-        // Leaving the foreground cancels the task.
+        // Leaving the foreground cancels the task. (On macOS the
+        // UpdateCoordinator follows the source for the whole app.)
         .task(id: WatchKey(active: scenePhase == .active, source: library.source)) {
             guard scenePhase == .active, library.source != nil else { return }
             await library.watchForUpdates()
         }
+        #endif
     }
 }
 
@@ -68,6 +84,7 @@ private struct WatchKey: Equatable {
 /// One tab: a NavigationStack whose routes are path-based, so they stay
 /// valid across generation switches.
 struct TabRoot: View {
+    let tab: AppTab
     let root: Route
     @State private var navigation = NavigationModel()
     @Environment(Library.self) private var library
@@ -75,7 +92,8 @@ struct TabRoot: View {
     /// The tab's navigation stack, restored on the next launch.
     @SceneStorage private var savedPath: Data?
 
-    init(root: Route, storageKey: String) {
+    init(tab: AppTab, root: Route, storageKey: String) {
+        self.tab = tab
         self.root = root
         _savedPath = SceneStorage(storageKey)
     }
@@ -107,10 +125,14 @@ struct TabRoot: View {
                     RouteView(route: root)
                 }
             }
-            .navigationDestination(for: Route.self) { RouteView(route: $0) }
+            // Pushed screens get the model too: on macOS they do not
+            // inherit environment set around the NavigationStack.
+            .navigationDestination(for: Route.self) { RouteView(route: $0).environment(navigation) }
         }
         .environment(navigation)
         .onAppear {
+            // The menu bar's commands act on the tab that is showing.
+            app.navigations[tab] = navigation
             if navigation.path.isEmpty, let savedPath,
                let path = try? JSONDecoder().decode([Route].self, from: savedPath) {
                 navigation.path = path

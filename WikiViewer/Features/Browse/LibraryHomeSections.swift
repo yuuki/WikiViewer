@@ -20,7 +20,7 @@ struct LibraryHomeSections: View {
     var body: some View {
         if let today {
             Section {
-                NavigationLink(value: Route.note(path: today.path, anchor: nil)) {
+                RouteLink(Route.note(path: today.path, anchor: nil)) {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Today's Note")
@@ -34,7 +34,7 @@ struct LibraryHomeSections: View {
         }
         if !history.pins.isEmpty {
             Section("Pinned") {
-                ForEach(history.pins) { entry in
+                ForEach(history.pins, id: \.[row: "pins"]) { entry in
                     HistoryRow(entry: entry, systemImage: "pin")
                         .swipeActions {
                             Button("Unpin", systemImage: "pin.slash") {
@@ -48,7 +48,7 @@ struct LibraryHomeSections: View {
         }
         if !history.recents.isEmpty {
             Section {
-                ForEach(history.recents.prefix(Self.recentLimit)) { entry in
+                ForEach(history.recents.prefix(Self.recentLimit), id: \.[row: "recents"]) { entry in
                     HistoryRow(entry: entry, systemImage: "clock")
                         .swipeActions {
                             Button("Remove", systemImage: "minus.circle", role: .destructive) {
@@ -61,7 +61,7 @@ struct LibraryHomeSections: View {
                     Text("Recent")
                     Spacer()
                     if history.recents.count > Self.recentLimit {
-                        NavigationLink("Show All", value: Route.recents)
+                        RouteLink("Show All", route: Route.recents)
                             .font(.subheadline)
                             .textCase(nil)
                     }
@@ -86,7 +86,7 @@ struct HistoryRow: View {
     let systemImage: String
 
     var body: some View {
-        NavigationLink(value: Route.note(path: entry.path, anchor: nil)) {
+        RouteLink(Route.note(path: entry.path, anchor: nil)) {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.title).lineLimit(2)

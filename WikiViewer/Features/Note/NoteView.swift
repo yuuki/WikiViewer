@@ -16,6 +16,7 @@ struct NoteView: View {
     @Environment(Library.self) private var library
     @Environment(NavigationModel.self) private var navigation
     @Environment(ReadingHistory.self) private var history
+    @Environment(\.openURL) private var openURL
     @State private var model = NoteModel()
     /// Top-level block at the top of the screen. Setting it scrolls there,
     /// and it follows the reader's scrolling (outline, reading position).
@@ -36,7 +37,7 @@ struct NoteView: View {
     var body: some View {
         content
             .navigationTitle(model.detail?.title ?? VaultPath.basename(of: path))
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 // The outline is the main way around a long note, so it sits
                 // in the toolbar itself; the local graph joins the overflow
@@ -86,13 +87,17 @@ struct NoteView: View {
                     initialPosition = saved
                 }
             }
-            .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
+            .assetPresentation(item: $viewingAsset)
+            .onAppear(perform: publishNote)
+            .onChange(of: model.detail?.id) { publishNote() }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
             .onDisappear {
                 // The scroll view made on return starts at the top; `position`
                 // must change for it to scroll back to the saved block.
                 if model.releaseIfLarge() { position = nil }
+                // The note pushed over this one has already published itself.
+                if navigation.note?.detail.path == path { navigation.note = nil }
             }
     }
 
@@ -107,6 +112,12 @@ struct NoteView: View {
                 }
             }
             .id(block.id)
+    }
+
+    /// Makes this note the target of the Note menu.
+    private func publishNote() {
+        guard let detail = model.detail, let session = library.session else { return }
+        navigation.note = NoteFocus(detail: detail, session: session, openURL: openURL)
     }
 
     private func scroll(to block: Int?) {
@@ -350,7 +361,7 @@ struct FolderBreadcrumb: View {
                                 .foregroundStyle(.secondary)
                                 .accessibilityHidden(true)
                         }
-                        NavigationLink(value: Route.folder(path: components[...i].joined(separator: "/"))) {
+                        RouteLink(Route.folder(path: components[...i].joined(separator: "/"))) {
                             Text(components[i])
                                 // A caption-sized link is too small to hit.
                                 .frame(minHeight: 44)
@@ -445,7 +456,7 @@ struct BacklinkRow: View {
     @State private var context: String?
 
     var body: some View {
-        NavigationLink(value: Route.note(path: backlink.note.path, anchor: nil)) {
+        RouteLink(Route.note(path: backlink.note.path, anchor: nil)) {
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(backlink.note.title)
@@ -512,12 +523,12 @@ struct MissingNoteView: View {
             }
             Section("Linked from") {
                 ForEach(sources) { note in
-                    NavigationLink(note.title, value: Route.note(path: note.path, anchor: nil))
+                    RouteLink(note.title, route: Route.note(path: note.path, anchor: nil))
                 }
             }
         }
         .navigationTitle(target)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .task(id: library.session?.id) {
             sources = (try? await library.session?.links.notesLinkingToMissing(target)) ?? []
         }

@@ -354,7 +354,7 @@ struct GraphCanvas: View {
         context.stroke(accent, with: .color(selectedColor.opacity(0.85)), lineWidth: accentWidth)
 
         // Nodes.
-        let background = Color(uiColor: .systemBackground)
+        let background = Color.platformBackground
         for node in scene.nodes {
             let p = cam.screen(node.position, in: size)
             let r = screenRadius(node, cam)
@@ -425,7 +425,7 @@ struct GraphCanvas: View {
             placed.append(rect)
 
             if node.style != .bubble || !(r * 2 > height + 4) {
-                context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(Color(uiColor: .systemBackground).opacity(0.82)))
+                context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(Color.platformBackground.opacity(0.82)))
             }
             let color: Color = node.style == .missing ? GraphPalette.missing : .primary
             let weight: Font.Weight = node.style == .bubble || isSelected || node.style == .center ? .semibold : .regular

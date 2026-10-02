@@ -39,11 +39,13 @@ struct AssetViewer: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(image == nil ? Color(.systemBackground) : .black)
+            .background(image == nil ? Color.platformBackground : .black)
             .navigationTitle(asset.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
+            #if os(iOS)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(image == nil ? nil : .dark, for: .navigationBar)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", systemImage: "xmark") { dismiss() }
@@ -58,7 +60,10 @@ struct AssetViewer: View {
         .task { await load() }
     }
 
-    private var canPreview: Bool {
+    private var canPreview: Bool { Self.canPreview(asset) }
+
+    /// An image whose downsized copy is in the snapshot.
+    static func canPreview(_ asset: AssetInfo) -> Bool {
         asset.kind == .image && asset.blobSHA256 != nil
     }
 
@@ -79,15 +84,21 @@ struct AssetViewer: View {
                 return
             }
             image = decoded
-            shareURL = Self.shareableCopy(of: url, named: asset.name)
+            shareURL = Self.namedCopy(of: url, for: asset)
         } catch is CancellationError {
         } catch {
             failure = String(localized: "Not available offline")
         }
     }
 
-    /// Blobs are named by their hash; share a copy under the vault's name.
-    private static func shareableCopy(of url: URL, named name: String) -> URL? {
+    /// Blobs are named by their hash; share (or preview) a copy under the
+    /// vault's name, with the extension of the blob's own format (the
+    /// snapshot may hold a downsized JPEG of a HEIC photo).
+    static func namedCopy(of url: URL, for asset: AssetInfo) -> URL? {
+        var name = asset.name
+        if let blobExt = asset.blobExt, !blobExt.isEmpty {
+            name = (name as NSString).deletingPathExtension + "." + blobExt
+        }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Share", isDirectory: true)
         let target = dir.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: target)

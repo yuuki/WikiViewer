@@ -36,7 +36,11 @@ struct GraphOverviewView: View {
                     }
                 }
             }
+            #if os(iOS)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Find a note in the graph"))
+            #else
+            .searchable(text: $query, placement: .toolbar, prompt: Text("Find a note in the graph"))
+            #endif
             .task(id: library.session?.id) { await load() }
             .task(id: query) { await search() }
     }
@@ -158,7 +162,7 @@ private struct ClusterList: View {
     var body: some View {
         List {
             ForEach(clusters) { cluster in
-                NavigationLink(value: Route.graphCluster(id: cluster.id, focus: nil)) {
+                RouteLink(Route.graphCluster(id: cluster.id, focus: nil)) {
                     ClusterRow(cluster: cluster)
                 }
             }

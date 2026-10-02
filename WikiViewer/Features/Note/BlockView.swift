@@ -89,7 +89,7 @@ struct BlockView: View {
         }
     }
 
-    static func headingStyle(_ level: Int) -> UIFont.TextStyle {
+    static func headingStyle(_ level: Int) -> MathRenderer.TextStyle {
         switch level {
         case 1: .title1
         case 2: .title2
@@ -164,7 +164,7 @@ struct CodeBlockView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: BlockView.cornerRadius))
+        .background(Color.platformSecondaryBackground, in: .rect(cornerRadius: BlockView.cornerRadius))
     }
 }
 
@@ -231,7 +231,7 @@ struct CalloutView: View {
         switch type {
         case "tip", "hint", "important": ("flame", .teal)
         case "success", "check", "done": ("checkmark.circle", .green)
-        case "question", "help", "faq": ("questionmark.circle", Color(.systemYellow))
+        case "question", "help", "faq": ("questionmark.circle", .yellow)
         case "warning", "caution", "attention": ("exclamationmark.triangle", .orange)
         case "failure", "fail", "missing", "danger", "error", "bug": ("xmark.octagon", .red)
         case "example": ("list.bullet", .purple)

@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import UIKit
 import WikiShared
 import WikiViewerKit
 
@@ -64,17 +63,17 @@ struct NoteActionItems: ToolbarContent {
                     Label("Share Link", systemImage: "square.and.arrow.up")
                 }
                 Button("Copy Obsidian Link", systemImage: "link") {
-                    UIPasteboard.general.url = obsidianURL
+                    Pasteboard.copy(obsidianURL)
                 }
             }
             Button("Copy Wikilink", systemImage: "curlybraces") {
-                UIPasteboard.general.string = "[[\(VaultPath.basename(of: detail.path))]]"
+                Pasteboard.copy("[[\(VaultPath.basename(of: detail.path))]]")
             }
             // Text selection stops at each block; this copies the whole note.
             Button("Copy Note Text", systemImage: "doc.on.doc") {
                 Task {
                     if let body = try? await session.notes.note(id: detail.id)?.body {
-                        UIPasteboard.general.string = body
+                        Pasteboard.copy(body)
                     }
                 }
             }

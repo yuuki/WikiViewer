@@ -19,7 +19,7 @@ struct BaseView: View {
     var body: some View {
         content
             .navigationTitle(model.info?.name ?? VaultPath.basename(of: path))
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .navigationSubtitle(subtitle)
             .toolbarTitleMenu {
                 if let views = model.info?.document.views, views.count > 1 {
@@ -89,7 +89,7 @@ struct BaseView: View {
 
     private func rows(_ rows: ArraySlice<BaseRow>, view: BaseDocument.View) -> some View {
         ForEach(rows) { row in
-            NavigationLink(value: Route.note(path: row.note.path, anchor: nil)) {
+            RouteLink(Route.note(path: row.note.path, anchor: nil)) {
                 BaseRowView(row: row, columns: view.columns.filter { !$0.isFileName })
             }
             .notePreviewMenu(path: row.note.path, title: row.note.title)

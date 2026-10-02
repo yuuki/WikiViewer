@@ -67,10 +67,11 @@ struct AssetEmbedView: View {
                     .accessibilityLabel(name)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint(Text("Opens the image full screen"))
+                    .accessibilityAction { viewing = asset }
                     .onTapGesture { viewing = asset }
             } else if let asset, asset.kind == .base {
                 // ![[x.base]]: a link to the base's own screen.
-                NavigationLink(value: Route.base(path: asset.path)) {
+                RouteLink(Route.base(path: asset.path)) {
                     AttachmentRow(asset: asset, note: nil)
                 }
                 .buttonStyle(.plain)
@@ -101,7 +102,7 @@ struct AssetEmbedView: View {
         // when the row leaves the screen (the byte-bounded cache may keep a
         // copy, and `.task` reloads it on reappear).
         .onDisappear { image = nil }
-        .fullScreenCover(item: $viewing) { AssetViewer(asset: $0) }
+        .assetPresentation(item: $viewing)
     }
 
     struct TaskKey: Hashable {
@@ -166,7 +167,7 @@ struct AttachmentRow: View {
             }
         }
         .padding(8)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: BlockView.cornerRadius))
+        .background(Color.platformSecondaryBackground, in: .rect(cornerRadius: BlockView.cornerRadius))
     }
 
     var symbol: String { Self.symbol(for: asset.kind) }
@@ -206,7 +207,7 @@ struct NoteEmbedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let path {
-                NavigationLink(value: Route.note(path: path, anchor: heading != nil || blockID != nil ? Anchor(heading: heading, blockID: blockID) : nil)) {
+                RouteLink(Route.note(path: path, anchor: heading != nil || blockID != nil ? Anchor(heading: heading, blockID: blockID) : nil)) {
                     Label(title + (heading.map { " › \($0)" } ?? ""), systemImage: "arrow.turn.down.right")
                         .font(.footnote)
                 }

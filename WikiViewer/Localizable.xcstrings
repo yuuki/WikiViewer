@@ -1754,6 +1754,66 @@
     },
     "•": {
       "shouldTranslate": false
+    },
+    "Back": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "戻る"
+          }
+        }
+      }
+    },
+    "Note": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノート"
+          }
+        }
+      }
+    },
+    "Go": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移動"
+          }
+        }
+      }
+    },
+    "Address": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アドレス"
+          }
+        }
+      }
+    },
+    "Check for New Snapshot": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しいスナップショットを確認"
+          }
+        }
+      }
+    },
+    "A folder can be the directory wikiindex publishes into on this Mac, or an iCloud Drive folder another Mac publishes into. An address points at a published directory served over HTTPS.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダには、この Mac で wikiindex が公開するディレクトリか、別の Mac が公開先にしている iCloud Drive のフォルダを指定できます。アドレスには HTTPS で配信されている公開ディレクトリを指定します。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

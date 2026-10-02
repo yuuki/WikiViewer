@@ -44,11 +44,14 @@ struct SettingsView: View {
                 // A label, so the field lines up with Choose Folder above it.
                 Label {
                     HStack {
-                        TextField("https://host/publish", text: $httpURL)
+                        TextField("Address", text: $httpURL, prompt: Text(verbatim: "https://host/publish"))
+                            .labelsHidden()
+                            #if os(iOS)
                             .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
                             .keyboardType(.URL)
                             .submitLabel(.go)
+                            #endif
+                            .autocorrectionDisabled()
                             .onSubmit(useHTTPSource)
                         Button("Use", action: useHTTPSource)
                             .disabled(httpURL.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -67,12 +70,18 @@ struct SettingsView: View {
             } header: {
                 Text("Update Source")
             } footer: {
+                #if os(macOS)
+                Text("A folder can be the directory wikiindex publishes into on this Mac, or an iCloud Drive folder another Mac publishes into. An address points at a published directory served over HTTPS.")
+                #else
                 Text("A folder can be any location in the Files app, including an iCloud Drive folder your Mac publishes into. An address points at a published directory served over HTTPS.")
+                #endif
             }
 
             Section {
                 TextField("Vault name", text: $obsidianVaultName)
+                    #if os(iOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
             } header: {
                 Text("Obsidian")
@@ -139,7 +148,7 @@ struct SettingsView: View {
             let url = try result.get()
             let granted = url.startAccessingSecurityScopedResource()
             defer { if granted { url.stopAccessingSecurityScopedResource() } }
-            let bookmark = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+            let bookmark = try url.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
             library.setSource(.folder(bookmark: bookmark, displayName: url.lastPathComponent))
             folderError = nil
             Task { await library.checkForUpdates() }
@@ -191,7 +200,7 @@ struct SnapshotDetailsView: View {
             }
         }
         .navigationTitle("Snapshot and Storage")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .task { await refreshDiagnostics() }
         .confirmationDialog("Switch to the demo vault? Your update source is replaced; choose it again to switch back.", isPresented: $confirmDemo, titleVisibility: .visible) {
             Button("Use Demo Vault") {

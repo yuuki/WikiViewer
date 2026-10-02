@@ -36,9 +36,15 @@ struct Anchor: Hashable, Codable {
 @Observable
 final class NavigationModel {
     var path: [Route] = []
+    /// The note on top of this stack, set by NoteView while it is showing.
+    var note: NoteFocus?
 
     func push(_ route: Route) {
         path.append(route)
+    }
+
+    func back() {
+        _ = path.popLast()
     }
 }
 

@@ -129,8 +129,8 @@ struct ClusterGraphView: View {
     private func memberList(_ graph: ClusterGraph) -> some View {
         List {
             Section {
-                ForEach(visible(graph)) { node in
-                    NavigationLink(value: Route.note(path: node.path, anchor: nil)) {
+                ForEach(visible(graph), id: \.[row: "nodes"]) { node in
+                    RouteLink(Route.note(path: node.path, anchor: nil)) {
                         HStack(spacing: 10) {
                             Circle().fill(GraphPalette.color(for: node, mode: effectiveColorMode)).frame(width: 10, height: 10)
                             VStack(alignment: .leading, spacing: 2) {
@@ -151,8 +151,8 @@ struct ClusterGraphView: View {
             }
             if !graph.neighbours.isEmpty {
                 Section("Linked Clusters") {
-                    ForEach(graph.neighbours, id: \.cluster.id) { item in
-                        NavigationLink(value: Route.graphCluster(id: item.cluster.id, focus: nil)) {
+                    ForEach(graph.neighbours, id: \.cluster[row: "clusters"]) { item in
+                        RouteLink(Route.graphCluster(id: item.cluster.id, focus: nil)) {
                             HStack(spacing: 10) {
                                 Circle().fill(GraphPalette.cluster(item.cluster.id)).frame(width: 10, height: 10)
                                 Text(item.cluster.label).lineLimit(1)
@@ -195,7 +195,7 @@ private struct NeighbourClusters: View {
             HStack(spacing: 6) {
                 Text("Linked:").font(.caption).foregroundStyle(.secondary)
                 ForEach(neighbours, id: \.cluster.id) { item in
-                    NavigationLink(value: Route.graphCluster(id: item.cluster.id, focus: nil)) {
+                    RouteLink(Route.graphCluster(id: item.cluster.id, focus: nil)) {
                         HStack(spacing: 4) {
                             Circle().fill(GraphPalette.cluster(item.cluster.id)).frame(width: 7, height: 7)
                             Text(item.cluster.label).lineLimit(1)
