@@ -8,3 +8,9 @@ DEVELOPMENT_TEAM =
 PRODUCT_BUNDLE_IDENTIFIER = com.example.WikiViewer
 
 #include? "Local.xcconfig"
+
+// scripts/mac.sh sets WV_BUNDLE_ID_SUFFIX in a git worktree: a Mac app's
+// sandbox container and preferences belong to its bundle ID, so each
+// worktree's build gets its own instead of sharing the snapshots of the
+// app built from the main checkout.
+PRODUCT_BUNDLE_IDENTIFIER = $(inherited)$(WV_BUNDLE_ID_SUFFIX)

@@ -12,12 +12,13 @@
 #   kit         swift test for WikiKit (macOS host)
 #   kit-ios     WikiKit tests on this worktree's simulator
 #   app         Build the iOS app for this worktree's simulator
+#   mac         Build the macOS app (scripts/mac.sh)
 #
 # Stops at the first failing step.
 set -eu
 cd "$(dirname "$0")/.."
 
-ALL="indexer kit kit-ios app"
+ALL="indexer kit kit-ios app mac"
 
 step() {
   case "$1" in
@@ -27,6 +28,7 @@ step() {
     kit) swift test --package-path WikiKit ;;
     kit-ios) scripts/sim.sh test ;;
     app) scripts/sim.sh build >/dev/null ;;
+    mac) scripts/mac.sh build >/dev/null ;;
     *)
       awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0"
       exit 2 ;;

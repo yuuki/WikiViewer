@@ -76,6 +76,14 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   notes ranked from links) in a SwiftUI Canvas. `--graph-include`,
   `--graph-exclude`, `--graph-label-types`, `--no-graph`.
 
+- D21 macOS app (MACOS.md): the same multiplatform app target built natively
+  for macOS (not Catalyst or "Designed for iPad"); shared feature views,
+  platform shells in `WikiViewer/Platform/`. Personal use only (Apple
+  Development signing). Sandbox: user-selected read-only files with
+  security-scoped bookmarks, outgoing network. One app-wide update watcher
+  instead of the per-window foreground one. Worktree builds get their own
+  bundle ID (`WV_BUNDLE_ID_SUFFIX`) and so their own container.
+
 ## Phase A — repository baseline
 - [x] Inspect repo, Xcode project, targets, git status
 - [x] Build untouched project for iOS Simulator (BUILD SUCCEEDED, Xcode 27.0)
@@ -190,6 +198,28 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [x] Updater: a source without chunks falls back to the whole database
       (the bundled demo replacing an older demo generation)
 - [-] Bases summaries, `this`, ```` ```base ```` blocks, table/card layouts
+
+## Phase O — macOS app (MACOS.md)
+- [x] M0: builds and runs on macOS (platform helpers, AppKit math, security-
+      scoped folder bookmarks renewed when stale, network entitlement,
+      `scripts/mac.sh`, `scripts/check.sh mac`)
+- [x] M1: sidebar tabs, Settings window, per-window AppModel, Go/Note menus,
+      Quick Look for images, app-wide UpdateCoordinator; macOS List fixes
+      (RouteLink, section-qualified row ids)
+- [x] M2: three-column window (sidebar, per-section list stacks, document
+      history with back/forward), Inspector (outline, backlinks, info),
+      OpenRouteAction (lists to the content column, documents to detail,
+      ⌘-click new tab, ⌥⌘-click new window), window tabs, per-window state
+- [x] M2 follow-ups: content column as a NavigationStack (lists keep their
+      scroll position), selectable lists with keyboard navigation (↑↓ open
+      notes, Return/→ open lists, ← back), inline search fields, a window
+      at launch; Route/NavigationHistory/RouteDispatch moved to
+      WikiViewerKit with unit tests
+- [x] M3: Quick Open palette (⌘O), find in note (⌘F/⌘G), note text size
+      (⌘=/⌘-/⌘0), graph hover, ⌘-hover previews (rows and links in note
+      text), Handoff of the open note
+- [ ] Handoff between two real devices (not yet tried)
+- [ ] CI: build the macOS app
 
 ## Deferred (explicit)
 - [-] Manifest signing (Ed25519). Hash validation is mandatory and implemented;

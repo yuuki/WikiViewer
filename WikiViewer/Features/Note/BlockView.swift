@@ -10,6 +10,8 @@ import SwiftUI
 import WikiViewerKit
 
 struct BlockView: View {
+    @Environment(\.noteTextScale) private var noteTextScale
+    @Environment(\.findHighlight) private var findHighlight
     let block: RenderBlock
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.headingLevelOffset) private var headingLevelOffset
@@ -22,8 +24,8 @@ struct BlockView: View {
         case .heading(let rawLevel, let text):
             // Headings of an embedded note rank below the host's own.
             let level = min(rawLevel + headingLevelOffset, 6)
-            Text(math: text, mathSize: MathRenderer.fontSize(Self.headingStyle(level), typeSize))
-                .font(Self.headingFont(level))
+            Text(math: text.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(Self.headingStyle(level), typeSize, scale: noteTextScale))
+                .noteFont(Self.headingFont(level))
                 .fontWeight(level <= 2 ? .bold : level <= 4 ? .semibold : .medium)
                 .foregroundStyle(level >= 6 ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
                 // More space above than below, so a heading groups with the
@@ -32,11 +34,13 @@ struct BlockView: View {
                 .textSelection(.enabled)
                 .accessibilityAddTraits(.isHeader)
         case .paragraph(let text):
-            Text(math: text, mathSize: MathRenderer.fontSize(.body, typeSize))
-                .font(.body)
+            Text(math: text.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.body, typeSize, scale: noteTextScale),
+                 markingLinks: Self.previewsLinks)
+                .noteFont(.body)
                 .lineSpacing(Self.bodyLineSpacing)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+                .linkPreviewsOnHover()
         case .code(let language, let code, let continuation):
             CodeBlockView(language: continuation ? nil : language, code: code)
         case .quote(let children):
@@ -69,10 +73,19 @@ struct BlockView: View {
             MathBlockView(latex: latex)
         case .html(let raw):
             Text(raw)
-                .font(.footnote.monospaced())
+                .noteFont(.footnote, design: .monospaced)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
         }
+    }
+
+    /// macOS previews a link's note on ⌘-hover (LinkHoverPreview).
+    static var previewsLinks: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
     }
 
     /// Shared by code blocks, callouts, embeds and attachments.
@@ -80,7 +93,7 @@ struct BlockView: View {
 
     /// Never smaller than body text, so a deep heading still ranks above the
     /// paragraph it introduces; H5 and H6 differ by weight and color only.
-    static func headingFont(_ level: Int) -> Font {
+    static func headingFont(_ level: Int) -> Font.TextStyle {
         switch level {
         case 1: .title
         case 2: .title2
@@ -89,7 +102,7 @@ struct BlockView: View {
         }
     }
 
-    static func headingStyle(_ level: Int) -> UIFont.TextStyle {
+    static func headingStyle(_ level: Int) -> MathRenderer.TextStyle {
         switch level {
         case 1: .title1
         case 2: .title2
@@ -102,11 +115,12 @@ struct BlockView: View {
 /// `$$…$$` display math: centered, and scrollable when wider than the page.
 /// A formula SwiftMath cannot typeset is shown as its source.
 struct MathBlockView: View {
+    @Environment(\.noteTextScale) private var noteTextScale
     let latex: String
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        if let rendered = MathRenderer.render(latex, fontSize: MathRenderer.fontSize(.body, typeSize), display: true) {
+        if let rendered = MathRenderer.render(latex, fontSize: NoteTextScale.mathSize(.body, typeSize, scale: noteTextScale), display: true) {
             ViewThatFits(in: .horizontal) {
                 rendered.image
                     .frame(maxWidth: .infinity)
@@ -138,7 +152,7 @@ struct ListMarkerView: View {
                 Text("•")
             }
         }
-        .font(.body)
+        .noteFont(.body)
         .foregroundStyle(.secondary)
         .frame(minWidth: 16, alignment: .trailing)
     }
@@ -152,23 +166,25 @@ struct CodeBlockView: View {
         VStack(alignment: .leading, spacing: 4) {
             if let language {
                 Text(language)
-                    .font(.caption2)
+                    .noteFont(.caption2)
                     .foregroundStyle(.secondary)
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(code)
-                    .font(.system(.footnote, design: .monospaced))
+                    .noteFont(.footnote, design: .monospaced)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: true, vertical: false)
             }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: BlockView.cornerRadius))
+        .background(Color.platformSecondaryBackground, in: .rect(cornerRadius: BlockView.cornerRadius))
     }
 }
 
 struct CalloutView: View {
+    @Environment(\.noteTextScale) private var noteTextScale
+    @Environment(\.findHighlight) private var findHighlight
     let type: String
     let title: AttributedString
     let foldable: Bool
@@ -209,10 +225,10 @@ struct CalloutView: View {
     private var titleRow: some View {
         HStack(spacing: 6) {
             Image(systemName: style.symbol)
-            Text(math: title, mathSize: MathRenderer.fontSize(.body, typeSize)).fontWeight(.semibold)
+            Text(math: title.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.body, typeSize, scale: noteTextScale)).fontWeight(.semibold)
             if foldable {
                 Spacer()
-                Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.caption)
+                Image(systemName: expanded ? "chevron.down" : "chevron.right").noteFont(.caption)
             }
         }
         .foregroundStyle(titleColor)
@@ -231,7 +247,7 @@ struct CalloutView: View {
         switch type {
         case "tip", "hint", "important": ("flame", .teal)
         case "success", "check", "done": ("checkmark.circle", .green)
-        case "question", "help", "faq": ("questionmark.circle", Color(.systemYellow))
+        case "question", "help", "faq": ("questionmark.circle", .yellow)
         case "warning", "caution", "attention": ("exclamationmark.triangle", .orange)
         case "failure", "fail", "missing", "danger", "error", "bug": ("xmark.octagon", .red)
         case "example": ("list.bullet", .purple)
@@ -244,6 +260,8 @@ struct CalloutView: View {
 }
 
 struct TableBlockView: View {
+    @Environment(\.noteTextScale) private var noteTextScale
+    @Environment(\.findHighlight) private var findHighlight
     let header: [AttributedString]
     let rows: [[AttributedString]]
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -254,7 +272,7 @@ struct TableBlockView: View {
                 if !header.isEmpty {
                     GridRow {
                         ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
-                            Text(math: cell, mathSize: MathRenderer.fontSize(.footnote, typeSize)).font(.footnote.bold())
+                            Text(math: cell.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.footnote, typeSize, scale: noteTextScale)).noteFont(.footnote, weight: .bold)
                         }
                     }
                     Divider()
@@ -262,7 +280,7 @@ struct TableBlockView: View {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                            Text(math: cell, mathSize: MathRenderer.fontSize(.footnote, typeSize)).font(.footnote)
+                            Text(math: cell.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.footnote, typeSize, scale: noteTextScale)).noteFont(.footnote)
                         }
                     }
                 }
@@ -277,4 +295,16 @@ extension EnvironmentValues {
     /// Added to heading levels, so an embedded note's "# Title" does not
     /// outrank the headings of the note it is shown in.
     @Entry var headingLevelOffset = 0
+}
+
+extension View {
+    /// ⌘-hover previews of the links in a paragraph (macOS).
+    @ViewBuilder
+    func linkPreviewsOnHover() -> some View {
+        #if os(macOS)
+        linkHoverPreviews()
+        #else
+        self
+        #endif
+    }
 }

@@ -5,6 +5,8 @@
 //  An interactive node-link drawing: pan with one finger, pinch to zoom,
 //  tap to select. Touch has no hover, so selection does what hover does in
 //  wiki-lens: it brings out a node's links and neighbours and dims the rest.
+//  With a pointer (macOS, iPad), hovering a node does the same while
+//  nothing is selected.
 //
 //  Everything is drawn into one Canvas from a few hundred nodes at most (the
 //  repositories bound what a screen loads). Labels are placed greedily by
@@ -142,6 +144,8 @@ struct GraphCanvas: View {
     @State private var panning = false
     @State private var pinching = false
     @State private var animation: CameraAnimation?
+    /// The node under the pointer.
+    @State private var hovered: Int64?
 
     struct CameraAnimation: Equatable {
         var from: GraphCamera
@@ -176,6 +180,15 @@ struct GraphCanvas: View {
             .onTapGesture(coordinateSpace: .local) { location in
                 onTap(hit(location))
             }
+            .onContinuousHover(coordinateSpace: .local) { phase in
+                switch phase {
+                case .active(let location): hovered = gestureBase == nil ? hit(location) : nil
+                case .ended: hovered = nil
+                }
+            }
+            #if os(macOS)
+            .pointerStyle(hovered == nil ? .default : .link)
+            #endif
             .onAppear { layout(size: proxy.size) }
             .onChange(of: proxy.size) { layout(size: proxy.size) }
         }
@@ -312,6 +325,8 @@ struct GraphCanvas: View {
     // MARK: Drawing
 
     private func draw(in context: inout GraphicsContext, size: CGSize, camera cam: GraphCamera) {
+        // A hovered node is emphasised like a selected one.
+        let selection = selection ?? hovered
         let highlighted = selection.map(scene.neighbours(of:))
         func isDimmed(_ id: Int64) -> Bool { highlighted.map { !$0.contains(id) } ?? false }
         let edgeColor = Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.16)
@@ -354,7 +369,7 @@ struct GraphCanvas: View {
         context.stroke(accent, with: .color(selectedColor.opacity(0.85)), lineWidth: accentWidth)
 
         // Nodes.
-        let background = Color(uiColor: .systemBackground)
+        let background = Color.platformBackground
         for node in scene.nodes {
             let p = cam.screen(node.position, in: size)
             let r = screenRadius(node, cam)
@@ -386,6 +401,7 @@ struct GraphCanvas: View {
     }
 
     private func drawLabels(in context: inout GraphicsContext, size: CGSize, camera cam: GraphCamera, highlighted: Set<Int64>?) {
+        let selection = selection ?? hovered
         let screenRect = CGRect(origin: .zero, size: size)
         var placed: [CGRect] = []
         var order: [Int] = []
@@ -425,7 +441,7 @@ struct GraphCanvas: View {
             placed.append(rect)
 
             if node.style != .bubble || !(r * 2 > height + 4) {
-                context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(Color(uiColor: .systemBackground).opacity(0.82)))
+                context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(Color.platformBackground.opacity(0.82)))
             }
             let color: Color = node.style == .missing ? GraphPalette.missing : .primary
             let weight: Font.Weight = node.style == .bubble || isSelected || node.style == .center ? .semibold : .regular

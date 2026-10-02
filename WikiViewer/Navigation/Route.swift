@@ -5,41 +5,79 @@
 
 import SwiftUI
 import WikiShared
+#if os(macOS)
+import AppKit
+#endif
 import WikiViewerKit
 
-/// Navigation destinations. Notes and folders are addressed by vault path,
-/// not database id, so a navigation stack survives a generation switch.
-enum Route: Hashable, Codable {
-    case folder(path: String)
-    case note(path: String, anchor: Anchor?)
-    /// An Obsidian Bases file (`.base`).
-    case base(path: String)
-    case tag(name: String)
-    case missing(target: String)
-    case search
-    case tags
-    case recents
-    /// The Graph tab's cluster overview.
-    case graph
-    /// One cluster; `focus` is a note path to select on arrival.
-    case graphCluster(id: Int64, focus: String?)
-    case localGraph(path: String)
+/// Where a route opens. `automatic` is the current tab or column, or on
+/// macOS a new tab (⌘-click) or window (⌥⌘-click) when those keys are held.
+enum RouteTarget {
+    case automatic, newTab, newWindow
 }
 
-struct Anchor: Hashable, Codable {
-    var heading: String?
-    var blockID: String?
-    /// Text to find in the note (a search match), highlighted on arrival.
-    var text: String?
+extension RouteTarget {
+    /// `automatic`, or on macOS the target the modifier keys of the event
+    /// being handled ask for. Read it while handling the click: a task that
+    /// opens the route later no longer sees that event.
+    @MainActor
+    static var fromCurrentEvent: RouteTarget {
+        #if os(macOS)
+        let flags = NSApp.currentEvent?.modifierFlags ?? []
+        if flags.contains(.command) { return flags.contains(.option) ? .newWindow : .newTab }
+        #endif
+        return .automatic
+    }
 }
 
+/// Opens a route from a screen: iOS pushes it onto the tab's stack; macOS
+/// sends lists to the content column and documents to the detail column
+/// (MacRootView). Screens call this instead of pushing themselves.
+struct OpenRouteAction {
+    let handler: @MainActor (Route, RouteTarget) -> Void
+
+    @MainActor
+    func callAsFunction(_ route: Route, in target: RouteTarget = .automatic) {
+        handler(route, target)
+    }
+}
+
+extension EnvironmentValues {
+    @Entry var openRoute = OpenRouteAction { route, _ in
+        assertionFailure("No openRoute for \(route)")
+    }
+}
+
+/// One stack of screens with browser-like history (NavigationHistory),
+/// observable by the views that show it.
 @Observable
 final class NavigationModel {
-    var path: [Route] = []
+    private(set) var history: NavigationHistory<Route>
+    /// The note on top of this stack, set by NoteView while it is showing.
+    var note: NoteFocus?
 
-    func push(_ route: Route) {
-        path.append(route)
+    /// `maxDepth` bounds a stack that grows with every note opened (the
+    /// macOS detail column).
+    init(maxDepth: Int = .max) {
+        history = NavigationHistory(maxDepth: maxDepth)
     }
+
+    /// Settable for NavigationStack: a shorter prefix is going back.
+    var path: [Route] {
+        get { history.path }
+        set { history.setPath(newValue) }
+    }
+
+    var canGoBack: Bool { history.canGoBack }
+    var canGoForward: Bool { history.canGoForward }
+
+    func push(_ route: Route) { history.push(route) }
+    func replaceTop(with route: Route) { history.replaceTop(with: route) }
+    func back() { history.back() }
+    func forward() { history.forward() }
+
+    /// Replaces the whole stack, e.g. to show a folder with its parents.
+    func reset(to routes: [Route]) { history.setPath(routes) }
 }
 
 struct RouteView: View {
@@ -65,40 +103,41 @@ struct RouteView: View {
 /// Handles taps on in-note links (wikilinks, tags, assets, external URLs).
 struct LinkRouter {
     let session: LibrarySession
-    let navigation: NavigationModel
+    let openRoute: OpenRouteAction
     let currentNoteID: Int64?
-    let scrollTo: (Anchor) -> Void
+    let scrollTo: (NoteAnchor) -> Void
     /// Presents an attachment; bases are pushed as a screen instead.
     let openAsset: (AssetInfo) -> Void
 
     func handle(_ url: URL) -> OpenURLAction.Result {
         guard let action = WikiLinkAction(url: url) else { return .discarded }
+        let opening = RouteTarget.fromCurrentEvent
         switch action {
         case .external:
             return .systemAction
         case .note(let id, let heading, let blockID):
-            let anchor = (heading != nil || blockID != nil) ? Anchor(heading: heading, blockID: blockID) : nil
+            let anchor = (heading != nil || blockID != nil) ? NoteAnchor(heading: heading, blockID: blockID) : nil
             if id == currentNoteID {
                 if let anchor { scrollTo(anchor) }
                 return .handled
             }
             Task {
                 if let summary = try? await session.notes.summary(id: id) {
-                    navigation.push(.note(path: summary.path, anchor: anchor))
+                    openRoute(.note(path: summary.path, anchor: anchor), in: opening)
                 }
             }
             return .handled
         case .missing(let target):
-            navigation.push(.missing(target: target))
+            openRoute(.missing(target: target), in: opening)
             return .handled
         case .tag(let name):
-            navigation.push(.tag(name: name))
+            openRoute(.tag(name: name), in: opening)
             return .handled
         case .asset(let id):
             Task {
                 guard let asset = try? await session.assets.asset(id: id) else { return }
                 if asset.kind == .base {
-                    navigation.push(.base(path: asset.path))
+                    openRoute(.base(path: asset.path), in: opening)
                 } else {
                     openAsset(asset)
                 }

@@ -53,6 +53,25 @@ public enum SourceConfiguration: Codable, Sendable, Equatable {
     /// The small demo artifact bundled with the app.
     case bundledDemo
 
+    /// Options for a folder bookmark. A macOS sandbox grants access to a
+    /// chosen folder across launches only through a security-scoped
+    /// bookmark; on iOS every bookmark of a picked folder carries the grant.
+    public static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
+        #if os(macOS)
+        [.withSecurityScope, .securityScopeAllowOnlyReadAccess]
+        #else
+        []
+        #endif
+    }
+
+    static var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
+        #if os(macOS)
+        [.withSecurityScope]
+        #else
+        []
+        #endif
+    }
+
     public var label: String {
         switch self {
         case .folder(_, let name): "Folder: \(name)"
@@ -108,7 +127,7 @@ public final class Library {
         if let data = defaults.data(forKey: Self.sourceKey) {
             source = try? JSONDecoder().decode(SourceConfiguration.self, from: data)
         }
-        currentSource = Self.makeSource(source)
+        currentSource = makeSource()
     }
 
     /// Local URL of an asset's blob, fetched from the current source if needed.
@@ -183,31 +202,49 @@ public final class Library {
 
     public func setSource(_ configuration: SourceConfiguration?) {
         source = configuration
+        save(configuration)
+        currentSource = makeSource()
+    }
+
+    private func save(_ configuration: SourceConfiguration?) {
         if let configuration, let data = try? JSONEncoder().encode(configuration) {
             defaults.set(data, forKey: Self.sourceKey)
         } else {
             defaults.removeObject(forKey: Self.sourceKey)
         }
-        currentSource = Self.makeSource(configuration)
     }
 
     public nonisolated static var bundledDemoURL: URL? {
         Bundle.module.url(forResource: "DemoArtifact", withExtension: nil)
     }
 
-    nonisolated static func makeSource(_ configuration: SourceConfiguration?) -> (any ArtifactSource)? {
-        switch configuration {
+    /// The transport for `source`. A folder bookmark the system reports as
+    /// stale (the folder was moved or renamed) is renewed and saved, so it
+    /// keeps resolving.
+    private func makeSource() -> (any ArtifactSource)? {
+        switch source {
         case nil:
             return nil
         case .bundledDemo:
-            return bundledDemoURL.map { LocalFolderArtifactSource(root: $0) }
+            return Self.bundledDemoURL.map { LocalFolderArtifactSource(root: $0) }
         case .http(let url):
             return HTTPArtifactSource(baseURL: url)
-        case .folder(let bookmark, _):
+        case .folder(let bookmark, let name):
             var stale = false
-            guard let url = try? URL(resolvingBookmarkData: bookmark, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+            guard let url = try? URL(resolvingBookmarkData: bookmark, options: SourceConfiguration.bookmarkResolutionOptions,
+                                     relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+            if stale, let renewed = Self.renewBookmark(of: url) {
+                source = .folder(bookmark: renewed, displayName: name)
+                save(source)
+            }
             return LocalFolderArtifactSource(root: url, securityScoped: true)
         }
+    }
+
+    private nonisolated static func renewBookmark(of url: URL) -> Data? {
+        let granted = url.startAccessingSecurityScopedResource()
+        defer { if granted { url.stopAccessingSecurityScopedResource() } }
+        return try? url.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 
     // MARK: Updates

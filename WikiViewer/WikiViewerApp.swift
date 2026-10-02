@@ -13,49 +13,40 @@ import BackgroundTasks
 
 @main
 struct WikiViewerApp: App {
-    @State private var library: Library?
-    @State private var startupError: String?
-    @State private var app = AppModel()
+    @State private var startup = LibraryStartup()
     @State private var history = ReadingHistory()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
+        #if os(macOS)
+        // Windows and tabs open to a route (⌘-click, New Tab); ⌘N opens
+        // one with none.
+        WindowGroup(for: WindowRequest.self) { $request in
+            window(request: request)
+        }
+        .defaultSize(width: 1100, height: 760)
+        // A window at launch even when none is restored (e.g. the saved
+        // windows are from a build whose windows took no value).
+        .defaultLaunchBehavior(.presented)
+        .commands {
+            AppCommands(startup: startup, history: history)
+        }
+
+        Settings {
+            LibraryGate(startup: startup) {
+                NavigationStack { SettingsView() }
+                    .formStyle(.grouped)
+            }
+            .environment(history)
+            .frame(minWidth: 480, idealWidth: 520, minHeight: 440, idealHeight: 560)
+        }
+        #else
         WindowGroup {
-            Group {
-                if let library {
-                    ContentView()
-                        .environment(library)
-                        .environment(app)
-                        .environment(history)
-                        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
-                            library.imageCache.removeAll()
-                        }
-                } else if let startupError {
-                    ContentUnavailableView("Can't Start", systemImage: "exclamationmark.triangle", description: Text(startupError))
-                } else {
-                    ProgressView()
-                }
-            }
-            .task {
-                guard library == nil else { return }
-                do {
-                    let library = try SharedLibrary.library()
-                    self.library = library
-                    await library.bootstrap()
-                } catch {
-                    startupError = error.localizedDescription
-                }
-            }
+            window(request: nil)
         }
         .commands {
-            CommandGroup(after: .newItem) {
-                Button("Search Notes") { app.showSearch() }
-                    .keyboardShortcut("o", modifiers: .command)
-                Button("Find in Vault") { app.showSearch() }
-                    .keyboardShortcut("f", modifiers: [.command, .shift])
-            }
+            AppCommands(startup: startup, history: history)
         }
-        #if os(iOS)
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { BackgroundRefresh.schedule() }
         }
@@ -68,16 +59,89 @@ struct WikiViewerApp: App {
     }
 }
 
-/// The one Library of the process, created on first use — by the window, or
+extension WikiViewerApp {
+    private func window(request: WindowRequest?) -> some View {
+        LibraryGate(startup: startup) {
+            // Each window has its own tab and navigation; the library and
+            // the reading history are shared by all of them.
+            WindowRoot(request: request)
+        }
+        .environment(history)
+    }
+}
+
+/// Opens the shared library once, for whichever scene asks first.
+@MainActor
+@Observable
+final class LibraryStartup {
+    private(set) var library: Library?
+    private(set) var error: String?
+
+    func start() async {
+        guard library == nil, error == nil else { return }
+        do {
+            let library = try SharedLibrary.library()
+            self.library = library
+            await library.bootstrap()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+/// Shows `content` with the library in its environment once it is open.
+struct LibraryGate<Content: View>: View {
+    let startup: LibraryStartup
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        Group {
+            if let library = startup.library {
+                content().environment(library)
+            } else if let error = startup.error {
+                ContentUnavailableView("Can't Start", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else {
+                ProgressView()
+            }
+        }
+        .task { await startup.start() }
+    }
+}
+
+/// One window's UI state.
+struct WindowRoot: View {
+    var request: WindowRequest?
+    @State private var app = AppModel()
+
+    var body: some View {
+        ContentView(request: request)
+            .environment(app)
+            .focusedSceneValue(\.appModel, app)
+    }
+}
+
+/// The one Library of the process, created on first use — by a window, or
 /// by a background refresh when iOS launches the app without one.
 @MainActor
 enum SharedLibrary {
     private static var instance: Library?
+    private static var memoryPressure: MemoryPressureMonitor?
+    #if os(macOS)
+    private static var updates: UpdateCoordinator?
+    #endif
 
     static func library() throws -> Library {
         if let instance { return instance }
         let library = Library(store: try GenerationStore(root: try GenerationStore.defaultRoot()))
         instance = library
+        memoryPressure = MemoryPressureMonitor { library.imageCache.removeAll() }
+        #if os(macOS)
+        // A Mac app keeps running behind other windows, so it follows the
+        // source for as long as it runs, not per window.
+        let updates = UpdateCoordinator(library: library)
+        updates.start()
+        self.updates = updates
+        #endif
         return library
     }
 }

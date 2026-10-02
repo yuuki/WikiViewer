@@ -22,7 +22,7 @@ struct FolderView: View {
     @State private var order: NoteOrder = .titleAscending
 
     var body: some View {
-        List {
+        RouteList {
             if let error = model.error {
                 Text(error).foregroundStyle(.secondary)
             }
@@ -37,8 +37,8 @@ struct FolderView: View {
             }
             if !model.folders.isEmpty {
                 Section {
-                    ForEach(model.folders) { folder in
-                        NavigationLink(value: Route.folder(path: folder.path)) {
+                    ForEach(model.folders, id: \.[row: "folders"]) { folder in
+                        RouteLink(Route.folder(path: folder.path)) {
                             FolderRow(folder: folder)
                         }
                     }
@@ -55,16 +55,16 @@ struct FolderView: View {
             // Bases list notes, like folders do: they come before the notes.
             if !model.bases.isEmpty {
                 Section("Bases") {
-                    ForEach(model.bases) { base in
-                        NavigationLink(value: Route.base(path: base.path)) {
+                    ForEach(model.bases, id: \.[row: "bases"]) { base in
+                        RouteLink(Route.base(path: base.path)) {
                             Label(VaultPath.basename(of: base.name), systemImage: AttachmentRow.symbol(for: .base))
                         }
                     }
                 }
             }
             Section {
-                ForEach(model.notes) { note in
-                    NavigationLink(value: Route.note(path: note.path, anchor: nil)) {
+                ForEach(model.notes, id: \.[row: "notes"]) { note in
+                    RouteLink(Route.note(path: note.path, anchor: nil)) {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(note.title).lineLimit(2)
@@ -94,7 +94,7 @@ struct FolderView: View {
             }
             if !model.assets.isEmpty {
                 Section("Attachments") {
-                    ForEach(model.assets) { asset in
+                    ForEach(model.assets, id: \.[row: "assets"]) { asset in
                         // Every attachment opens: images in the viewer,
                         // others to say why there is no preview.
                         Button { viewingAsset = asset } label: {
@@ -112,14 +112,17 @@ struct FolderView: View {
             }
         }
         .navigationTitle(path.isEmpty ? String(localized: "Vault") : VaultPath.fileName(of: path))
-        .navigationBarTitleDisplayMode(path.isEmpty ? .large : .inline)
-        .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
+        .navigationTitleDisplay(large: path.isEmpty)
+        .assetPresentation(item: $viewingAsset)
         .toolbar {
+            // macOS has Settings in the app menu (⌘,).
+            #if os(iOS)
             if path.isEmpty {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Settings", systemImage: "gearshape") { app.showSettings() }
                 }
             }
+            #endif
             ToolbarItem(placement: .primaryAction) {
                 // One tap shows the orders (not a submenu of an overflow menu).
                 Menu {

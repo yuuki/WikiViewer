@@ -20,6 +20,7 @@ of the vault.
 | [THREAT_MODEL.md](THREAT_MODEL.md) | What is protected, from what, and how the design responds |
 | [BENCHMARKS.md](BENCHMARKS.md) | Measured numbers at 20k, 50k and 100k notes, and how to reproduce them |
 | [TASKS.md](TASKS.md) | Decisions log, status, deferred work |
+| [MACOS.md](MACOS.md) | macOS app: design, decisions and status (Japanese draft) |
 
 ## Build and test
 
@@ -37,6 +38,9 @@ xcodebuild test -scheme WikiKit-Package -destination 'platform=iOS Simulator,nam
 # iOS app
 xcodebuild -project WikiViewer.xcodeproj -scheme WikiViewer \
   -destination 'platform=iOS Simulator,name=iPhone 17' build
+
+# macOS app (same target; see MACOS.md)
+scripts/mac.sh run
 ```
 
 On first launch the app installs a small demo snapshot (built from

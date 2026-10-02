@@ -18,7 +18,7 @@ struct ClusterGraphView: View {
     /// Path of a note to select and zoom to on arrival.
     let focus: String?
     @Environment(Library.self) private var library
-    @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
     @AppStorage(GraphPreferences.colorModeKey) private var colorMode: GraphColorMode = .type
     @AppStorage(GraphPreferences.hiddenTypesKey) private var hiddenTypes = ""
     @AppStorage("WikiViewer.graph.clusterAsList") private var showsList = false
@@ -100,9 +100,9 @@ struct ClusterGraphView: View {
             if let selection, let node = graph.nodes.first(where: { $0.id == selection }) {
                 NodeCard(node: node, color: GraphPalette.color(for: node, mode: effectiveColorMode),
                          secondary: [.init(title: "Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
-                             navigation.push(.localGraph(path: node.path))
+                             openRoute(.localGraph(path: node.path))
                          }],
-                         onOpen: { navigation.push(.note(path: node.path, anchor: nil)) },
+                         onOpen: { openRoute(.note(path: node.path, anchor: nil)) },
                          onNeighbour: { go(to: $0, from: graph) },
                          onClose: { withAnimation(.snappy) { self.selection = nil } })
                     .id(node.id)
@@ -120,17 +120,17 @@ struct ClusterGraphView: View {
             withAnimation(.snappy) { selection = node.id }
             focusNode = node.id
         } else if let cluster = node.cluster {
-            navigation.push(.graphCluster(id: cluster, focus: node.path))
+            openRoute(.graphCluster(id: cluster, focus: node.path))
         } else {
-            navigation.push(.localGraph(path: node.path))
+            openRoute(.localGraph(path: node.path))
         }
     }
 
     private func memberList(_ graph: ClusterGraph) -> some View {
         List {
             Section {
-                ForEach(visible(graph)) { node in
-                    NavigationLink(value: Route.note(path: node.path, anchor: nil)) {
+                ForEach(visible(graph), id: \.[row: "nodes"]) { node in
+                    RouteLink(Route.note(path: node.path, anchor: nil)) {
                         HStack(spacing: 10) {
                             Circle().fill(GraphPalette.color(for: node, mode: effectiveColorMode)).frame(width: 10, height: 10)
                             VStack(alignment: .leading, spacing: 2) {
@@ -151,8 +151,8 @@ struct ClusterGraphView: View {
             }
             if !graph.neighbours.isEmpty {
                 Section("Linked Clusters") {
-                    ForEach(graph.neighbours, id: \.cluster.id) { item in
-                        NavigationLink(value: Route.graphCluster(id: item.cluster.id, focus: nil)) {
+                    ForEach(graph.neighbours, id: \.cluster[row: "clusters"]) { item in
+                        RouteLink(Route.graphCluster(id: item.cluster.id, focus: nil)) {
                             HStack(spacing: 10) {
                                 Circle().fill(GraphPalette.cluster(item.cluster.id)).frame(width: 10, height: 10)
                                 Text(item.cluster.label).lineLimit(1)
@@ -195,7 +195,7 @@ private struct NeighbourClusters: View {
             HStack(spacing: 6) {
                 Text("Linked:").font(.caption).foregroundStyle(.secondary)
                 ForEach(neighbours, id: \.cluster.id) { item in
-                    NavigationLink(value: Route.graphCluster(id: item.cluster.id, focus: nil)) {
+                    RouteLink(Route.graphCluster(id: item.cluster.id, focus: nil)) {
                         HStack(spacing: 4) {
                             Circle().fill(GraphPalette.cluster(item.cluster.id)).frame(width: 7, height: 7)
                             Text(item.cluster.label).lineLimit(1)

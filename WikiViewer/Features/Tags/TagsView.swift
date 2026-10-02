@@ -28,10 +28,10 @@ struct TagsView: View {
     }
 
     var body: some View {
-        List {
+        RouteList {
             if filtering {
                 ForEach(tags) { tag in
-                    NavigationLink(value: Route.tag(name: tag.name)) {
+                    RouteLink(Route.tag(name: tag.name)) {
                         TagRow(name: "#" + tag.name, count: tag.noteCount, hasChildren: false)
                     }
                     .onAppear {
@@ -40,7 +40,7 @@ struct TagsView: View {
                 }
             } else {
                 ForEach(TagNode.sorted(roots, by: order)) { node in
-                    NavigationLink(value: Route.tag(name: node.name)) {
+                    RouteLink(Route.tag(name: node.name)) {
                         TagRow(name: "#" + node.name, count: node.noteCount, hasChildren: node.hasChildren)
                     }
                 }
@@ -57,7 +57,11 @@ struct TagsView: View {
             }
         }
         .navigationTitle("Tags")
+        #if os(iOS)
         .searchable(text: $filter, prompt: "Filter tags")
+        #else
+        .inlineSearchField(text: $filter, prompt: "Filter tags")
+        #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -150,11 +154,11 @@ struct TagNotesView: View {
     @State private var loaded = false
 
     var body: some View {
-        List {
+        RouteList {
             if !children.isEmpty {
                 Section("Nested Tags") {
                     ForEach(children) { node in
-                        NavigationLink(value: Route.tag(name: node.name)) {
+                        RouteLink(Route.tag(name: node.name)) {
                             TagRow(name: "#" + node.component, count: node.noteCount, hasChildren: node.hasChildren)
                         }
                     }
@@ -162,7 +166,7 @@ struct TagNotesView: View {
             }
             Section {
                 ForEach(notes) { note in
-                    NavigationLink(value: Route.note(path: note.path, anchor: nil)) {
+                    RouteLink(Route.note(path: note.path, anchor: nil)) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(note.title)
                             if !note.folderPath.isEmpty {
@@ -188,7 +192,7 @@ struct TagNotesView: View {
             }
         }
         .navigationTitle("#" + name)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .secondaryAction) {
                 Toggle("Include Nested Tags", systemImage: "number", isOn: $includeNested)

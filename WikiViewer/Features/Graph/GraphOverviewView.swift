@@ -14,7 +14,7 @@ import WikiViewerKit
 
 struct GraphOverviewView: View {
     @Environment(Library.self) private var library
-    @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
     @State private var overview: GraphOverview?
     @State private var failure: String?
     @State private var selection: Int64?
@@ -36,7 +36,11 @@ struct GraphOverviewView: View {
                     }
                 }
             }
+            #if os(iOS)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Find a note in the graph"))
+            #else
+            .searchable(text: $query, placement: .toolbar, prompt: Text("Find a note in the graph"))
+            #endif
             .task(id: library.session?.id) { await load() }
             .task(id: query) { await search() }
     }
@@ -55,7 +59,7 @@ struct GraphOverviewView: View {
                 ContentUnavailableView("No Graph", systemImage: "point.3.connected.trianglepath.dotted",
                                        description: Text("This snapshot has no clusters of linked notes. The Mac's indexer builds them from notes that link to each other."))
             } else if showsList {
-                ClusterList()
+                ClusterListView()
             } else {
                 map(overview)
             }
@@ -69,7 +73,7 @@ struct GraphOverviewView: View {
     private func map(_ overview: GraphOverview) -> some View {
         GraphCanvas(scene: Self.scene(overview), selection: selection, fitKey: overview.clusters.map(\.id), labelBudget: 60) { id in
             if let id, id == selection {
-                navigation.push(.graphCluster(id: id, focus: nil))
+                openRoute(.graphCluster(id: id, focus: nil))
             } else {
                 withAnimation(.snappy) { selection = id }
             }
@@ -79,7 +83,7 @@ struct GraphOverviewView: View {
         .safeAreaInset(edge: .bottom) {
             if let selection, let cluster = overview.clusters.first(where: { $0.id == selection }) {
                 ClusterCard(cluster: cluster) {
-                    navigation.push(.graphCluster(id: cluster.id, focus: nil))
+                    openRoute(.graphCluster(id: cluster.id, focus: nil))
                 } onClose: {
                     withAnimation(.snappy) { self.selection = nil }
                 }
@@ -142,23 +146,24 @@ struct GraphOverviewView: View {
     private func open(_ note: NoteSummary) async {
         let node = try? await library.session?.graph.node(id: note.id)
         if let cluster = node?.cluster {
-            navigation.push(.graphCluster(id: cluster, focus: note.path))
+            openRoute(.graphCluster(id: cluster, focus: note.path))
         } else {
-            navigation.push(.localGraph(path: note.path))
+            openRoute(.localGraph(path: note.path))
         }
     }
 }
 
-/// Every cluster, largest first, with its best-known notes.
-private struct ClusterList: View {
+/// Every cluster, largest first, with its best-known notes. Also the
+/// Graph section's list on macOS.
+struct ClusterListView: View {
     @Environment(Library.self) private var library
     @State private var clusters: [GraphCluster] = []
     @State private var hasMore = false
 
     var body: some View {
-        List {
+        RouteList {
             ForEach(clusters) { cluster in
-                NavigationLink(value: Route.graphCluster(id: cluster.id, focus: nil)) {
+                RouteLink(Route.graphCluster(id: cluster.id, focus: nil)) {
                     ClusterRow(cluster: cluster)
                 }
             }

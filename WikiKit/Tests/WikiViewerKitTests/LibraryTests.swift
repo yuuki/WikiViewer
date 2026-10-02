@@ -30,7 +30,7 @@ import WikiShared
         try makeArtifact(at: dir, generation: 5) { db in
             try db.execute(sql: "UPDATE notes SET title = 'Home v5' WHERE path = 'Home.md'")
         }
-        let bookmark = try dir.bookmarkData()
+        let bookmark = try dir.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions)
         library.setSource(.folder(bookmark: bookmark, displayName: "pub"))
         await library.checkForUpdates()
         #expect(library.updateStatus.isUpdated)
@@ -50,7 +50,7 @@ import WikiShared
         let first = try #require(library.session?.installed)
         let dir = tmp.sub("pub")
         try makeArtifact(at: dir, generation: 2)
-        library.setSource(.folder(bookmark: try dir.bookmarkData(), displayName: "pub"))
+        library.setSource(.folder(bookmark: try dir.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions), displayName: "pub"))
         await library.checkForUpdates()
         let second = try #require(library.session?.installed)
         #expect(second.generation == 2)
@@ -72,7 +72,7 @@ import WikiShared
         let before = try #require(library.session)
         let dir = tmp.sub("bad")
         try makeArtifact(at: dir, generation: 9, editManifest: { $0.database.sha256 = String(repeating: "f", count: 64) })
-        library.setSource(.folder(bookmark: try dir.bookmarkData(), displayName: "bad"))
+        library.setSource(.folder(bookmark: try dir.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions), displayName: "bad"))
         await library.checkForUpdates()
         guard case .failed = library.updateStatus else { Issue.record("expected failure, got \(library.updateStatus)"); return }
         #expect(library.session?.id == before.id)
@@ -109,9 +109,9 @@ import WikiShared
         await library.bootstrap()
         let dir = tmp.sub("pub7")
         try makeArtifact(at: dir, generation: 7)
-        library.setSource(.folder(bookmark: try dir.bookmarkData(), displayName: "pub7"))
+        library.setSource(.folder(bookmark: try dir.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions), displayName: "pub7"))
         async let first: Void = library.checkForUpdates()
-        library.setSource(.folder(bookmark: try dir.bookmarkData(), displayName: "pub7"))
+        library.setSource(.folder(bookmark: try dir.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions), displayName: "pub7"))
         async let second: Void = library.checkForUpdates()
         _ = await (first, second)
         #expect(library.session?.info.generation == 7)

@@ -35,6 +35,15 @@ import WikiShared
         #expect(rendered.firstBlock(containing: "absent") == nil)
     }
 
+    @Test func findsEveryBlockContainingTextInOrder() {
+        let body = "# Tokyo\n\nFirst paragraph.\n\n> quoted tokyo text\n\nAnother ＴＯＫＹＯ."
+        let rendered = NoteRenderer.render(body: body, noteID: 1, links: [])
+        let texts = rendered.blocks(containing: "Tokyo").compactMap { id in rendered.blocks.first { $0.id == id }?.plainText }
+        #expect(texts == ["Tokyo", "quoted tokyo text", "Another ＴＯＫＹＯ."], "case- and width-insensitive, in note order")
+        #expect(rendered.blocks(containing: " ").isEmpty)
+        #expect(rendered.blocks(containing: "Osaka").isEmpty)
+    }
+
     @Test func wikilinksBecomeResolvedLinks() {
         let body = "See [[Alpha|the alpha]], [[Beta#Goals]], [[Missing]] and [[#Local]]."
         let rendered = NoteRenderer.render(body: body, noteID: 7, links: [

@@ -13,5 +13,11 @@
 	<array>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER).refresh</string>
 	</array>
+	<!-- Handoff of the note on screen between iPhone and Mac (NoteActivity).
+	     Not derived from the bundle ID, which differs per worktree build. -->
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>app.wikiviewer.note</string>
+	</array>
 </dict>
 </plist>

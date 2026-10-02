@@ -12,11 +12,16 @@ import WikiViewerKit
 
 struct NoteView: View {
     let path: String
-    let anchor: Anchor?
+    let anchor: NoteAnchor?
     @Environment(Library.self) private var library
     @Environment(NavigationModel.self) private var navigation
+    @Environment(\.openRoute) private var openRoute
     @Environment(ReadingHistory.self) private var history
+    @Environment(\.openURL) private var openURL
+    @Environment(AppModel.self) private var app
+    @Environment(\.noteTextScale) private var noteTextScale
     @State private var model = NoteModel()
+    @State private var find = NoteFind()
     /// Top-level block at the top of the screen. Setting it scrolls there,
     /// and it follows the reader's scrolling (outline, reading position).
     /// Unlike ScrollViewReader.scrollTo, the block stays pinned while lazy
@@ -26,6 +31,7 @@ struct NoteView: View {
     /// `position`, so a value set with the first load would be lost.
     @State private var initialPosition: Int?
     @State private var showingOutline = false
+    @AppStorage("WikiViewer.inspectorPane") private var inspectorPane: NoteInspector.Pane = .outline
     /// Block briefly highlighted after arriving at a search match.
     @State private var highlightedBlock: Int?
     @State private var viewingAsset: AssetInfo?
@@ -34,13 +40,29 @@ struct NoteView: View {
     @State private var arrived = false
 
     var body: some View {
-        content
+        // The find bar sits above the scroll view, not over it: a match
+        // scrolled to the top would otherwise be under the bar.
+        VStack(spacing: 0) {
+            if find.isShown { NoteFindBar(find: find) }
+            content
+        }
             .navigationTitle(model.detail?.title ?? VaultPath.basename(of: path))
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 // The outline is the main way around a long note, so it sits
                 // in the toolbar itself; the local graph joins the overflow
                 // menu, leaving room for the title.
+                #if os(macOS)
+                // The outline, backlinks and properties are in the inspector.
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        app.showsInspector.toggle()
+                    } label: {
+                        Label(app.showsInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
+                    }
+                    .help("Outline, backlinks and properties (⌥⌘I)")
+                }
+                #else
                 if let rendered = model.rendered, !rendered.headings.isEmpty {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -50,10 +72,11 @@ struct NoteView: View {
                         }
                     }
                 }
+                #endif
                 if model.detail != nil {
                     ToolbarItem(placement: .secondaryAction) {
                         Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
-                            navigation.push(.localGraph(path: path))
+                            openRoute(.localGraph(path: path))
                         }
                     }
                 }
@@ -64,12 +87,26 @@ struct NoteView: View {
             .sheet(isPresented: $showingOutline) {
                 if let rendered = model.rendered {
                     OutlineSheet(headings: rendered.headings.map { OutlineSheet.Heading(level: $0.level, text: $0.text, blockID: $0.blockID) },
-                                 current: OutlineSheet.currentHeading(in: rendered.headings.map(\.blockID), top: position)) { blockID in
+                                 current: currentHeading) { blockID in
                         showingOutline = false
                         scroll(to: blockID)
                     }
                 }
             }
+            #if os(macOS)
+            .inspector(isPresented: Bindable(app).showsInspector) {
+                Group {
+                    if let session = library.session, let detail = model.detail {
+                        NoteInspector(model: model, session: session, currentHeading: currentHeading,
+                                      onSelectHeading: { scroll(to: $0) }, pane: $inspectorPane)
+                            .environment(\.openURL, linkAction(session: session, detail: detail))
+                    } else {
+                        Color.clear
+                    }
+                }
+                .inspectorColumnWidth(min: 220, ideal: 280, max: 420)
+            }
+            #endif
             .task(id: library.session?.id) {
                 guard let session = library.session else { return }
                 let firstLoad = await model.load(path: path, session: session)
@@ -86,20 +123,31 @@ struct NoteView: View {
                     initialPosition = saved
                 }
             }
-            .fullScreenCover(item: $viewingAsset) { AssetViewer(asset: $0) }
+            .assetPresentation(item: $viewingAsset)
+            .environment(\.findHighlight, find.isShown ? find.query : "")
+            .onChange(of: find.query) { findMatches() }
+            .onChange(of: model.rendered?.blocks.count) { if find.isShown { findMatches() } }
+            .onChange(of: find.current) { scroll(to: find.currentBlock) }
+            .userActivity(NoteActivity.type, element: model.detail) { detail, activity in
+                NoteActivity.describe(activity, path: detail.path, title: detail.title)
+            }
+            .onAppear(perform: publishNote)
+            .onChange(of: model.detail?.id) { publishNote() }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
             .onDisappear {
                 // The scroll view made on return starts at the top; `position`
                 // must change for it to scroll back to the saved block.
                 if model.releaseIfLarge() { position = nil }
+                // The note pushed over this one has already published itself.
+                if navigation.note?.detail.path == path { navigation.note = nil }
             }
     }
 
     private func blockRow(_ block: RenderBlock) -> some View {
         BlockView(block: block)
             .background {
-                if highlightedBlock == block.id {
+                if highlightedBlock == block.id || (find.isShown && find.currentBlock == block.id) {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color("Highlight").opacity(0.35))
                         .padding(-4)
@@ -107,6 +155,34 @@ struct NoteView: View {
                 }
             }
             .id(block.id)
+    }
+
+    /// The heading whose section is at the top of the screen.
+    private var currentHeading: Int? {
+        guard let headings = model.rendered?.headings else { return nil }
+        return OutlineSheet.currentHeading(in: headings.map(\.blockID), top: position)
+    }
+
+    /// Opens the links in the note and in its inspector.
+    private func linkAction(session: LibrarySession, detail: NoteDetail) -> OpenURLAction {
+        OpenURLAction { url in
+            LinkRouter(session: session, openRoute: openRoute, currentNoteID: detail.id) { anchor in
+                scroll(to: model.blockID(for: anchor))
+            } openAsset: { asset in
+                viewingAsset = asset
+            }.handle(url)
+        }
+    }
+
+    private func findMatches() {
+        find.update(in: model.rendered)
+        scroll(to: find.currentBlock)
+    }
+
+    /// Makes this note the target of the Note menu.
+    private func publishNote() {
+        guard let detail = model.detail, let session = library.session else { return }
+        navigation.note = NoteFocus(detail: detail, session: session, openURL: openURL, find: find)
     }
 
     private func scroll(to block: Int?) {
@@ -138,19 +214,23 @@ struct NoteView: View {
                         // its title; the folder, tags and properties follow it.
                         let titleBlock = Self.startsWithTitleHeading(rendered, title: detail.title) ? rendered.blocks.first : nil
                         if let titleBlock { blockRow(titleBlock) }
-                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil)
+                        NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil,
+                                   showsProperties: !Self.hasInspector)
                             .id("header")
                         ForEach(rendered.blocks.dropFirst(titleBlock == nil ? 0 : 1)) { block in
                             blockRow(block)
                         }
-                        BacklinksSection(model: model, session: session)
-                            .id("backlinks")
-                            .padding(.top, 24)
+                        if !Self.hasInspector {
+                            BacklinksSection(model: model, session: session)
+                                .id("backlinks")
+                                .padding(.top, 24)
+                        }
                     }
                     .scrollTargetLayout()
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .frame(maxWidth: 820, alignment: .leading)
+                    // A readable line length at any text size.
+                    .frame(maxWidth: 820 * noteTextScale, alignment: .leading)
                     .frame(maxWidth: .infinity)
                 }
                 // Only blocks have Int ids: with the header or backlinks at
@@ -166,19 +246,22 @@ struct NoteView: View {
                     if let position { history.setPosition(position, of: path) }
                 }
                 .environment(\.embeddedAssets, model.embeddedAssets)
-                .environment(\.openURL, OpenURLAction { url in
-                    LinkRouter(session: session, navigation: navigation, currentNoteID: detail.id) { anchor in
-                        scroll(to: model.blockID(for: anchor))
-                    } openAsset: { asset in
-                        viewingAsset = asset
-                    }.handle(url)
-                })
+                .environment(\.openURL, linkAction(session: session, detail: detail))
             }
         }
     }
 }
 
 extension NoteView {
+    /// macOS shows backlinks and properties in the inspector, not in the note.
+    static var hasInspector: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
     /// Avoids showing the title twice when the note starts with "# Title".
     static func startsWithTitleHeading(_ rendered: RenderedNote, title: String) -> Bool {
         guard case .heading(1, let text) = rendered.blocks.first?.kind else { return false }
@@ -274,7 +357,7 @@ final class NoteModel {
         }
     }
 
-    func blockID(for anchor: Anchor) -> Int? {
+    func blockID(for anchor: NoteAnchor) -> Int? {
         guard let rendered else { return nil }
         if let block = anchor.blockID { return rendered.blockAnchors[block] }
         if let heading = anchor.heading { return rendered.headingAnchors[HeadingKey.make(heading)] }
@@ -294,27 +377,28 @@ struct NoteHeader: View {
     let tags: [TagSummary]
     let links: [OutgoingLink]
     let showsTitle: Bool
+    var showsProperties = true
     @State private var showProperties = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if showsTitle {
                 Text(detail.title)
-                    .font(.title.bold())
+                    .noteFont(.title, weight: .bold)
                     .textSelection(.enabled)
             }
             FolderBreadcrumb(folder: VaultPath.folder(of: detail.path))
             if !tags.isEmpty {
                 TagLine(tags: tags.map(\.name))
             }
-            if !detail.properties.isEmpty {
+            if showsProperties, !detail.properties.isEmpty {
                 DisclosureGroup(isExpanded: $showProperties) {
                     PropertiesView(properties: detail.properties, noteID: detail.id, links: links)
                         .padding(.top, 4)
                 } label: {
                     // Primary color: a tinted secondary label reads as disabled.
                     Label("Properties (\(detail.properties.count))", systemImage: "list.bullet.rectangle")
-                        .font(.subheadline)
+                        .noteFont(.subheadline)
                         .foregroundStyle(.primary)
                 }
                 .tint(.secondary)
@@ -327,7 +411,7 @@ struct NoteHeader: View {
     }
 
     private var hasMetadata: Bool {
-        !VaultPath.folder(of: detail.path).isEmpty || !tags.isEmpty || !detail.properties.isEmpty
+        !VaultPath.folder(of: detail.path).isEmpty || !tags.isEmpty || (showsProperties && !detail.properties.isEmpty)
     }
 }
 
@@ -350,7 +434,7 @@ struct FolderBreadcrumb: View {
                                 .foregroundStyle(.secondary)
                                 .accessibilityHidden(true)
                         }
-                        NavigationLink(value: Route.folder(path: components[...i].joined(separator: "/"))) {
+                        RouteLink(Route.folder(path: components[...i].joined(separator: "/"))) {
                             Text(components[i])
                                 // A caption-sized link is too small to hit.
                                 .frame(minHeight: 44)
@@ -359,7 +443,7 @@ struct FolderBreadcrumb: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .font(.footnote)
+                .noteFont(.footnote)
                 .foregroundStyle(.tint)
             }
             // The links' 44pt hit areas overlap the lines around the
@@ -383,7 +467,7 @@ struct TagLine: View {
             t.link = WikiLinkAction.tag(tag).url
             text.append(t)
         }
-        return Text(text).font(.footnote)
+        return Text(text).noteFont(.footnote)
     }
 }
 
@@ -397,10 +481,10 @@ struct PropertiesView: View {
             ForEach(Array(properties.enumerated()), id: \.offset) { _, property in
                 GridRow {
                     Text(property.key)
-                        .font(.footnote)
+                        .noteFont(.footnote)
                         .foregroundStyle(.secondary)
                     Text(NoteRenderer.propertyText(property.value, noteID: noteID, links: links))
-                        .font(.footnote)
+                        .noteFont(.footnote)
                         .textSelection(.enabled)
                 }
             }
@@ -445,7 +529,7 @@ struct BacklinkRow: View {
     @State private var context: String?
 
     var body: some View {
-        NavigationLink(value: Route.note(path: backlink.note.path, anchor: nil)) {
+        RouteLink(Route.note(path: backlink.note.path, anchor: nil)) {
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(backlink.note.title)
@@ -512,12 +596,12 @@ struct MissingNoteView: View {
             }
             Section("Linked from") {
                 ForEach(sources) { note in
-                    NavigationLink(note.title, value: Route.note(path: note.path, anchor: nil))
+                    RouteLink(note.title, route: Route.note(path: note.path, anchor: nil))
                 }
             }
         }
         .navigationTitle(target)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .task(id: library.session?.id) {
             sources = (try? await library.session?.links.notesLinkingToMissing(target)) ?? []
         }

@@ -6,10 +6,7 @@
 //
 
 import SwiftUI
-
-enum AppTab: String, Hashable {
-    case files, search, tags, graph
-}
+import WikiViewerKit
 
 struct SearchFocusRequest: Equatable {
     var id = 0
@@ -35,6 +32,20 @@ final class AppModel {
         tab = .search
         searchFocusRequest = SearchFocusRequest(id: searchFocusRequest.id + 1, resetNavigation: true)
     }
+
+    /// Each tab's navigation stack, registered by the tab (iOS).
+    @ObservationIgnored var navigations: [AppTab: NavigationModel] = [:]
+    /// The stack documents open in, whatever the tab (macOS detail column).
+    @ObservationIgnored var documentNavigation: NavigationModel?
+
+    /// The stack the Go and Note menus act on.
+    var navigation: NavigationModel? { documentNavigation ?? navigations[tab] }
+
+    /// Whether notes show the inspector (macOS).
+    var showsInspector = true
+
+    /// The Quick Open palette (⌘O on macOS).
+    var showingQuickOpen = false
 
     /// Settings open as a sheet over whichever tab is showing.
     var showingSettings = false

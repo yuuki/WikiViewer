@@ -22,7 +22,7 @@ struct EmbedView: View {
             NoteEmbedView(noteID: id, title: title, heading: heading, blockID: blockID)
         case .missing(let raw):
             Label("Missing embed: \(raw)", systemImage: "questionmark.square.dashed")
-                .font(.footnote)
+                .noteFont(.footnote)
                 .foregroundStyle(.secondary)
         }
     }
@@ -67,10 +67,11 @@ struct AssetEmbedView: View {
                     .accessibilityLabel(name)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint(Text("Opens the image full screen"))
+                    .accessibilityAction { viewing = asset }
                     .onTapGesture { viewing = asset }
             } else if let asset, asset.kind == .base {
                 // ![[x.base]]: a link to the base's own screen.
-                NavigationLink(value: Route.base(path: asset.path)) {
+                RouteLink(Route.base(path: asset.path)) {
                     AttachmentRow(asset: asset, note: nil)
                 }
                 .buttonStyle(.plain)
@@ -101,7 +102,7 @@ struct AssetEmbedView: View {
         // when the row leaves the screen (the byte-bounded cache may keep a
         // copy, and `.task` reloads it on reappear).
         .onDisappear { image = nil }
-        .fullScreenCover(item: $viewing) { AssetViewer(asset: $0) }
+        .assetPresentation(item: $viewing)
     }
 
     struct TaskKey: Hashable {
@@ -156,17 +157,17 @@ struct AttachmentRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
-                .font(.title3)
+                .noteFont(.title3)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(asset.name).font(.subheadline)
+                Text(asset.name).noteFont(.subheadline)
                 Text([ByteCountFormatter.string(fromByteCount: asset.size, countStyle: .file), note ?? placeholder].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption)
+                    .noteFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(8)
-        .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: BlockView.cornerRadius))
+        .background(Color.platformSecondaryBackground, in: .rect(cornerRadius: BlockView.cornerRadius))
     }
 
     var symbol: String { Self.symbol(for: asset.kind) }
@@ -206,9 +207,9 @@ struct NoteEmbedView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let path {
-                NavigationLink(value: Route.note(path: path, anchor: heading != nil || blockID != nil ? Anchor(heading: heading, blockID: blockID) : nil)) {
+                RouteLink(Route.note(path: path, anchor: heading != nil || blockID != nil ? NoteAnchor(heading: heading, blockID: blockID) : nil)) {
                     Label(title + (heading.map { " › \($0)" } ?? ""), systemImage: "arrow.turn.down.right")
-                        .font(.footnote)
+                        .noteFont(.footnote)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
