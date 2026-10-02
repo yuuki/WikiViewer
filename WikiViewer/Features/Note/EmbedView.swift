@@ -22,7 +22,7 @@ struct EmbedView: View {
             NoteEmbedView(noteID: id, title: title, heading: heading, blockID: blockID)
         case .missing(let raw):
             Label("Missing embed: \(raw)", systemImage: "questionmark.square.dashed")
-                .font(.footnote)
+                .noteFont(.footnote)
                 .foregroundStyle(.secondary)
         }
     }
@@ -157,12 +157,12 @@ struct AttachmentRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
-                .font(.title3)
+                .noteFont(.title3)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
-                Text(asset.name).font(.subheadline)
+                Text(asset.name).noteFont(.subheadline)
                 Text([ByteCountFormatter.string(fromByteCount: asset.size, countStyle: .file), note ?? placeholder].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption)
+                    .noteFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -209,7 +209,7 @@ struct NoteEmbedView: View {
             if let path {
                 RouteLink(Route.note(path: path, anchor: heading != nil || blockID != nil ? NoteAnchor(heading: heading, blockID: blockID) : nil)) {
                     Label(title + (heading.map { " › \($0)" } ?? ""), systemImage: "arrow.turn.down.right")
-                        .font(.footnote)
+                        .noteFont(.footnote)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)

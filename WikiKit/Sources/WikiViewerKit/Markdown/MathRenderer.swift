@@ -95,30 +95,43 @@ public enum MathRenderer {
     #endif
 }
 
+/// Marks a link's run in a Text built with `markingLinks`, so a
+/// TextRenderer can find where each link was laid out (link previews).
+public struct LinkRunAttribute: TextAttribute {
+    public let url: URL
+}
+
 extension Text {
     /// `text` with its inline math runs (see `MathAttribute`) typeset at
     /// `mathSize` points. A formula SwiftMath cannot parse stays as source.
     /// Inline code gets a tinted background and a slightly smaller
     /// monospaced face: monospaced glyphs look larger than the text around
-    /// them. `mathSize` is that text's point size.
+    /// them. `mathSize` is that text's point size. With `markingLinks`, each
+    /// link run carries a `LinkRunAttribute`.
     @MainActor
-    public init(math source: AttributedString, mathSize: CGFloat) {
+    public init(math source: AttributedString, mathSize: CGFloat, markingLinks: Bool = false) {
         let text = Self.styledCode(source, size: mathSize)
-        guard text.runs.contains(where: { $0[MathAttribute.self] != nil }) else {
+        let hasMath = text.runs.contains { $0[MathAttribute.self] != nil }
+        let hasLinks = markingLinks && text.runs.contains { $0.link != nil }
+        guard hasMath || hasLinks else {
             self.init(text)
             return
         }
         var result = Text(verbatim: "")
         var pending = AttributedString()
         for run in text.runs {
-            guard let latex = run[MathAttribute.self],
-                  let rendered = MathRenderer.render(latex, fontSize: mathSize, display: false) else {
+            if let latex = run[MathAttribute.self],
+               let rendered = MathRenderer.render(latex, fontSize: mathSize, display: false) {
+                let formula = Text(rendered.image).baselineOffset(-rendered.descent).accessibilityLabel(Text(verbatim: latex))
+                result = Text("\(result)\(Text(pending))\(formula)")
+                pending = AttributedString()
+            } else if markingLinks, let url = run.link {
+                let link = Text(AttributedString(text[run.range])).customAttribute(LinkRunAttribute(url: url))
+                result = Text("\(result)\(Text(pending))\(link)")
+                pending = AttributedString()
+            } else {
                 pending.append(text[run.range])
-                continue
             }
-            let formula = Text(rendered.image).baselineOffset(-rendered.descent).accessibilityLabel(Text(verbatim: latex))
-            result = Text("\(result)\(Text(pending))\(formula)")
-            pending = AttributedString()
         }
         self = Text("\(result)\(Text(pending))")
     }

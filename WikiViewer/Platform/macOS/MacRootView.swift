@@ -31,6 +31,7 @@ struct MacRootView: View {
     @SceneStorage("WikiViewer.mac.documents") private var savedDocuments: Data?
     @SceneStorage("WikiViewer.mac.inspector") private var savedInspector = true
     @SceneStorage("WikiViewer.mac.joinedTabs") private var joinedTabs = false
+    @AppStorage(NoteTextScale.defaultsKey) private var noteTextScale = 1.0
 
     var body: some View {
         let list = lists[app.tab] ?? NavigationModel()
@@ -43,8 +44,19 @@ struct MacRootView: View {
                 .navigationSplitViewColumnWidth(min: 240, ideal: 320, max: 480)
         } detail: {
             DocumentColumn(navigation: documents)
+                .environment(\.noteTextScale, noteTextScale)
                 .environment(documents)
                 .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
+        }
+        .overlay(alignment: .top) {
+            if app.showingQuickOpen {
+                QuickOpenPanel { route, target in
+                    target == .automatic ? show(route) : openElsewhere(route, target)
+                } onClose: {
+                    app.showingQuickOpen = false
+                }
+                .padding(.top, 80)
+            }
         }
         .background { TabTitle(title: documentTitle) }
         .background {
@@ -55,6 +67,10 @@ struct MacRootView: View {
             }
         }
         .onAppear(perform: restore)
+        // Handoff from the iPhone: continue the note it was showing.
+        .onContinueUserActivity(NoteActivity.type) { activity in
+            if let route = NoteActivity.route(of: activity) { show(route) }
+        }
         .onChange(of: lists.mapValues(\.path)) { save() }
         .onChange(of: documents.path) {
             save()

@@ -19,7 +19,9 @@ struct NoteView: View {
     @Environment(ReadingHistory.self) private var history
     @Environment(\.openURL) private var openURL
     @Environment(AppModel.self) private var app
+    @Environment(\.noteTextScale) private var noteTextScale
     @State private var model = NoteModel()
+    @State private var find = NoteFind()
     /// Top-level block at the top of the screen. Setting it scrolls there,
     /// and it follows the reader's scrolling (outline, reading position).
     /// Unlike ScrollViewReader.scrollTo, the block stays pinned while lazy
@@ -38,7 +40,12 @@ struct NoteView: View {
     @State private var arrived = false
 
     var body: some View {
-        content
+        // The find bar sits above the scroll view, not over it: a match
+        // scrolled to the top would otherwise be under the bar.
+        VStack(spacing: 0) {
+            if find.isShown { NoteFindBar(find: find) }
+            content
+        }
             .navigationTitle(model.detail?.title ?? VaultPath.basename(of: path))
             .inlineNavigationTitle()
             .toolbar {
@@ -117,6 +124,13 @@ struct NoteView: View {
                 }
             }
             .assetPresentation(item: $viewingAsset)
+            .environment(\.findHighlight, find.isShown ? find.query : "")
+            .onChange(of: find.query) { findMatches() }
+            .onChange(of: model.rendered?.blocks.count) { if find.isShown { findMatches() } }
+            .onChange(of: find.current) { scroll(to: find.currentBlock) }
+            .userActivity(NoteActivity.type, element: model.detail) { detail, activity in
+                NoteActivity.describe(activity, path: detail.path, title: detail.title)
+            }
             .onAppear(perform: publishNote)
             .onChange(of: model.detail?.id) { publishNote() }
             // Notes deeper in the navigation stack keep their rendered blocks
@@ -133,7 +147,7 @@ struct NoteView: View {
     private func blockRow(_ block: RenderBlock) -> some View {
         BlockView(block: block)
             .background {
-                if highlightedBlock == block.id {
+                if highlightedBlock == block.id || (find.isShown && find.currentBlock == block.id) {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(Color("Highlight").opacity(0.35))
                         .padding(-4)
@@ -160,10 +174,15 @@ struct NoteView: View {
         }
     }
 
+    private func findMatches() {
+        find.update(in: model.rendered)
+        scroll(to: find.currentBlock)
+    }
+
     /// Makes this note the target of the Note menu.
     private func publishNote() {
         guard let detail = model.detail, let session = library.session else { return }
-        navigation.note = NoteFocus(detail: detail, session: session, openURL: openURL)
+        navigation.note = NoteFocus(detail: detail, session: session, openURL: openURL, find: find)
     }
 
     private func scroll(to block: Int?) {
@@ -210,7 +229,8 @@ struct NoteView: View {
                     .scrollTargetLayout()
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .frame(maxWidth: 820, alignment: .leading)
+                    // A readable line length at any text size.
+                    .frame(maxWidth: 820 * noteTextScale, alignment: .leading)
                     .frame(maxWidth: .infinity)
                 }
                 // Only blocks have Int ids: with the header or backlinks at
@@ -364,7 +384,7 @@ struct NoteHeader: View {
         VStack(alignment: .leading, spacing: 6) {
             if showsTitle {
                 Text(detail.title)
-                    .font(.title.bold())
+                    .noteFont(.title, weight: .bold)
                     .textSelection(.enabled)
             }
             FolderBreadcrumb(folder: VaultPath.folder(of: detail.path))
@@ -378,7 +398,7 @@ struct NoteHeader: View {
                 } label: {
                     // Primary color: a tinted secondary label reads as disabled.
                     Label("Properties (\(detail.properties.count))", systemImage: "list.bullet.rectangle")
-                        .font(.subheadline)
+                        .noteFont(.subheadline)
                         .foregroundStyle(.primary)
                 }
                 .tint(.secondary)
@@ -423,7 +443,7 @@ struct FolderBreadcrumb: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .font(.footnote)
+                .noteFont(.footnote)
                 .foregroundStyle(.tint)
             }
             // The links' 44pt hit areas overlap the lines around the
@@ -447,7 +467,7 @@ struct TagLine: View {
             t.link = WikiLinkAction.tag(tag).url
             text.append(t)
         }
-        return Text(text).font(.footnote)
+        return Text(text).noteFont(.footnote)
     }
 }
 
@@ -461,10 +481,10 @@ struct PropertiesView: View {
             ForEach(Array(properties.enumerated()), id: \.offset) { _, property in
                 GridRow {
                     Text(property.key)
-                        .font(.footnote)
+                        .noteFont(.footnote)
                         .foregroundStyle(.secondary)
                     Text(NoteRenderer.propertyText(property.value, noteID: noteID, links: links))
-                        .font(.footnote)
+                        .noteFont(.footnote)
                         .textSelection(.enabled)
                 }
             }

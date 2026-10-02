@@ -215,8 +215,10 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       notes, Return/→ open lists, ← back), inline search fields, a window
       at launch; Route/NavigationHistory/RouteDispatch moved to
       WikiViewerKit with unit tests
-- [ ] M3: Quick Open palette, find in note, link hover previews, graph hover,
-      text size, Handoff
+- [x] M3: Quick Open palette (⌘O), find in note (⌘F/⌘G), note text size
+      (⌘=/⌘-/⌘0), graph hover, ⌘-hover previews (rows and links in note
+      text), Handoff of the open note
+- [ ] Handoff between two real devices (not yet tried)
 - [ ] CI: build the macOS app
 
 ## Deferred (explicit)

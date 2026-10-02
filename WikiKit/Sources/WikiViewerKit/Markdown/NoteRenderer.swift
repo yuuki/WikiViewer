@@ -34,10 +34,19 @@ extension RenderedNote {
     /// (case-insensitive), to open a search result at its match. Markdown
     /// syntax is not visible, so a match only inside it is not found.
     public func firstBlock(containing text: String) -> Int? {
-        let needle = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else { return nil }
-        return blocks.first { $0.plainText.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) != nil }?.id
+        blocks(containing: text).first
     }
+
+    /// Ids of the top-level blocks whose visible text contains `text`
+    /// (case-insensitive), in order: the matches of find in note.
+    public func blocks(containing text: String) -> [Int] {
+        let needle = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return [] }
+        return blocks.filter { $0.plainText.range(of: needle, options: Self.matchOptions) != nil }.map(\.id)
+    }
+
+    /// How find in note and search matches compare text.
+    public static let matchOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
 }
 
 extension RenderBlock {

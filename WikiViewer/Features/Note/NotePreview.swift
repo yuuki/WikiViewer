@@ -2,12 +2,17 @@
 //  NotePreview.swift
 //  WikiViewer
 //
-//  Long-press a note row to peek at the note before opening it.
+//  Long-press a note row to peek at the note before opening it. On macOS,
+//  where a context menu has no preview, hold ⌘ over the row instead (as
+//  Obsidian's page preview does).
 //
 
 import SwiftUI
 import WikiShared
 import WikiViewerKit
+#if os(macOS)
+import AppKit
+#endif
 
 extension View {
     /// Context menu with a preview of the note at `path` and quick actions.
@@ -28,6 +33,14 @@ private struct NotePreviewMenu: ViewModifier {
             Button("Open", systemImage: "doc.text") {
                 openRoute(.note(path: path, anchor: nil))
             }
+            #if os(macOS)
+            Button("Open in New Tab", systemImage: "plus.square.on.square") {
+                openRoute(.note(path: path, anchor: nil), in: .newTab)
+            }
+            Button("Open in New Window", systemImage: "macwindow.badge.plus") {
+                openRoute(.note(path: path, anchor: nil), in: .newWindow)
+            }
+            #endif
             let pinned = history.isPinned(path)
             Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
                 history.togglePin(path: path, title: title)
@@ -38,8 +51,60 @@ private struct NotePreviewMenu: ViewModifier {
         } preview: {
             NotePreviewCard(path: path, title: title, session: library.session)
         }
+        #if os(macOS)
+        .modifier(CommandHoverPreview(path: path, title: title))
+        #endif
     }
 }
+
+#if os(macOS)
+/// A preview of the note in a popover when ⌘ is held with the pointer over
+/// the view, until the pointer leaves: plain hovering, as when moving across
+/// a list to click, shows nothing.
+struct CommandHoverPreview: ViewModifier {
+    let path: String
+    let title: String
+    @Environment(Library.self) private var library
+    @State private var hovering = false
+    @State private var showing = false
+    @State private var monitor: Any?
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                hovering = inside
+                if inside { watchCommandKey() } else { stopWatching() }
+                update()
+            }
+            .popover(isPresented: $showing, arrowEdge: .trailing) {
+                NotePreviewCard(path: path, title: title, session: library.session)
+            }
+            .onDisappear(perform: stopWatching)
+    }
+
+    private func update() {
+        if !hovering {
+            showing = false
+        } else if NSEvent.modifierFlags.contains(.command) {
+            showing = true
+        }
+    }
+
+    /// ⌘ pressed or released while the pointer rests on the view.
+    private func watchCommandKey() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            update()
+            return event
+        }
+    }
+
+    private func stopWatching() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+}
+#endif
 
 /// The start of a note, rendered like the note itself.
 struct NotePreviewCard: View {

@@ -43,6 +43,14 @@ struct ContentView: View {
                 }
             }
             #endif
+            #if os(iOS)
+            // Handoff from the Mac: continue the note it was showing.
+            .onContinueUserActivity(NoteActivity.type) { activity in
+                guard let route = NoteActivity.route(of: activity) else { return }
+                app.tab = .files
+                app.navigations[.files]?.push(route)
+            }
+            #endif
             // Reopen the tab the reader left.
             .onAppear { app.tab = savedTab }
             .onChange(of: app.tab) { savedTab = app.tab }

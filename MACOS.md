@@ -215,7 +215,7 @@ M1 を挟むのは、ナビゲーションの抽象化（M2）の前に Mac 上�
 - `TabView` に `.sidebarAdaptable`（Mac ではサイドバー）、`Settings` シーン（⌘,）、既定ウインドウサイズ。
 - ウインドウごとの `AppModel`（`WindowRoot`）。メニュー: File（Search Notes ⌘O / Find in Vault ⇧⌘F /
   Check for New Snapshot ⌘R）、Go（Back ⌘[ / Files〜Search ⌘1〜4）、Note（Edit in Obsidian ⌘E / Pin ⌘D /
-  Local Graph ⇧⌘G / Copy Wikilink ⇧⌘C / Copy Obsidian Link ⌥⌘C / Copy Note Text）。
+  Local Graph ⇧⌘G（M3 で ⌥⌘G に変更） / Copy Wikilink ⇧⌘C / Copy Obsidian Link ⌥⌘C / Copy Note Text）。
   コマンドは focused scene value の `AppModel` → 表示中タブの `NavigationModel`（とその上のノート）に作用する。
 - 画像の添付は Quick Look（名前と拡張子を付けたコピーを開く）、それ以外は AssetViewer をシートで。
 - 更新追従はアプリ単位の `UpdateCoordinator`（ソース変更で再起動、スリープで停止、復帰で再開）。
@@ -259,6 +259,28 @@ M2 の残りの修正（M2 の後に対応）:
   WikiViewerKit に移し、`swift test` で履歴と振り分けをテストする（NavigationTests）。
 - 前のビルドのウインドウしか保存されていなくても、起動時に必ずウインドウを開く（`.defaultLaunchBehavior(.presented)`）。
 
+### M3（完了）
+
+- **クイックオープン**（⌘O、macOS）: ウインドウの上に出るパレット。タイトル・エイリアスで絞り込み（クイック
+  スイッチャーと同じ検索）、空なら最近のノート。↑↓・Return、⌘Return で新規タブ、⌥⌘Return で新規ウインドウ、
+  Esc か外のクリックで閉じる。全文検索の Search セクションは ⇧⌘F。
+- **ノート内検索**（⌘F / ⌘G / ⇧⌘G、Edit メニュー）: ノートの上の検索バー。一致するブロック数と「n / m」、
+  現在のブロックを強調し、本文中の一致にも背景色。描画済みのブロックだけを走査する（クエリは発行しない、
+  `RenderedNote.blocks(containing:)`）。Local Graph のショートカットは ⌥⌘G に移した。
+- **文字サイズ**（⌘= / ⌘- / ⌘0、View メニュー）: macOS は `dynamicTypeSize` を無視するので、ノートの本文・
+  見出し・埋め込み・数式を「テキストスタイルの大きさ × 倍率」で描く（`noteFont`、`NoteTextScale`）。
+  行の最大幅も倍率に合わせる。Inspector と一覧はシステムの大きさのまま。
+- **グラフのホバー**: ポインタの下のノードを、選択と同じく強調（リンクと隣接ノードを浮かせ、他を薄く）。
+  ノードの上ではリンクのポインタ。選択中は選択が優先。
+- **プレビュー**（Obsidian のページプレビューと同じく ⌘ を押しながら）: 一覧の行（ノート、検索結果、
+  リンク元、ピン留め、クラスタのノート）と、**ノート本文中のリンク**の上で ⌘ を押すとポップオーバーに
+  ノートの冒頭。ポインタが離れるまで出ている。本文中のリンクは、リンクの run に `LinkRunAttribute` を付けて
+  （`Text(math:markingLinks:)`）、TextRenderer が描いた位置を記録し、ポインタと照合する。クリック・
+  テキスト選択はそのまま動く。一覧の行の右クリックに「新規タブで開く」「新規ウインドウで開く」。
+- **Handoff**: 表示中のノートを `app.wikiviewer.note`（vault パス）として出し、iPhone ⇄ Mac で受け取って
+  同じノートを開く。アクティビティ種別はバンドル ID から作らない（worktree のビルドで変わるため）。
+  2 台の実機での確認はまだ。
+
 ### macOS で見つかった SwiftUI の挙動（M2 の設計に効く）
 
 - `NavigationStack` に付けた `.environment` が push 先に伝わらない → `navigationDestination` の中でも渡す。
@@ -275,3 +297,7 @@ M2 の残りの修正（M2 の後に対応）:
 - `List(selection:)` の行をクリックしても List はキーボードフォーカスを取らない（first responder はウインドウのまま）
   → 選択が変わったら `@FocusState` で List にフォーカスを移す。
 - `.tag(route as Route?)` は `Binding<Route?>` の選択と一致しない（行が選択できない）→ `.tag(route)` にする。
+- オーバーレイの TextField を `onAppear` でフォーカスしても、後ろの List がキーボードを持ったまま → 次のターンで。
+- `.keyboardShortcut("+")` は ⌘= でも ⌘⇧= でも一致しない → Bigger は ⌘=。
+- `.dynamicTypeSize` は macOS では効かない。
+- macOS の contextMenu には `preview:` が出ない → ⌘ホバーのポップオーバーで代わりにする。

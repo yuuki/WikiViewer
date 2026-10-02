@@ -44,6 +44,9 @@ final class AppModel {
     /// Whether notes show the inspector (macOS).
     var showsInspector = true
 
+    /// The Quick Open palette (⌘O on macOS).
+    var showingQuickOpen = false
+
     /// Settings open as a sheet over whichever tab is showing.
     var showingSettings = false
 

@@ -16,6 +16,7 @@ struct NoteFocus {
     var detail: NoteDetail
     var session: LibrarySession
     var openURL: OpenURLAction
+    var find: NoteFind
 }
 
 extension FocusedValues {
@@ -28,6 +29,8 @@ struct AppCommands: Commands {
     @FocusedValue(\.appModel) private var app
     #if os(macOS)
     @Environment(\.openWindow) private var openWindow
+    /// Observed so Bigger and Smaller enable and disable at the ends.
+    @AppStorage(NoteTextScale.defaultsKey) private var noteTextScale = 1.0
     #endif
 
     private var navigation: NavigationModel? { app?.navigation }
@@ -42,6 +45,17 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
             .disabled(app == nil)
+            Divider()
+            // ⌘=: the key ⌘+ is typed on; a "+" equivalent is not matched
+            // without Shift.
+            Button("Bigger") { NoteTextScale.step(1) }
+                .keyboardShortcut("=", modifiers: .command)
+                .disabled(!NoteTextScale.canEnlarge)
+            Button("Smaller") { NoteTextScale.step(-1) }
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(!NoteTextScale.canReduce)
+            Button("Actual Size") { NoteTextScale.reset() }
+                .keyboardShortcut("0", modifiers: .command)
         }
         #endif
 
@@ -53,9 +67,15 @@ struct AppCommands: Commands {
             .keyboardShortcut("t", modifiers: .command)
             Divider()
             #endif
+            #if os(macOS)
+            Button("Open Quickly…") { app?.showingQuickOpen = true }
+                .keyboardShortcut("o", modifiers: .command)
+                .disabled(app == nil)
+            #else
             Button("Search Notes") { app?.showSearch() }
                 .keyboardShortcut("o", modifiers: .command)
                 .disabled(app == nil)
+            #endif
             Button("Find in Vault") { app?.showSearch() }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
                 .disabled(app == nil)
@@ -65,6 +85,19 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("r", modifiers: .command)
             .disabled(startup.library?.source == nil)
+        }
+
+        // The system's Find items act on text views; notes are SwiftUI text.
+        CommandGroup(replacing: .textEditing) {
+            Button("Find in Note…") { note?.find.show() }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(note == nil)
+            Button("Find Next") { note?.find.next() }
+                .keyboardShortcut("g", modifiers: .command)
+                .disabled(note?.find.isShown != true)
+            Button("Find Previous") { note?.find.previous() }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+                .disabled(note?.find.isShown != true)
         }
 
         CommandMenu("Go") {
@@ -99,7 +132,7 @@ struct AppCommands: Commands {
             Button("Local Graph") {
                 if let detail { navigation?.push(.localGraph(path: detail.path)) }
             }
-            .keyboardShortcut("g", modifiers: [.command, .shift])
+            .keyboardShortcut("g", modifiers: [.command, .option])
             .disabled(detail == nil || navigation == nil)
             Divider()
             Button("Copy Wikilink") {
