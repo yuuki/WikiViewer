@@ -282,7 +282,7 @@ public enum GraphBuilder {
         /// Writes only rows that differ from `old`. Returns rows touched.
         func write(_ db: Database, replacing old: Rows) throws -> Int {
             let before = db.totalChangesCount
-            for id in old.nodes.keys where nodes[id] == nil {
+            for id in old.nodes.keys.sorted() where nodes[id] == nil {
                 try db.execute(sql: "DELETE FROM graph_nodes WHERE note_id = ?", arguments: [id])
             }
             for (id, row) in nodes.sorted(by: { $0.key < $1.key }) where old.nodes[id] != row {
@@ -291,21 +291,21 @@ public enum GraphBuilder {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [id, row.cluster, row.x, row.y, row.weight, row.degree, row.type, row.status])
             }
-            for id in old.clusters.keys where clusters[id] == nil {
+            for id in old.clusters.keys.sorted() where clusters[id] == nil {
                 try db.execute(sql: "DELETE FROM graph_clusters WHERE id = ?", arguments: [id])
             }
             for (id, row) in clusters.sorted(by: { $0.key < $1.key }) where old.clusters[id] != row {
                 try db.execute(sql: "INSERT OR REPLACE INTO graph_clusters(id, label, size, x, y) VALUES (?, ?, ?, ?, ?)",
                                arguments: [id, row.label, row.size, row.x, row.y])
             }
-            for key in old.links.keys where links[key] == nil {
+            for key in old.links.keys.sorted() where links[key] == nil {
                 try db.execute(sql: "DELETE FROM graph_cluster_links WHERE cluster_a = ? AND cluster_b = ?", arguments: [key.a, key.b])
             }
             for (key, row) in links.sorted(by: { $0.key < $1.key }) where old.links[key] != row {
                 try db.execute(sql: "INSERT OR REPLACE INTO graph_cluster_links(cluster_a, cluster_b, weight, skeleton) VALUES (?, ?, ?, ?)",
                                arguments: [key.a, key.b, row.weight, row.skeleton])
             }
-            for name in old.types.keys where types[name] == nil {
+            for name in old.types.keys.sorted() where types[name] == nil {
                 try db.execute(sql: "DELETE FROM graph_types WHERE name = ?", arguments: [name])
             }
             for (name, count) in types.sorted(by: { $0.key < $1.key }) where old.types[name] != count {
