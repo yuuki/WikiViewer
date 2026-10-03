@@ -21,12 +21,18 @@ import WikiViewerKit
         return p
     }
 
-    /// Enough notes that the database spans many chunks and pages.
+    /// Enough notes that the database spans many chunks and pages: a
+    /// one-note edit dirties about a dozen scattered chunks whatever the
+    /// vault size, so with 300 notes it already reached 19% of them, just
+    /// under the 20% at which the keyframe is renewed. 450 notes keep it
+    /// near 10%.
+    static let bulkNotes = 450
+
     func bigEnv(configure: (inout IndexerConfiguration) -> Void = { _ in }) async throws -> (Env, Indexer) {
         var env = try Env(copyFixture: true)
         env.config.chunkSize = 16 * 1024
         configure(&env.config)
-        for i in 0..<300 {
+        for i in 0..<Self.bulkNotes {
             try env.write("Bulk/Note \(i).md", "# Note \(i)\n\n" + String(repeating: "Body text for note \(i) with [[Home]] and 日本語の本文。\n", count: 20))
         }
         let indexer = try Indexer(configuration: env.config)
@@ -68,7 +74,7 @@ import WikiViewerKit
         let r2 = try await edit(env, indexer, "Bulk/Note 7.md", "# Note 7\n\nEdited once.\n")
         let packs2 = try #require(r2.manifest.packs)
         #expect(packs2.deltas.count == 1)
-        #expect(packs2.keyframe?.generation == 1, "keyframe still covers most chunks")
+        #expect(packs2.keyframe?.generation == 1, "keyframe still covers most chunks: \(r2.newChunks) of \(r2.manifest.chunks?.count ?? 0) new")
         let src2 = CountingSource(LocalFolderArtifactSource(root: env.config.publishDirectory))
         let g2 = try await update(updater, store, src2)
         #expect(g2.transfer.mode == .deltaPack, "\(g2.transfer)")
@@ -116,7 +122,7 @@ import WikiViewerKit
         let (store, updater) = try device(env)
         let src = LocalFolderArtifactSource(root: env.config.publishDirectory)
         let g1 = try await update(updater, store, src)
-        for i in 50..<300 { try env.remove("Bulk/Note \(i).md") }
+        for i in 50..<Self.bulkNotes { try env.remove("Bulk/Note \(i).md") }
         _ = try await indexer.reconcile()
         let r2 = try #require(try await indexer.publish())
         #expect(r2.manifest.database.byteSize < g1.manifest.database.byteSize, "incremental vacuum shrank the file")

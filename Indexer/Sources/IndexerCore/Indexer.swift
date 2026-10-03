@@ -141,7 +141,7 @@ public actor Indexer {
             candidates.append(entry.path)
         }
         let scopePrefix = subpath.map { $0 + "/" }
-        for path in stored.keys where !seen.contains(path) {
+        for path in stored.keys.sorted() where !seen.contains(path) {
             if let scopePrefix, !path.hasPrefix(scopePrefix) { continue }
             candidates.append(path)
         }
@@ -230,35 +230,39 @@ public actor Indexer {
 
     /// Runs `readOne` over `paths` with at most `limit` in flight, so a large
     /// sync burst cannot fan out into thousands of simultaneous reads.
+    /// Outcomes come back in the order of `paths`, not of completion: rows
+    /// are then written in the same order whatever the scheduling, so the
+    /// same vault always gives the same row ids and page layout (and a
+    /// one-note edit the same, small, set of changed chunks).
     private func boundedMap(_ paths: [String], limit: Int) async -> [Outcome] {
         let config = configuration
         let filter = filter
         let store = store
         let builder = builder
-        return await withTaskGroup(of: Outcome.self, returning: [Outcome].self) { group in
-            var results: [Outcome] = []
-            results.reserveCapacity(paths.count)
+        return await withTaskGroup(of: (Int, Outcome).self, returning: [Outcome].self) { group in
+            var results = [Outcome?](repeating: nil, count: paths.count)
             var next = 0
             let limit = max(1, limit)
-            func enqueue(_ path: String) {
+            func enqueue(_ index: Int) {
+                let path = paths[index]
                 group.addTask {
                     autoreleasepool {
-                        Self.readOne(path: path, configuration: config, filter: filter, store: store, builder: builder)
+                        (index, Self.readOne(path: path, configuration: config, filter: filter, store: store, builder: builder))
                     }
                 }
             }
             while next < min(limit, paths.count) {
-                enqueue(paths[next])
+                enqueue(next)
                 next += 1
             }
-            while let outcome = await group.next() {
-                results.append(outcome)
+            while let (index, outcome) = await group.next() {
+                results[index] = outcome
                 if next < paths.count {
-                    enqueue(paths[next])
+                    enqueue(next)
                     next += 1
                 }
             }
-            return results
+            return results.compactMap { $0 }
         }
     }
 

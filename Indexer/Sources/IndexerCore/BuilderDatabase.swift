@@ -435,13 +435,13 @@ public final class BuilderDatabase: Sendable {
         }
 
         let columns = "source_note_id, ordinal, kind, target_path, target_note_id, target_asset_id"
-        for source in work.sources {
+        for source in work.sources.sorted() {
             try process(try Row.fetchCursor(db, sql: "SELECT \(columns) FROM links WHERE source_note_id = ?", arguments: [source]))
         }
-        for key in work.keys {
+        for key in work.keys.sorted() {
             try process(try Row.fetchCursor(db, sql: "SELECT \(columns) FROM links WHERE target_key = ?", arguments: [key]))
         }
-        for id in work.removedNotes {
+        for id in work.removedNotes.sorted() {
             try process(try Row.fetchCursor(db, sql: "SELECT \(columns) FROM links WHERE target_note_id = ?", arguments: [id]))
         }
         // Links to a removed asset always carry that asset's name key, which

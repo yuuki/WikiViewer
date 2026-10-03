@@ -16,6 +16,34 @@ import WikiShared
         #expect(try await indexer.publish() == nil, "nothing to publish")
     }
 
+    /// Parsing runs in parallel, but rows are written in a fixed order: the
+    /// same vault gives the same page layout however the reads were
+    /// scheduled, so how many chunks an edit changes (and with it whether the
+    /// keyframe is renewed) does not depend on timing.
+    @Test func sameVaultGivesSamePageLayout() async throws {
+        func layout() async throws -> [String] {
+            var env = try Env(copyFixture: true)
+            env.config.parseConcurrency = 8
+            for i in 0..<200 {
+                try env.write("Bulk/Note \(i).md", "# Note \(i)\n\n[[Home]] [[Note \((i + 1) % 200)]] [[Missing \(i % 7)]]\n" + String(repeating: "Body \(i).\n", count: i % 13))
+            }
+            let indexer = try Indexer(configuration: env.config)
+            _ = try await indexer.reconcile()
+            let result = try #require(try await indexer.publish())
+            var config = Configuration()
+            config.readonly = true
+            let queue = try DatabaseQueue(path: result.databaseURL.path, configuration: config)
+            return try await queue.read { db in
+                try String.fetchAll(db, sql: "SELECT name || ':' || pageno || ':' || ncell || ':' || unused FROM dbstat ORDER BY pageno")
+            }
+        }
+        let first = try await layout()
+        for _ in 0..<2 {
+            let other = try await layout()
+            #expect(other == first, "pages that differ: \(zip(first, other).filter { $0 != $1 }.prefix(8))")
+        }
+    }
+
     @Test func nodeModulesIsNeverIndexed() async throws {
         let env = try Env(copyFixture: true)
         try env.write("node_modules/pkg/README.md", "# Package\n")

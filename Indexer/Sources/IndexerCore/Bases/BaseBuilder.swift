@@ -69,11 +69,20 @@ enum BaseBuilder {
             if a.sortKey != b.sortKey { return a.sortKey.lexicographicallyPrecedes(b.sortKey) }
             return a.noteID < b.noteID
         }
+
+        /// The order of the whole `base_rows` primary key.
+        static func inKeyOrder(_ a: RowKey, _ b: RowKey) -> Bool {
+            a.view != b.view ? a.view < b.view : precedes(a, b)
+        }
     }
 
     struct GroupKey: Hashable {
         var view: Int
         var key: Data
+
+        static func inKeyOrder(_ a: GroupKey, _ b: GroupKey) -> Bool {
+            a.view != b.view ? a.view < b.view : a.key.lexicographicallyPrecedes(b.key)
+        }
     }
 
     struct Result {
@@ -263,8 +272,10 @@ enum BaseBuilder {
         }
     }
 
-    /// Writes the differences between `result` and the stored rows. Returns
-    /// the number of rows written or deleted.
+    /// Writes the differences between `result` and the stored rows, in key
+    /// order: hash order differs between runs, and with it how pages split,
+    /// so the same base would otherwise give a different file each time.
+    /// Returns the number of rows written or deleted.
     static func store(_ db: Database, baseID: Int64, result: Result, storedDefinition: String?) throws -> Int {
         var written = 0
         if storedDefinition != result.definitionJSON {
@@ -278,11 +289,11 @@ enum BaseBuilder {
         }
         let deleteCell = try db.cachedStatement(sql: "DELETE FROM base_cells WHERE base_id = ? AND note_id = ?")
         let upsertCell = try db.cachedStatement(sql: "INSERT OR REPLACE INTO base_cells(base_id, note_id, cells) VALUES (?, ?, ?)")
-        for (noteID, _) in oldCells where result.cells[noteID] == nil {
+        for noteID in oldCells.keys.sorted() where result.cells[noteID] == nil {
             try deleteCell.execute(arguments: [baseID, noteID])
             written += 1
         }
-        for (noteID, cells) in result.cells where oldCells[noteID] != cells {
+        for (noteID, cells) in result.cells.sorted(by: { $0.key < $1.key }) where oldCells[noteID] != cells {
             try upsertCell.execute(arguments: [baseID, noteID, cells])
             written += 1
         }
@@ -294,11 +305,11 @@ enum BaseBuilder {
         let newRows = Set(result.rows)
         let deleteRow = try db.cachedStatement(sql: "DELETE FROM base_rows WHERE base_id = ? AND view = ? AND group_key = ? AND sort_key = ? AND note_id = ?")
         let insertRow = try db.cachedStatement(sql: "INSERT INTO base_rows(base_id, view, group_key, sort_key, note_id) VALUES (?, ?, ?, ?, ?)")
-        for row in oldRows.subtracting(newRows) {
+        for row in oldRows.subtracting(newRows).sorted(by: RowKey.inKeyOrder) {
             try deleteRow.execute(arguments: [baseID, row.view, row.groupKey, row.sortKey, row.noteID])
             written += 1
         }
-        for row in newRows.subtracting(oldRows) {
+        for row in newRows.subtracting(oldRows).sorted(by: RowKey.inKeyOrder) {
             try insertRow.execute(arguments: [baseID, row.view, row.groupKey, row.sortKey, row.noteID])
             written += 1
         }
@@ -309,11 +320,11 @@ enum BaseBuilder {
         }
         let deleteGroup = try db.cachedStatement(sql: "DELETE FROM base_groups WHERE base_id = ? AND view = ? AND group_key = ?")
         let upsertGroup = try db.cachedStatement(sql: "INSERT OR REPLACE INTO base_groups(base_id, view, group_key, label, row_count) VALUES (?, ?, ?, ?, ?)")
-        for (key, _) in oldGroups where result.groups[key] == nil {
+        for key in oldGroups.keys.sorted(by: GroupKey.inKeyOrder) where result.groups[key] == nil {
             try deleteGroup.execute(arguments: [baseID, key.view, key.key])
             written += 1
         }
-        for (key, group) in result.groups {
+        for (key, group) in result.groups.sorted(by: { GroupKey.inKeyOrder($0.key, $1.key) }) {
             if let old = oldGroups[key], old.0 == group.label, old.1 == group.count { continue }
             try upsertGroup.execute(arguments: [baseID, key.view, key.key, group.label, group.count])
             written += 1
