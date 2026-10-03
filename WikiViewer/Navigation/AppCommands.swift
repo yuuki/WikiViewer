@@ -44,7 +44,8 @@ struct AppCommands: Commands {
                 app?.showsInspector.toggle()
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
-            .disabled(app == nil)
+            // Only notes have an inspector.
+            .disabled(note == nil)
             Divider()
             // ⌘=: the key ⌘+ is typed on; a "+" equivalent is not matched
             // without Shift.
