@@ -26,6 +26,8 @@ struct QuickOpenPanel: View {
     @State private var hitsQuery = ""
     @State private var highlighted = 0
     @FocusState private var fieldFocused: Bool
+    /// The height of the rows, so the list is no taller than they are.
+    @State private var rowsHeight: CGFloat = 0
 
     static let limit = 30
 
@@ -76,8 +78,9 @@ struct QuickOpenPanel: View {
                             }
                         }
                         .padding(.vertical, 4)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
                     }
-                    .frame(maxHeight: 360)
+                    .frame(height: min(rowsHeight, 360))
                     .onChange(of: highlighted) { proxy.scrollTo(highlighted) }
                 }
             } else if !query.trimmingCharacters(in: .whitespaces).isEmpty {
