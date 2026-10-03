@@ -21,6 +21,9 @@ struct QuickOpenPanel: View {
     @Environment(ReadingHistory.self) private var history
     @State private var query = ""
     @State private var hits: [Item] = []
+    /// The query `hits` were found for: until the search for the latest
+    /// keystroke is back, they are for an earlier query.
+    @State private var hitsQuery = ""
     @State private var highlighted = 0
     @FocusState private var fieldFocused: Bool
 
@@ -61,12 +64,15 @@ struct QuickOpenPanel: View {
                                     .padding(.top, 6)
                             }
                             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                                row(item, highlighted: index == highlighted)
-                                    .id(index)
-                                    .onTapGesture {
-                                        highlighted = index
-                                        open(in: RouteTarget.fromCurrentEvent)
-                                    }
+                                Button {
+                                    highlighted = index
+                                    open(in: RouteTarget.fromCurrentEvent)
+                                } label: {
+                                    row(item, highlighted: index == highlighted)
+                                }
+                                .buttonStyle(.plain)
+                                .id(index)
+                                .onHover { if $0 { highlighted = index } }
                             }
                         }
                         .padding(.vertical, 4)
@@ -149,22 +155,45 @@ struct QuickOpenPanel: View {
     }
 
     private func open(in target: RouteTarget) {
+        let q = trimmedQuery
+        guard q.isEmpty || hitsQuery == q else {
+            // Return right after a keystroke, before its search is back:
+            // open the best match for what was typed, not for the query
+            // before it.
+            Task {
+                guard let found = await find(q), let first = found.first else { return }
+                onOpen(.note(path: first.path, anchor: nil), target)
+                onClose()
+            }
+            return
+        }
         guard items.indices.contains(highlighted) else { return }
         onOpen(.note(path: items[highlighted].path, anchor: nil), target)
         onClose()
     }
 
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespaces)
+    }
+
     private func search() async {
-        let q = query.trimmingCharacters(in: .whitespaces)
+        let q = trimmedQuery
         highlighted = 0
-        guard !q.isEmpty, let session = library.session else {
+        guard !q.isEmpty else {
             hits = []
+            hitsQuery = ""
             return
         }
         try? await Task.sleep(for: .milliseconds(80))
-        guard !Task.isCancelled,
-              let found = try? await session.search.quickSwitch(q, limit: Self.limit) else { return }
-        hits = found.map { hit in
+        guard !Task.isCancelled, let found = await find(q), !Task.isCancelled else { return }
+        hits = found
+        hitsQuery = q
+    }
+
+    private func find(_ q: String) async -> [Item]? {
+        guard let session = library.session,
+              let found = try? await session.search.quickSwitch(q, limit: Self.limit) else { return nil }
+        return found.map { hit in
             let detail: String
             if case .alias(let alias) = hit.match {
                 detail = String(localized: "Alias: \(alias)")
