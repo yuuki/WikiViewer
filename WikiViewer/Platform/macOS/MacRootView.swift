@@ -19,7 +19,6 @@ struct MacRootView: View {
     let request: WindowRequest?
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.controlActiveState) private var activeState
     /// One stack of lists per section, so each section keeps its place.
     @State private var lists = Dictionary(uniqueKeysWithValues: AppTab.allCases.map { ($0, NavigationModel()) })
     @State private var documents = NavigationModel(maxDepth: 100)
@@ -46,7 +45,13 @@ struct MacRootView: View {
                 documentColumn
             } else {
                 NavigationSplitView {
-                    MacSidebar()
+                    MacSidebar(document: documents.path.last) { route in
+                        // Arrowing through the pins replaces the note it
+                        // opened, as in the lists.
+                        let target = RouteTarget.fromCurrentEvent
+                        guard target == .automatic else { return openElsewhere(route, target) }
+                        openDocument(route, fromSelection: true)
+                    }
                         .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
                         .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
                 } content: {
@@ -78,6 +83,8 @@ struct MacRootView: View {
             }
         }
         .background { TabTitle(title: documentTitle) }
+        // The Dock menu and New Tab act on vault windows only.
+        .background { VaultWindowRegistration { show($0) } }
         .background {
             // Only when first opened: a restored window keeps the tab
             // group the system restores.
@@ -107,12 +114,8 @@ struct MacRootView: View {
                 self.inspectorBeforeReading = nil
             }
         }
-        // The Dock menu opens notes in the window last in front.
-        .onChange(of: activeState, initial: true) {
-            guard activeState == .key else { return }
-            DockMenu.openInWindow = { show($0) }
-            DockMenu.openWindow = openWindow
-        }
+        // The Dock menu opens a window when none is open.
+        .onAppear { DockMenu.openWindow = openWindow }
         // The Graph section lists clusters; its map belongs in the detail column.
         .onChange(of: app.tab) {
             // Back to the section the window was left on: the documents
@@ -150,7 +153,6 @@ struct MacRootView: View {
 
     /// From the content column: lists replace it, documents open in detail.
     private func openFromList(_ route: Route, _ target: RouteTarget) {
-        let target = target == .automatic ? RouteTarget.fromCurrentEvent : target
         guard target == .automatic else { return openElsewhere(route, target) }
         switch RouteDispatch.dispatch(route, from: .list) {
         case .pushList(let route): lists[app.tab]?.push(route)
@@ -195,7 +197,6 @@ struct MacRootView: View {
     /// From a document or the sidebar: documents stack up in detail; a list
     /// is shown in its own section of the content column.
     private func openFromDocument(_ route: Route, _ target: RouteTarget) {
-        let target = target == .automatic ? RouteTarget.fromCurrentEvent : target
         guard target == .automatic else { return openElsewhere(route, target) }
         show(route)
     }
@@ -248,50 +249,67 @@ struct MacRootView: View {
     }
 }
 
-/// The sections, and the pinned notes for one click access.
+/// The sections, and today's and the pinned notes for one click access.
+/// All are rows that can be selected, with the arrow keys too: a section
+/// shows its lists, a note opens in the detail column.
 private struct MacSidebar: View {
+    /// The document on top of the window's history.
+    let document: Route?
+    /// Opens a note row that was selected.
+    let openNote: (Route) -> Void
     @Environment(AppModel.self) private var app
     @Environment(ReadingHistory.self) private var history
-    @Environment(\.openRoute) private var openRoute
 
     @Environment(Library.self) private var library
     @State private var today: NoteSummary?
+    @State private var selection: Item?
+
+    enum Item: Hashable {
+        case section(AppTab)
+        case today(path: String)
+        case pin(path: String)
+
+        var route: Route? {
+            switch self {
+            case .section: nil
+            case .today(let path), .pin(let path): .note(path: path, anchor: nil)
+            }
+        }
+    }
 
     var body: some View {
-        List(selection: Binding(get: { app.tab }, set: { if let tab = $0 { app.tab = tab } })) {
+        List(selection: Binding { selection } set: { select($0) }) {
             Section {
-                Label("Files", systemImage: "folder").tag(AppTab.files)
-                Label("Tags", systemImage: "number").tag(AppTab.tags)
-                Label("Graph", systemImage: "point.3.connected.trianglepath.dotted").tag(AppTab.graph)
-                Label("Search", systemImage: "magnifyingglass").tag(AppTab.search)
+                Label("Files", systemImage: "folder").tag(Item.section(.files))
+                Label("Tags", systemImage: "number").tag(Item.section(.tags))
+                Label("Graph", systemImage: "point.3.connected.trianglepath.dotted").tag(Item.section(.graph))
+                Label("Search", systemImage: "magnifyingglass").tag(Item.section(.search))
             }
             // The recent notes head the Files list (and Go > Recent Notes);
             // today's note and the pins are here only, beside every section.
             if let today {
                 Section {
-                    shortcut("Today", systemImage: "calendar", route: .note(path: today.path, anchor: nil))
+                    Label("Today", systemImage: "calendar")
+                        .tag(Item.today(path: today.path))
                         .notePreviewMenu(path: today.path, title: today.title)
                 }
             }
             if !history.pins.isEmpty {
                 Section("Pinned") {
                     ForEach(history.pins) { entry in
-                        Button {
-                            openRoute(.note(path: entry.path, anchor: nil))
-                        } label: {
-                            Label(entry.title, systemImage: "pin")
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .notePreviewMenu(path: entry.path, title: entry.title)
+                        Label(entry.title, systemImage: "pin")
+                            .lineLimit(1)
+                            .tag(Item.pin(path: entry.path))
+                            .notePreviewMenu(path: entry.path, title: entry.title)
                     }
                 }
             }
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom) { UpdateStatusFooter() }
+        .onAppear(perform: followWindow)
+        .onChange(of: app.tab) { followWindow() }
+        .onChange(of: document) { followWindow() }
         // Again on a new day, when the app has been open overnight.
         .task(id: TodayKey(session: library.session?.id, day: LibraryHomeSections.dayString(.now))) {
             guard let session = library.session else { return }
@@ -299,21 +317,30 @@ private struct MacSidebar: View {
         }
     }
 
+    private func select(_ item: Item?) {
+        guard let item else { return }
+        switch item {
+        case .section(let tab):
+            selection = item
+            app.tab = tab
+        case .today, .pin:
+            guard let route = item.route else { return }
+            // A ⌘-click opens a tab and leaves this window as it was.
+            if RouteTarget.fromCurrentEvent == .automatic { selection = item }
+            openNote(route)
+        }
+    }
+
+    /// A selected note stays selected while it is the window's document;
+    /// otherwise the window's section is.
+    private func followWindow() {
+        if let route = selection?.route, route == document { return }
+        selection = .section(app.tab)
+    }
+
     private struct TodayKey: Equatable {
         var session: String?
         var day: String
-    }
-
-    /// A row that opens `route` rather than selecting a section.
-    private func shortcut(_ title: LocalizedStringKey, systemImage: String, route: Route) -> some View {
-        Button {
-            openRoute(route)
-        } label: {
-            Label(title, systemImage: systemImage)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
     }
 }
 

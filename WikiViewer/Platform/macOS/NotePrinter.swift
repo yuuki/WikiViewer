@@ -8,7 +8,9 @@
 //  light mode and at the base text size, starting a new page before a
 //  block that would not fit (one taller than a page runs on over several).
 //  Embedded images are decoded first, and wide blocks are drawn unscrolled.
-//  PDFKit prints that PDF.
+//  PDFKit prints that PDF. The blocks are drawn on the main actor (as
+//  ImageRenderer must be), pausing every few blocks so a long note does
+//  not stop the app.
 //
 
 #if os(macOS)
@@ -22,11 +24,18 @@ import WikiViewerKit
 enum NotePrinter {
     static let blockSpacing: CGFloat = 10
 
+    /// Set while a note is being laid out: ⌘P again meanwhile is ignored
+    /// rather than laying it out twice.
+    private(set) static var isPreparing = false
+
     static func run(_ note: NoteFocus, library: Library) {
-        guard let rendered = note.model.rendered else { return }
+        guard let rendered = note.model.rendered, !isPreparing else { return }
+        isPreparing = true
+        // The note's window, before the reader moves on.
+        let window = NSApp.keyWindow
         Task {
             let images = await images(of: note, library: library)
-            print(note, rendered: rendered, images: images, library: library)
+            await print(note, rendered: rendered, images: images, library: library, window: window)
         }
     }
 
@@ -41,16 +50,18 @@ enum NotePrinter {
         return images
     }
 
-    private static func print(_ note: NoteFocus, rendered: RenderedNote, images: [Int64: CGImage], library: Library) {
+    private static func print(_ note: NoteFocus, rendered: RenderedNote, images: [Int64: CGImage], library: Library, window: NSWindow?) async {
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
-        guard let data = pdf(note: note, rendered: rendered, images: images, library: library, info: info),
+        let data = await pdf(note: note, rendered: rendered, images: images, library: library, info: info)
+        isPreparing = false
+        guard let data,
               let document = PDFDocument(data: data),
               let operation = document.printOperation(for: info, scalingMode: .pageScaleNone, autoRotate: false) else { return }
         operation.jobTitle = note.detail.title
         operation.showsPrintPanel = true
         operation.showsProgressPanel = true
         // A sheet on the note's window, as other apps print.
-        if let window = NSApp.keyWindow {
+        if let window, window.isVisible {
             operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
         } else {
             operation.run()
@@ -58,7 +69,7 @@ enum NotePrinter {
     }
 
     /// The note laid out on pages of `info`'s paper and margins.
-    static func pdf(note: NoteFocus, rendered: RenderedNote, images: [Int64: CGImage], library: Library, info: NSPrintInfo) -> Data? {
+    static func pdf(note: NoteFocus, rendered: RenderedNote, images: [Int64: CGImage], library: Library, info: NSPrintInfo) async -> Data? {
         let paper = info.paperSize
         let frame = CGRect(x: info.leftMargin, y: info.bottomMargin,
                            width: paper.width - info.leftMargin - info.rightMargin,
@@ -110,8 +121,10 @@ enum NotePrinter {
         if !NoteView.startsWithTitleHeading(rendered, title: note.detail.title) {
             place(Text(note.detail.title).font(.title.bold()))
         }
-        for block in rendered.blocks {
+        for (index, block) in rendered.blocks.enumerated() {
             place(BlockView(block: block))
+            // A turn of the run loop now and then, for the app's events.
+            if index % 8 == 7 { try? await Task.sleep(for: .milliseconds(1)) }
         }
         context.endPDFPage()
         context.closePDF()

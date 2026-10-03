@@ -116,17 +116,24 @@ struct AppCommands: Commands {
             .disabled(startup.library?.source == nil)
         }
 
-        // The system's Find items act on text views; notes are SwiftUI text.
+        // The system's Find and Speech items act on text views; notes are
+        // SwiftUI text. Their own versions, in the same submenus.
         CommandGroup(replacing: .textEditing) {
-            Button("Find in Note…") { note?.find.show() }
-                .keyboardShortcut("f", modifiers: .command)
-                .disabled(note == nil)
-            Button("Find Next") { note?.find.next() }
-                .keyboardShortcut("g", modifiers: .command)
-                .disabled(note?.find.isShown != true)
-            Button("Find Previous") { note?.find.previous() }
-                .keyboardShortcut("g", modifiers: [.command, .shift])
-                .disabled(note?.find.isShown != true)
+            #if os(macOS)
+            Menu("Find") { findItems }
+            Menu("Speech") {
+                Button("Start Speaking") {
+                    if let note, let rendered = note.model.rendered {
+                        NoteSpeech.shared.speak(title: note.detail.title, note: rendered)
+                    }
+                }
+                .disabled(note?.model.rendered == nil)
+                Button("Stop Speaking") { NoteSpeech.shared.stop() }
+                    .disabled(!NoteSpeech.shared.isSpeaking)
+            }
+            #else
+            findItems
+            #endif
         }
 
         CommandMenu("Go") {
@@ -191,6 +198,19 @@ struct AppCommands: Commands {
             }
             .disabled(detail == nil)
         }
+    }
+
+    @ViewBuilder
+    private var findItems: some View {
+        Button("Find in Note…") { note?.find.show() }
+            .keyboardShortcut("f", modifiers: .command)
+            .disabled(note == nil)
+        Button("Find Next") { note?.find.next() }
+            .keyboardShortcut("g", modifiers: .command)
+            .disabled(note?.find.isShown != true)
+        Button("Find Previous") { note?.find.previous() }
+            .keyboardShortcut("g", modifiers: [.command, .shift])
+            .disabled(note?.find.isShown != true)
     }
 
     /// As many as the system's own Open Recent lists by default.

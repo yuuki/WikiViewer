@@ -74,6 +74,8 @@ struct QuickOpenPanel: View {
                                 }
                                 .buttonStyle(.plain)
                                 .id(index)
+                                // VoiceOver hears which row Return opens.
+                                .accessibilityAddTraits(index == highlighted ? .isSelected : [])
                                 .onHover { if $0 { highlighted = index } }
                             }
                         }
@@ -134,26 +136,30 @@ struct QuickOpenPanel: View {
         return hits
     }
 
+    /// The text on the selection color, as the system draws it (it follows
+    /// Increase Contrast).
+    private static let selectedText = Color(nsColor: .alternateSelectedControlTextColor)
+
     private func row(_ item: Item, highlighted: Bool) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "doc.text")
-                .foregroundStyle(highlighted ? .white : .secondary)
+                .foregroundStyle(highlighted ? Self.selectedText : .secondary)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title).lineLimit(1)
                 if !item.detail.isEmpty {
                     Text(item.detail)
                         .font(.caption)
-                        .foregroundStyle(highlighted ? .white.opacity(0.8) : .secondary)
+                        .foregroundStyle(highlighted ? Self.selectedText.opacity(0.8) : .secondary)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(highlighted ? .white : .primary)
+        .foregroundStyle(highlighted ? Self.selectedText : .primary)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        // The system's selection color, as menus and Spotlight use: white
-        // text on the light accent of dark mode would not read.
+        // The system's selection color, as menus and Spotlight use: text on
+        // the light accent of dark mode would not read.
         .background(highlighted ? Color(nsColor: .selectedContentBackgroundColor) : .clear, in: .rect(cornerRadius: 7))
         .padding(.horizontal, 6)
         .contentShape(.rect)
