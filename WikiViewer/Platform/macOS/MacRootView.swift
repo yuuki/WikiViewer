@@ -365,6 +365,7 @@ private struct UpdateStatusFooter: View {
 /// column's toolbar, next to the list's title, and it has no forward.
 private struct DocumentColumn: View {
     let navigation: NavigationModel
+    @Environment(AppModel.self) private var app
 
     var body: some View {
         LibraryReady {
@@ -386,6 +387,10 @@ private struct DocumentColumn: View {
                 Button("Forward", systemImage: "chevron.forward") { navigation.forward() }
                     .disabled(!navigation.canGoForward)
                     .help("Go forward (⌘])")
+            }
+            ToolbarItem(placement: .navigation) {
+                Button("Open Quickly", systemImage: "magnifyingglass") { app.showingQuickOpen = true }
+                    .help("Open a note by its title (⌘O)")
             }
         }
     }
