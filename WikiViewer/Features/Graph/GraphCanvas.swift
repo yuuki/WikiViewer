@@ -112,9 +112,13 @@ struct GraphCamera: Equatable {
         GraphCamera(center: CGPoint(x: center.x - t.width / scale, y: center.y - t.height / scale), scale: scale)
     }
 
+    /// `rect` in the middle of the view, `padding` from its top and bottom
+    /// and more from its sides: labels are centred under their nodes, so
+    /// the outermost ones reach past them.
     static func fitting(_ rect: CGRect, in size: CGSize, padding: CGFloat = 36) -> GraphCamera {
         let w = max(rect.width, 1e-6), h = max(rect.height, 1e-6)
-        let scale = min((size.width - 2 * padding) / w, (size.height - 2 * padding) / h)
+        let side = max(padding, min(2 * padding, size.width / 8))
+        let scale = min((size.width - 2 * side) / w, (size.height - 2 * padding) / h)
         return GraphCamera(center: CGPoint(x: rect.midX, y: rect.midY), scale: max(scale, 1e-3))
     }
 
