@@ -1,7 +1,8 @@
 # Setup
 
 This guide sets up WikiViewer from scratch: index your vault on a Mac, get
-the snapshot to the app, and run the app in the iOS Simulator or on an iPhone.
+the snapshot to the app, run the app in the iOS Simulator or on an iPhone,
+and install the macOS app on your Macs.
 
 Placeholders used below. Replace them with your own values:
 
@@ -343,7 +344,60 @@ again to re-sign it.
 
 Then load a snapshot as in section 4.
 
-## 7. Troubleshooting
+## 7. Install on a Mac
+
+The macOS app is for your own Macs: it is signed with your Apple Development
+certificate, not notarized (no Developer ID). Set `DEVELOPMENT_TEAM` and
+`PRODUCT_BUNDLE_IDENTIFIER` in `Config/Local.xcconfig` as in section 6, and
+sign in to Xcode with that account.
+
+### This Mac
+
+```sh
+scripts/mac.sh install
+```
+
+This builds the Release configuration, puts the app in `/Applications` (or
+`~/Applications` if `/Applications` needs an administrator), and launches it.
+A running copy is quit first, and the previous build goes to the Trash. Run it
+again to update: the snapshots, the update source and the settings stay, as
+they live in the app's sandbox container, not in the app.
+
+The build number is the number of commits on the branch (`git rev-list
+--count HEAD`); **WikiViewer → About WikiViewer** shows it. The version is
+`MARKETING_VERSION` in the project.
+
+The installed app has the plain bundle ID, so it shares its container with
+`scripts/mac.sh run` in the main checkout. Builds from a git worktree have
+their own (`<BUNDLE_ID>.wt-<worktree>`) and do not touch it.
+
+### Another Mac
+
+```sh
+scripts/mac.sh release
+```
+
+This builds the same app without installing it, into `build/Release`:
+`WikiViewer.app` and `WikiViewer-<version>-<build>.zip`. Copy the zip to the
+other Mac, unzip it, and move `WikiViewer.app` to `/Applications`.
+
+A zip that arrives by AirDrop, Mail, a browser or iCloud Drive is quarantined,
+and macOS does not open a quarantined app that is not notarized. The first
+time, open it, dismiss the warning, then click **Open Anyway** in **System
+Settings → Privacy & Security**. A copy made with `scp` or `rsync` is not
+quarantined and opens directly.
+
+Each Mac has its own container: choose the update source on each one
+(section 4).
+
+### Checks
+
+`scripts/mac.sh release` stops if the app is not signed, not sandboxed, or
+can be attached to by a debugger. Apple Development signing allows that
+(`get-task-allow`) even in a Release build, so the script signs the app again
+without it.
+
+## 8. Troubleshooting
 
 `xcrun devicectl device process launch` reports the actual reason when
 Xcode says only "The app failed to launch".
