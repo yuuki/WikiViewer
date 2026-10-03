@@ -40,9 +40,18 @@ struct LibraryHomeSections: View {
             }
     }
 
+    /// macOS has today's note and the pins in the sidebar.
+    static var showsShortcuts: Bool {
+        #if os(macOS)
+        false
+        #else
+        true
+        #endif
+    }
+
     @ViewBuilder
     private var sections: some View {
-        if let today {
+        if Self.showsShortcuts, let today {
             Section {
                 RouteLink(Route.note(path: today.path, anchor: nil)) {
                     Label {
@@ -57,7 +66,7 @@ struct LibraryHomeSections: View {
             }
             .listRowSection("today")
         }
-        if !history.pins.isEmpty {
+        if Self.showsShortcuts, !history.pins.isEmpty {
             Section("Pinned") {
                 ForEach(history.pins, id: \.[row: "pins"]) { entry in
                     HistoryRow(entry: entry, systemImage: "pin")

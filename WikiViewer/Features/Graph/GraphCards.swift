@@ -45,6 +45,18 @@ private struct GraphCardModifier<Card: View>: ViewModifier {
     func body(content: Content) -> some View {
         #if os(macOS)
         content
+            // Before the inspector, as on a note: the button then sits at
+            // the window's trailing edge, over the inspector.
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        app.showsInspector.toggle()
+                    } label: {
+                        Label(app.showsInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
+                    }
+                    .help("What is selected in the graph (⌥⌘I)")
+                }
+            }
             .inspector(isPresented: Bindable(app).showsInspector) {
                 Group {
                     if empty {
@@ -57,16 +69,6 @@ private struct GraphCardModifier<Card: View>: ViewModifier {
                     }
                 }
                 .inspectorColumnWidth(min: 220, ideal: 280, max: 420)
-            }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        app.showsInspector.toggle()
-                    } label: {
-                        Label(app.showsInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
-                    }
-                    .help("What is selected in the graph (⌥⌘I)")
-                }
             }
         #else
         content.safeAreaInset(edge: .bottom) { card() }

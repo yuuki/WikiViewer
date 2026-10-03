@@ -22,7 +22,7 @@ struct EmbedView: View {
             NoteEmbedView(noteID: id, title: title, heading: heading, blockID: blockID)
         case .missing(let raw):
             Label("Missing embed: \(raw)", systemImage: "questionmark.square.dashed")
-                .noteFont(.footnote)
+                .noteFont(.noteDetail)
                 .foregroundStyle(.secondary)
         }
     }
@@ -215,7 +215,7 @@ struct NoteEmbedView: View {
             if let path {
                 RouteLink(Route.note(path: path, anchor: heading != nil || blockID != nil ? NoteAnchor(heading: heading, blockID: blockID) : nil)) {
                     Label(title + (heading.map { " › \($0)" } ?? ""), systemImage: "arrow.turn.down.right")
-                        .noteFont(.footnote)
+                        .noteFont(.noteDetail)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)

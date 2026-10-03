@@ -27,7 +27,7 @@ struct WikiViewerApp: App {
         WindowGroup(for: WindowRequest.self) { $request in
             window(request: request)
         }
-        .defaultSize(width: 1100, height: 760)
+        .defaultSize(width: 1400, height: 900)
         // A window at launch even when none is restored (e.g. the saved
         // windows are from a build whose windows took no value).
         .defaultLaunchBehavior(.presented)

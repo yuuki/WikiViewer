@@ -73,6 +73,8 @@ struct NoteView: View {
                     }
                 }
                 #endif
+                // macOS has it in the note's More menu (NoteActionItems).
+                #if os(iOS)
                 if model.detail != nil {
                     ToolbarItem(placement: .secondaryAction) {
                         Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
@@ -80,6 +82,7 @@ struct NoteView: View {
                         }
                     }
                 }
+                #endif
                 if let detail = model.detail, let session = library.session {
                     NoteActionItems(detail: detail, session: session)
                 }
@@ -230,7 +233,7 @@ struct NoteView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     // A readable line length at any text size.
-                    .frame(maxWidth: 820 * noteTextScale, alignment: .leading)
+                    .frame(maxWidth: NoteTextScale.readingWidth(scale: noteTextScale), alignment: .leading)
                     .frame(maxWidth: .infinity)
                 }
                 // Only blocks have Int ids: with the header or backlinks at
@@ -443,7 +446,7 @@ struct FolderBreadcrumb: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .noteFont(.footnote)
+                .noteFont(.noteDetail)
                 .foregroundStyle(.tint)
             }
             // The links' 44pt hit areas overlap the lines around the
@@ -467,7 +470,7 @@ struct TagLine: View {
             t.link = WikiLinkAction.tag(tag).url
             text.append(t)
         }
-        return Text(text).noteFont(.footnote)
+        return Text(text).noteFont(.noteDetail)
     }
 }
 
@@ -481,10 +484,10 @@ struct PropertiesView: View {
             ForEach(Array(properties.enumerated()), id: \.offset) { _, property in
                 GridRow {
                     Text(property.key)
-                        .noteFont(.footnote)
+                        .noteFont(.noteDetail)
                         .foregroundStyle(.secondary)
                     Text(NoteRenderer.propertyText(property.value, noteID: noteID, links: links))
-                        .noteFont(.footnote)
+                        .noteFont(.noteDetail)
                         .textSelection(.enabled)
                 }
             }

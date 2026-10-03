@@ -28,6 +28,8 @@ struct GraphOverviewView: View {
             .navigationSubtitle(subtitle)
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
+                // macOS lists the clusters in the content column beside the map.
+                #if os(iOS)
                 if overview?.clusters.isEmpty == false {
                     ToolbarItem(placement: .primaryAction) {
                         Button(showsList ? "Map" : "List", systemImage: showsList ? "circle.hexagongrid" : "list.bullet") {
@@ -35,6 +37,7 @@ struct GraphOverviewView: View {
                         }
                     }
                 }
+                #endif
             }
             #if os(iOS)
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: Text("Find a note in the graph"))
@@ -43,6 +46,16 @@ struct GraphOverviewView: View {
             #endif
             .task(id: library.session?.id) { await load() }
             .task(id: query) { await search() }
+    }
+
+    /// macOS shows the cluster list in the content column, so the map is
+    /// never replaced by it (even if the list was chosen on an earlier build).
+    static var listsClustersBeside: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
     }
 
     private var subtitle: Text {
@@ -58,7 +71,7 @@ struct GraphOverviewView: View {
             if overview.clusters.isEmpty {
                 ContentUnavailableView("No Graph", systemImage: "point.3.connected.trianglepath.dotted",
                                        description: Text("This snapshot has no clusters of linked notes. The Mac's indexer builds them from notes that link to each other."))
-            } else if showsList {
+            } else if showsList, !Self.listsClustersBeside {
                 ClusterListView()
             } else {
                 map(overview)

@@ -31,55 +31,107 @@ enum ObsidianLink {
     }
 }
 
-/// The note's "More" toolbar items (they collect in the overflow menu).
+/// The note's "More" toolbar items: in the overflow menu on iOS. macOS
+/// keeps editing and sharing in the toolbar and the rest in a menu, so the
+/// toolbar is not a row of icons that only their tooltips explain.
 struct NoteActionItems: ToolbarContent {
     let detail: NoteDetail
     let session: LibrarySession
     @Environment(ReadingHistory.self) private var history
     @Environment(AppModel.self) private var app
     @Environment(\.openURL) private var openURL
+    @Environment(\.openRoute) private var openRoute
     @AppStorage(ObsidianLink.vaultNameKey) private var vaultName = ""
 
     var body: some ToolbarContent {
-        let obsidianURL = ObsidianLink.url(vault: vaultName, notePath: detail.path)
+        #if os(macOS)
+        // Secondary, as on iOS: the primary place is the inspector button's,
+        // at the window's trailing edge.
         ToolbarItemGroup(placement: .secondaryAction) {
-            let pinned = history.isPinned(detail.path)
-            Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
-                history.togglePin(path: detail.path, title: detail.title)
-            }
-            Button {
-                // Without a vault name there is no link yet: go set it up
-                // rather than showing a disabled item that explains nothing.
-                if let obsidianURL { openURL(obsidianURL) } else { app.showSettings() }
-            } label: {
-                Label {
-                    Text(obsidianURL == nil ? "Edit in Obsidian…" : "Edit in Obsidian")
-                    if obsidianURL == nil { Text("Set the vault name in Settings") }
-                } icon: {
-                    Image(systemName: "square.and.pencil")
+            editButton
+            shareNote
+            Menu {
+                Button("Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
+                    openRoute(.localGraph(path: detail.path))
                 }
+                pinButton
+                Divider()
+                if let obsidianURL {
+                    ShareLink(item: obsidianURL, subject: Text(detail.title)) {
+                        Label("Share Link", systemImage: "link")
+                    }
+                }
+                copyButtons
+            } label: {
+                Label("More", systemImage: "ellipsis")
             }
-            ShareLink(item: NoteMarkdown(session: session, id: detail.id, title: detail.title),
-                      subject: Text(detail.title), preview: SharePreview(detail.title)) {
-                Label("Share Note…", systemImage: "square.and.arrow.up")
-            }
+            .menuIndicator(.hidden)
+            .help("More for this note")
+        }
+        #else
+        ToolbarItemGroup(placement: .secondaryAction) {
+            pinButton
+            editButton
+            shareNote
             if let obsidianURL {
                 ShareLink(item: obsidianURL, subject: Text(detail.title)) {
                     Label("Share Link", systemImage: "link")
                 }
-                Button("Copy Obsidian Link", systemImage: "link") {
-                    Pasteboard.copy(obsidianURL)
-                }
             }
-            Button("Copy Wikilink", systemImage: "curlybraces") {
-                Pasteboard.copy("[[\(VaultPath.basename(of: detail.path))]]")
+            copyButtons
+        }
+        #endif
+    }
+
+    private var obsidianURL: URL? {
+        ObsidianLink.url(vault: vaultName, notePath: detail.path)
+    }
+
+    private var pinButton: some View {
+        let pinned = history.isPinned(detail.path)
+        return Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
+            history.togglePin(path: detail.path, title: detail.title)
+        }
+    }
+
+    private var editButton: some View {
+        Button {
+            // Without a vault name there is no link yet: go set it up
+            // rather than showing a disabled item that explains nothing.
+            if let obsidianURL { openURL(obsidianURL) } else { app.showSettings() }
+        } label: {
+            Label {
+                Text(obsidianURL == nil ? "Edit in Obsidian…" : "Edit in Obsidian")
+                if obsidianURL == nil { Text("Set the vault name in Settings") }
+            } icon: {
+                Image(systemName: "square.and.pencil")
             }
-            // Text selection stops at each block; this copies the whole note.
-            Button("Copy Note Text", systemImage: "doc.on.doc") {
-                Task {
-                    if let body = try? await session.notes.note(id: detail.id)?.body {
-                        Pasteboard.copy(body)
-                    }
+        }
+        .help("Edit in Obsidian (⌘E)")
+    }
+
+    private var shareNote: some View {
+        ShareLink(item: NoteMarkdown(session: session, id: detail.id, title: detail.title),
+                  subject: Text(detail.title), preview: SharePreview(detail.title)) {
+            Label("Share Note…", systemImage: "square.and.arrow.up")
+        }
+    }
+
+    @ViewBuilder
+    private var copyButtons: some View {
+        if let obsidianURL {
+            Button("Copy Obsidian Link", systemImage: "link") {
+                Pasteboard.copy(obsidianURL)
+            }
+        }
+        Button("Copy Wikilink", systemImage: "curlybraces") {
+            Pasteboard.copy("[[\(VaultPath.basename(of: detail.path))]]")
+        }
+        // Text selection stops at each block; this copies the whole note.
+        Button("Copy Note Text", systemImage: "doc.on.doc") {
+            Task {
+                if let body = try? await session.notes.note(id: detail.id)?.body {
+                    Pasteboard.copy(body)
                 }
             }
         }
