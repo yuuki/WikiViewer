@@ -248,6 +248,26 @@ import WikiShared
         _ = try ArtifactVerifier.verify(publishDirectory: env.config.publishDirectory)
     }
 
+    /// Graph state from before layoutVersion: the next start publishes, so
+    /// its layouts are repaired without waiting for an edit in the vault.
+    @Test func outdatedLayoutsArePublishedOnStart() async throws {
+        let env = try await { () async throws -> Env in
+            let (env, indexer) = try await Self.makeIndexer()
+            _ = try #require(try await indexer.publish())
+            #expect(await indexer.hasUnpublishedChanges == false)
+            #expect(try await indexer.needsLayoutRepair() == false)
+            // As an earlier version wrote it: no layoutVersion.
+            try await indexer.editGraphState { $0["layoutVersion"] = nil }
+            #expect(try await indexer.needsLayoutRepair())
+            return env
+        }()
+
+        let indexer = try Indexer(configuration: env.config)
+        #expect(await indexer.hasUnpublishedChanges)
+        _ = try #require(try await indexer.publish())
+        #expect(try await indexer.needsLayoutRepair() == false)
+    }
+
     /// Overview order (by size) need not follow id order; the skeleton must
     /// not depend on it.
     @Test func skeletonIgnoresIdOrder() {
@@ -285,5 +305,18 @@ import WikiShared
 extension Indexer {
     func refreshGraphForTesting() throws -> GraphBuilder.Summary {
         try GraphBuilder.refresh(builder: builder, configuration: configuration.graph)
+    }
+}
+
+extension Indexer {
+    func needsLayoutRepair() throws -> Bool {
+        try GraphBuilder.needsLayoutRepair(builder: builder, configuration: configuration.graph)
+    }
+
+    func editGraphState(_ edit: (inout [String: Any]) -> Void) throws {
+        let json = try builder.state(GraphBuilder.stateKey) ?? "{}"
+        var state = try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] ?? [:]
+        edit(&state)
+        try builder.setState(GraphBuilder.stateKey, String(decoding: try JSONSerialization.data(withJSONObject: state), as: UTF8.self))
     }
 }

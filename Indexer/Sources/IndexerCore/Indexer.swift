@@ -87,6 +87,10 @@ public actor Indexer {
             }
             dirty = true
         }
+        if !dirty, try GraphBuilder.needsLayoutRepair(builder: builder, configuration: configuration.graph) {
+            Log.info("graph: layouts from an earlier version need repairing; publishing")
+            dirty = true
+        }
         let lastGeneration = Int64(try builder.state("last_generation") ?? "0") ?? 0
         let filter = try configuration.makeFilter()
         if !filter.patterns.isEmpty {
