@@ -15,15 +15,18 @@ import AppKit
 #endif
 
 extension View {
-    /// Context menu with a preview of the note at `path` and quick actions.
-    func notePreviewMenu(path: String, title: String) -> some View {
-        modifier(NotePreviewMenu(path: path, title: title))
+    /// Context menu with a preview of the note at `path` and quick actions;
+    /// for a row of the recent notes, also one to remove it from them (what
+    /// swiping does on a phone).
+    func notePreviewMenu(path: String, title: String, inRecents: Bool = false) -> some View {
+        modifier(NotePreviewMenu(path: path, title: title, inRecents: inRecents))
     }
 }
 
 private struct NotePreviewMenu: ViewModifier {
     let path: String
     let title: String
+    let inRecents: Bool
     @Environment(Library.self) private var library
     @Environment(\.openRoute) private var openRoute
     @Environment(ReadingHistory.self) private var history
@@ -52,6 +55,12 @@ private struct NotePreviewMenu: ViewModifier {
             }
             Button("Copy Wikilink", systemImage: "curlybraces") {
                 Pasteboard.copy("[[\(VaultPath.basename(of: path))]]")
+            }
+            if inRecents {
+                Divider()
+                Button("Remove from Recent", systemImage: "minus.circle", role: .destructive) {
+                    history.removeRecent(path)
+                }
             }
         } preview: {
             NotePreviewCard(path: path, title: title, session: library.session)
