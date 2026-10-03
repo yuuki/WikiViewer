@@ -69,14 +69,28 @@ struct TabJoiner: NSViewRepresentable {
 struct TabTitle: NSViewRepresentable {
     let title: String?
 
-    func makeNSView(context: Context) -> NSView { NSView() }
+    func makeNSView(context: Context) -> TitleView { TitleView() }
 
-    func updateNSView(_ view: NSView, context: Context) {
-        let title = title
-        // The view may join its window after this update.
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            window.tab.title = title ?? window.title
+    func updateNSView(_ view: TitleView, context: Context) {
+        view.title = title
+    }
+
+    /// Sets the title once in a window too: a new window's view is
+    /// updated before it joins one.
+    final class TitleView: NSView {
+        var title: String? {
+            didSet { if title != oldValue { apply() } }
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            apply()
+        }
+
+        private func apply() {
+            // Without a document, nil: the tab shows the window title, and
+            // follows it.
+            window?.tab.title = title
         }
     }
 }
