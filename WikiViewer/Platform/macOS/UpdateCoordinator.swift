@@ -6,7 +6,9 @@
 //  window is in the foreground (ContentView) and refreshes in the
 //  background; a Mac app keeps running behind other windows, so here one
 //  watcher runs for the whole process: restarted when the source changes,
-//  paused while the Mac sleeps, and checking again at once on wake.
+//  paused while the Mac sleeps, and checking again at once on wake and when
+//  the app comes to the front (a polled folder may be minutes from its next
+//  look, and a failed update waiting out its backoff).
 //
 
 #if os(macOS)
@@ -32,6 +34,9 @@ final class UpdateCoordinator {
             center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.restart() }
             },
+            NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.checkOnActivation() }
+            },
         ]
         observeSource()
         restart()
@@ -55,6 +60,19 @@ final class UpdateCoordinator {
         let library = library
         task = Task { await library.watchForUpdates() }
     }
+
+    /// Not while an update is under way, nor more than once a minute when
+    /// switching between apps.
+    private func checkOnActivation() {
+        switch library.updateStatus {
+        case .checking, .downloading: return
+        default: break
+        }
+        if let lastCheck = library.lastCheck, Date.now.timeIntervalSince(lastCheck) < Self.activationInterval { return }
+        restart()
+    }
+
+    static let activationInterval: TimeInterval = 60
 
     private func stopWatching() {
         task?.cancel()
