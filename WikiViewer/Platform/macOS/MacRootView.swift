@@ -19,6 +19,7 @@ struct MacRootView: View {
     let request: WindowRequest?
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.controlActiveState) private var activeState
     /// One stack of lists per section, so each section keeps its place.
     @State private var lists = Dictionary(uniqueKeysWithValues: AppTab.allCases.map { ($0, NavigationModel()) })
     @State private var documents = NavigationModel(maxDepth: 100)
@@ -86,6 +87,12 @@ struct MacRootView: View {
             if let top = documents.path.last, selection.selected != top { selection.selected = top }
         }
         .onChange(of: app.showsInspector) { savedInspector = app.showsInspector }
+        // The Dock menu opens notes in the window last in front.
+        .onChange(of: activeState, initial: true) {
+            guard activeState == .key else { return }
+            DockMenu.openInWindow = { show($0) }
+            DockMenu.openWindow = openWindow
+        }
         // The Graph section lists clusters; its map belongs in the detail column.
         .onChange(of: app.tab) {
             // Back to the section the window was left on: the documents

@@ -206,8 +206,14 @@ enum LinkMenu {
 /// A menu item that runs a closure.
 @MainActor
 func actionMenuItem(_ title: String.LocalizationValue, systemImage: String, handler: @escaping () -> Void) -> NSMenuItem {
+    actionMenuItem(verbatim: String(localized: title), systemImage: systemImage, handler: handler)
+}
+
+/// A menu item titled with text that is not localized (a note's title).
+@MainActor
+func actionMenuItem(verbatim title: String, systemImage: String, handler: @escaping () -> Void) -> NSMenuItem {
     let action = MenuAction(handler: handler)
-    let item = NSMenuItem(title: String(localized: title), action: #selector(MenuAction.run), keyEquivalent: "")
+    let item = NSMenuItem(title: title, action: #selector(MenuAction.run), keyEquivalent: "")
     item.target = action
     // The item holds its target only weakly.
     item.representedObject = action
