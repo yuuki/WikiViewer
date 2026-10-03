@@ -16,7 +16,7 @@ struct WikiViewerApp: App {
     @State private var startup = LibraryStartup()
     @State private var history = ReadingHistory()
     #if os(macOS)
-    @NSApplicationDelegateAdaptor(DockMenuDelegate.self) private var dockMenu
+    @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
     #endif
     @Environment(\.scenePhase) private var scenePhase
 

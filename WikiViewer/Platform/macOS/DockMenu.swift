@@ -2,8 +2,9 @@
 //  DockMenu.swift
 //  WikiViewer
 //
-//  The Dock icon's menu: the pinned and the recently read notes, opened in
-//  the window last in front (or a new one when none is open).
+//  The application delegate: the Dock icon's menu (the pinned and the
+//  recently read notes, opened in the vault window in front, or a new one
+//  when none is open), and saving the reading history on quit.
 //
 
 #if os(macOS)
@@ -12,7 +13,7 @@ import SwiftUI
 import WikiViewerKit
 
 @MainActor
-final class DockMenuDelegate: NSObject, NSApplicationDelegate {
+final class MacAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         guard let history = DockMenu.history else { return nil }
         let menu = NSMenu()
@@ -31,22 +32,25 @@ final class DockMenuDelegate: NSObject, NSApplicationDelegate {
         add(history.recents.prefix(DockMenu.limit), title: String(localized: "Recent"))
         return menu
     }
+
+    /// The history saves a moment after each change, and when a window
+    /// goes inactive, which ⌘Q does not reliably wait for.
+    func applicationWillTerminate(_ notification: Notification) {
+        DockMenu.history?.save()
+    }
 }
 
-/// What the Dock menu needs from the windows, which register as they
-/// come to the front.
+/// What the Dock menu needs from the windows.
 @MainActor
 enum DockMenu {
     static let limit = 8
     static var history: ReadingHistory?
-    /// Opens a route in the window last in front.
-    static var openInWindow: ((Route) -> Void)?
     static var openWindow: OpenWindowAction?
 
     static func open(_ route: Route) {
-        let hasWindow = NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
-        if hasWindow, let openInWindow {
-            openInWindow(route)
+        if let front = VaultWindows.front {
+            front.open(route)
+            front.window.makeKeyAndOrderFront(nil)
         } else {
             openWindow?(value: WindowRequest(route: route))
         }

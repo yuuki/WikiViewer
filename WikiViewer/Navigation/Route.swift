@@ -36,9 +36,13 @@ extension RouteTarget {
 struct OpenRouteAction {
     let handler: @MainActor (Route, RouteTarget) -> Void
 
+    /// Without a target, the one the event being handled asks for (a
+    /// ⌘-click opens a new tab). A target passed is taken as it is:
+    /// `automatic` then means here, whatever keys are down by the time a
+    /// task gets to open it.
     @MainActor
-    func callAsFunction(_ route: Route, in target: RouteTarget = .automatic) {
-        handler(route, target)
+    func callAsFunction(_ route: Route, in target: RouteTarget? = nil) {
+        handler(route, target ?? .fromCurrentEvent)
     }
 }
 

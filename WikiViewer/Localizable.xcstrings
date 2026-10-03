@@ -566,6 +566,16 @@
         }
       }
     },
+    "Find": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索"
+          }
+        }
+      }
+    },
     "Find a note in the graph": {
       "localizations": {
         "ja": {
@@ -1439,12 +1449,42 @@
         }
       }
     },
+    "Speech": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スピーチ"
+          }
+        }
+      }
+    },
+    "Start Speaking": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み上げを開始"
+          }
+        }
+      }
+    },
     "Status": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "状態"
+          }
+        }
+      }
+    },
+    "Stop Speaking": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読み上げを停止"
           }
         }
       }
@@ -1495,6 +1535,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "2文字以下の語はタイトル・別名・タグのみ検索します。本文を検索するには3文字以上の語を加えてください。"
+          }
+        }
+      }
+    },
+    "The clusters are listed beside the map": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラスタはマップの横に一覧があります"
           }
         }
       }
