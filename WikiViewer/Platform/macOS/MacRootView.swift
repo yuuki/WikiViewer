@@ -258,6 +258,7 @@ private struct MacSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom) { UpdateStatusFooter() }
         // Again on a new day, when the app has been open overnight.
         .task(id: TodayKey(session: library.session?.id, day: LibraryHomeSections.dayString(.now))) {
             guard let session = library.session else { return }
@@ -280,6 +281,51 @@ private struct MacSidebar: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// At the foot of the sidebar, whatever the section: an update under way,
+/// or the last one failed (the Files list says so only at its top).
+private struct UpdateStatusFooter: View {
+    @Environment(Library.self) private var library
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        switch library.updateStatus {
+        case .checking:
+            row { ProgressView().controlSize(.small) } text: { Text("Checking for updates…") }
+        case .downloading(let bytes):
+            row { ProgressView().controlSize(.small) } text: {
+                Text("Updating… \(bytes.formatted(.byteCount(style: .file)))")
+            }
+        case .failed(let message):
+            Button {
+                app.showSettings()
+            } label: {
+                row {
+                    Image(systemName: "exclamationmark.icloud").foregroundStyle(.orange)
+                } text: {
+                    Text("Couldn't Update")
+                }
+            }
+            .buttonStyle(.plain)
+            .help(Text("Showing the last downloaded snapshot. \(message)"))
+        case .idle, .upToDate, .updated:
+            EmptyView()
+        }
+    }
+
+    private func row(@ViewBuilder icon: () -> some View, @ViewBuilder text: () -> Text) -> some View {
+        HStack(spacing: 8) {
+            icon()
+            text().lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .contentShape(.rect)
     }
 }
 
