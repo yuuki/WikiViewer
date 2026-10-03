@@ -44,8 +44,8 @@ struct AppCommands: Commands {
                 app?.showsInspector.toggle()
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
-            // Only notes have an inspector.
-            .disabled(note == nil)
+            // Notes and graphs have an inspector.
+            .disabled(note == nil && !showsGraph)
             Divider()
             // ⌘=: the key ⌘+ is typed on; a "+" equivalent is not matched
             // without Shift.
@@ -182,6 +182,15 @@ struct AppCommands: Commands {
                 NSSound.beep()
                 #endif
             }
+        }
+    }
+
+    /// A graph is the window's document (it shows its selection in the
+    /// inspector).
+    private var showsGraph: Bool {
+        switch navigation?.path.last {
+        case .graph, .graphCluster, .localGraph: true
+        default: false
         }
     }
 

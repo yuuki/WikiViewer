@@ -267,11 +267,16 @@ struct GraphCanvas: View {
     private func layout(size newSize: CGSize) {
         guard newSize.width > 0, newSize.height > 0 else { return }
         let first = size == .zero
+        // Showing the whole graph: go on showing it in the new size (the
+        // window resized, the inspector opened).
+        let wasFitted = !first && animation == nil && isFitted
         size = newSize
         fitScale = GraphCamera.fitting(scene.bounds, in: newSize).scale
         if first || fittedKey != fitKey {
             fit(animated: false)
             if let focus { center(on: focus, animated: false) }
+        } else if wasFitted {
+            fit(animated: false)
         }
     }
 

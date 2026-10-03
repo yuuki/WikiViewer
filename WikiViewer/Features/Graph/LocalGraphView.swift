@@ -78,7 +78,9 @@ struct LocalGraphView: View {
                 }
             }
             .accessibilityLabel(Text("Local graph of \(graph.center.title) with \(graph.members.count - 1) linked notes"))
-            .safeAreaInset(edge: .bottom) { card(graph) }
+            .graphCard(empty: selection == nil, placeholder: "Click a note to see what it links to. Double-click opens it.") {
+                card(graph)
+            }
         } else if failed {
             ContentUnavailableView("Not in Snapshot", systemImage: "doc.questionmark", description: Text("\(current) is not in the current snapshot."))
         } else {

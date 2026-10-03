@@ -12,13 +12,77 @@ import SwiftUI
 import WikiShared
 import WikiViewerKit
 
-/// Card container: glass, with a close button.
+/// Where a graph shows the card of what is selected.
+enum GraphCardPlacement {
+    /// Over the bottom of the graph (iOS).
+    case overlay
+    /// In the window's inspector (macOS), as Backlinks and Outline are
+    /// for a note.
+    case inspector
+}
+
+extension EnvironmentValues {
+    @Entry var graphCardPlacement = GraphCardPlacement.overlay
+}
+
+extension View {
+    /// The card of what is selected in the graph: over its bottom edge on
+    /// iOS, in the inspector (⌥⌘I) on macOS, where `placeholder` stands in
+    /// while the card is `empty`.
+    func graphCard<Card: View>(empty: Bool, placeholder: LocalizedStringKey, @ViewBuilder card: @escaping () -> Card) -> some View {
+        modifier(GraphCardModifier(empty: empty, placeholder: placeholder, card: card))
+    }
+}
+
+private struct GraphCardModifier<Card: View>: ViewModifier {
+    let empty: Bool
+    let placeholder: LocalizedStringKey
+    let card: () -> Card
+    #if os(macOS)
+    @Environment(AppModel.self) private var app
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content
+            .inspector(isPresented: Bindable(app).showsInspector) {
+                Group {
+                    if empty {
+                        ContentUnavailableView("No Selection", systemImage: "point.3.connected.trianglepath.dotted",
+                                               description: Text(placeholder))
+                    } else {
+                        ScrollView {
+                            card().environment(\.graphCardPlacement, .inspector)
+                        }
+                    }
+                }
+                .inspectorColumnWidth(min: 220, ideal: 280, max: 420)
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        app.showsInspector.toggle()
+                    } label: {
+                        Label(app.showsInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
+                    }
+                    .help("What is selected in the graph (⌥⌘I)")
+                }
+            }
+        #else
+        content.safeAreaInset(edge: .bottom) { card() }
+        #endif
+    }
+}
+
+/// Card container: glass over the graph, with a close button; plain in
+/// the inspector.
 struct GraphCard<Content: View>: View {
     let onClose: () -> Void
     @ViewBuilder let content: Content
+    @Environment(\.graphCardPlacement) private var placement
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let card = VStack(alignment: .leading, spacing: 10) {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -32,10 +96,16 @@ struct GraphCard<Content: View>: View {
                 .contentShape(.rect)
                 .padding(4)
         }
-        .glassEffect(.regular, in: .rect(cornerRadius: 22))
-        .padding(.horizontal, 12)
-        // Apart from the tab bar, so the two glass shapes do not merge.
-        .padding(.bottom, 12)
+        switch placement {
+        case .inspector:
+            card
+        case .overlay:
+            card
+                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                .padding(.horizontal, 12)
+                // Apart from the tab bar, so the two glass shapes do not merge.
+                .padding(.bottom, 12)
+        }
     }
 }
 
@@ -49,6 +119,7 @@ struct NodeCard: View {
     let onNeighbour: (GraphNode) -> Void
     let onClose: () -> Void
     @Environment(Library.self) private var library
+    @Environment(\.graphCardPlacement) private var placement
     @State private var neighbours: [GraphNeighbour]?
 
     struct CardAction: Identifiable {
@@ -78,37 +149,46 @@ struct NodeCard: View {
             }
             .controlSize(.small)
             if let neighbours, !neighbours.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(neighbours) { n in
-                            Button {
-                                onNeighbour(n.node)
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Circle().fill(GraphPalette.cluster(n.node.cluster)).frame(width: 7, height: 7)
-                                    Text(n.node.title).lineLimit(1).frame(maxWidth: 170, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-                                    if n.node.cluster != node.cluster, n.node.cluster != nil {
-                                        Image(systemName: "arrow.up.right").imageScale(.small).foregroundStyle(.secondary)
-                                    }
-                                }
-                                .font(.caption)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(.fill.tertiary, in: Capsule())
-                                // The chip is drawn compact; the hit area is not.
-                                .frame(minHeight: 44)
-                                .contentShape(.rect)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityHint(Text("Selects this linked note"))
-                        }
+                switch placement {
+                case .overlay:
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) { chips(neighbours) }
                     }
+                    .scrollClipDisabled()
+                case .inspector:
+                    // A narrow column: one linked note per line.
+                    VStack(alignment: .leading, spacing: 4) { chips(neighbours) }
                 }
-                .scrollClipDisabled()
             }
         }
         .task(id: node.id) {
             neighbours = try? await library.session?.graph.neighbours(of: node.id, limit: 12)
+        }
+    }
+
+    private func chips(_ neighbours: [GraphNeighbour]) -> some View {
+        ForEach(neighbours) { n in
+            Button {
+                onNeighbour(n.node)
+            } label: {
+                HStack(spacing: 4) {
+                    Circle().fill(GraphPalette.cluster(n.node.cluster)).frame(width: 7, height: 7)
+                    Text(n.node.title).lineLimit(1).frame(maxWidth: 170, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                    if n.node.cluster != node.cluster, n.node.cluster != nil {
+                        Image(systemName: "arrow.up.right").imageScale(.small).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.caption)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.fill.tertiary, in: Capsule())
+                // The chip is drawn compact; the hit area is not (a
+                // finger's on a phone).
+                .frame(minHeight: placement == .overlay ? 44 : 0)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(Text("Selects this linked note"))
         }
     }
 

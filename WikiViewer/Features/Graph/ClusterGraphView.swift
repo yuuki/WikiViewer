@@ -99,7 +99,8 @@ struct ClusterGraphView: View {
         }
         .accessibilityLabel(Text("Map of \(graph.nodes.count) notes"))
         .accessibilityHint(Text("Switch to the list to browse notes with VoiceOver"))
-        .safeAreaInset(edge: .bottom) {
+        .graphCard(empty: selection == nil && graph.neighbours.isEmpty,
+                   placeholder: "Click a note to see what it links to. Double-click opens it.") {
             if let selection, let node = graph.nodes.first(where: { $0.id == selection }) {
                 NodeCard(node: node, color: GraphPalette.color(for: node, mode: effectiveColorMode),
                          secondary: [.init(title: "Local Graph", systemImage: "point.3.connected.trianglepath.dotted") {
