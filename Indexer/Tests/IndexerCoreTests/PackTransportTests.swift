@@ -319,10 +319,14 @@ import WikiViewerKit
         let (env, indexer, server, url) = try await served()
         defer { server.stop() }
         let source = HTTPArtifactSource(baseURL: url)
+        // Bounds are relative to the server's long-poll timeout, not fixed
+        // seconds, so a loaded CI runner does not fail them: an answer within
+        // half of it cannot have come from the timeout (or the 60 s interval).
+        let longPollTimeout = Duration.seconds(StaticHTTPServer.longPollDefaultSeconds)
         // Already newer than `after`: immediate.
         let start = ContinuousClock.now
         _ = try await source.waitForManifest(after: 0, interval: .seconds(60))
-        #expect(ContinuousClock.now - start < .seconds(2))
+        #expect(ContinuousClock.now - start < longPollTimeout / 2)
 
         let waiter = Task { try await source.waitForManifest(after: 1, interval: .seconds(60)) }
         try await Task.sleep(for: .milliseconds(500))
@@ -332,7 +336,7 @@ import WikiViewerKit
         _ = try #require(try await indexer.publish())
         let data = try await waiter.value
         #expect(try ArtifactManifest.decode(data).generation == 2)
-        #expect(ContinuousClock.now - published < .seconds(3), "answered on publication, not after the timeout")
+        #expect(ContinuousClock.now - published < longPollTimeout / 2, "answered on publication, not after the timeout")
     }
 
     @Test func longPollQueryIsParsed() {
