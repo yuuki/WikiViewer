@@ -28,6 +28,8 @@ struct MacRootView: View {
     /// a list replaces it instead of adding a step to the history.
     @State private var selectedDocument: Route?
     @State private var restored = false
+    /// Whether the inspector showed before reading mode, to restore after.
+    @State private var inspectorBeforeReading: Bool?
     @SceneStorage("WikiViewer.mac.lists") private var savedLists: Data?
     @SceneStorage("WikiViewer.mac.documents") private var savedDocuments: Data?
     @SceneStorage("WikiViewer.mac.inspector") private var savedInspector = true
@@ -36,18 +38,24 @@ struct MacRootView: View {
 
     var body: some View {
         let list = lists[app.tab] ?? NavigationModel()
-        NavigationSplitView {
-            MacSidebar()
-                .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
-                .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
-        } content: {
-            ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
-                .navigationSplitViewColumnWidth(min: 240, ideal: 320, max: 480)
-        } detail: {
-            DocumentColumn(navigation: documents)
-                .environment(\.noteTextScale, noteTextScale)
-                .environment(documents)
-                .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
+        Group {
+            // Reading mode: the document alone. (A three-column split view
+            // on macOS cannot hide its content column.) The lists keep
+            // their stacks meanwhile.
+            if app.readingMode {
+                documentColumn
+            } else {
+                NavigationSplitView {
+                    MacSidebar()
+                        .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
+                        .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
+                } content: {
+                    ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
+                        .navigationSplitViewColumnWidth(min: 240, ideal: 320, max: 480)
+                } detail: {
+                    documentColumn
+                }
+            }
         }
         .overlay(alignment: .top) {
             if app.showingQuickOpen {
@@ -87,6 +95,15 @@ struct MacRootView: View {
             if let top = documents.path.last, selection.selected != top { selection.selected = top }
         }
         .onChange(of: app.showsInspector) { savedInspector = app.showsInspector }
+        .onChange(of: app.readingMode) {
+            if app.readingMode {
+                inspectorBeforeReading = app.showsInspector
+                app.showsInspector = false
+            } else if let inspectorBeforeReading {
+                app.showsInspector = inspectorBeforeReading
+                self.inspectorBeforeReading = nil
+            }
+        }
         // The Dock menu opens notes in the window last in front.
         .onChange(of: activeState, initial: true) {
             guard activeState == .key else { return }
@@ -103,6 +120,13 @@ struct MacRootView: View {
                   !restoring || documents.path.isEmpty else { return }
             openDocument(.graph)
         }
+    }
+
+    private var documentColumn: some View {
+        DocumentColumn(navigation: documents)
+            .environment(\.noteTextScale, noteTextScale)
+            .environment(documents)
+            .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
     }
 
     /// What the detail column shows, for the window's tab.

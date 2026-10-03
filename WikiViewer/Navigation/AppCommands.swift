@@ -48,6 +48,11 @@ struct AppCommands: Commands {
             .keyboardShortcut("i", modifiers: [.command, .option])
             // Notes and graphs have an inspector.
             .disabled(note == nil && !showsGraph)
+            Button(app?.readingMode == true ? "Exit Reading Mode" : "Reading Mode") {
+                app?.readingMode.toggle()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .control])
+            .disabled(app == nil)
             Divider()
             // ⌘=: the key ⌘+ is typed on; a "+" equivalent is not matched
             // without Shift.

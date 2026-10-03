@@ -64,6 +64,11 @@ final class AppModel {
     /// Whether notes show the inspector (macOS).
     var showsInspector = true
 
+    /// Only the document, without the sidebar, the list or the inspector
+    /// (macOS). Leaving it brings back the columns and inspector as they
+    /// were.
+    var readingMode = false
+
     /// The Quick Open palette (⌘O on macOS).
     var showingQuickOpen = false
 
