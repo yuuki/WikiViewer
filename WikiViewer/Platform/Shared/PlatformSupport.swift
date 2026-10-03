@@ -191,11 +191,16 @@ final class ListSelection {
     var selected: Route?
     /// Set when a list is opened from the keyboard, so it takes focus.
     var focusesNextList = false
+    /// Changed when the user selects a row, so the list takes keyboard
+    /// focus. Not when the selection follows the document: a link followed
+    /// in the note leaves the keyboard with the note.
+    private(set) var userSelections = 0
     @ObservationIgnored var handler: (Route, Input) -> Void = { _, _ in }
 
     var binding: Binding<Route?> {
         Binding { self.selected } set: { route in
             guard let route else { return }
+            self.userSelections += 1
             self.handler(route, Self.currentInput)
         }
     }
@@ -238,9 +243,7 @@ struct RouteList<Content: View>: View {
             .focused($focused)
             // A click on a row does not give the list keyboard focus on
             // its own; without it the arrow keys do nothing.
-            .onChange(of: selection.selected) {
-                if selection.selected != nil { focused = true }
-            }
+            .onChange(of: selection.userSelections) { focused = true }
             .onKeyPress(.return) {
                 selection.activate()
                 return .handled
