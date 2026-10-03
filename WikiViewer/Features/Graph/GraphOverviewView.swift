@@ -71,7 +71,8 @@ struct GraphOverviewView: View {
     }
 
     private func map(_ overview: GraphOverview) -> some View {
-        GraphCanvas(scene: Self.scene(overview), selection: selection, fitKey: overview.clusters.map(\.id), labelBudget: 60) { id in
+        GraphCanvas(scene: Self.scene(overview), selection: selection, fitKey: overview.clusters.map(\.id), labelBudget: 60,
+                    onDoubleClick: { openRoute(.graphCluster(id: $0, focus: nil)) }) { id in
             if let id, id == selection {
                 openRoute(.graphCluster(id: id, focus: nil))
             } else {

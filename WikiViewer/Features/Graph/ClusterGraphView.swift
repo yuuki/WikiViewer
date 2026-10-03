@@ -91,7 +91,10 @@ struct ClusterGraphView: View {
     }
 
     private func map(_ graph: ClusterGraph) -> some View {
-        GraphCanvas(scene: scene(graph), selection: selection, fitKey: graph.cluster.id, focus: focusNode, labelBudget: 28) { tapped in
+        GraphCanvas(scene: scene(graph), selection: selection, fitKey: graph.cluster.id, focus: focusNode, labelBudget: 28,
+                    onDoubleClick: { id in
+                        if let node = graph.nodes.first(where: { $0.id == id }) { openRoute(.note(path: node.path, anchor: nil)) }
+                    }) { tapped in
             withAnimation(.snappy) { selection = tapped }
         }
         .accessibilityLabel(Text("Map of \(graph.nodes.count) notes"))
