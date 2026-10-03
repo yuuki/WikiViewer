@@ -132,6 +132,8 @@ struct GraphCanvas: View {
     var fitKey: AnyHashable = 0
     /// Brought to the middle of the view (zoomed in) when it changes.
     var focus: Int64? = nil
+    /// Labels drawn at most on a phone-sized view; a larger view (a Mac
+    /// window) draws proportionally more, up to four times as many.
     var labelBudget = 40
     /// A double-click on a node (macOS): what a second tap on the selected
     /// node does on a phone, or opening it.
@@ -171,6 +173,14 @@ struct GraphCanvas: View {
             let eased = 1 - pow(1 - t, 3)
             return from.interpolated(to: to, eased)
         }
+    }
+
+    /// The area of an iPhone in portrait, which `labelBudget` is for.
+    private static let budgetArea: CGFloat = 390 * 700
+
+    private var effectiveLabelBudget: Int {
+        let factor = min(max(size.width * size.height / Self.budgetArea, 1), 4)
+        return Int((CGFloat(labelBudget) * factor).rounded())
     }
 
     private var scaleLimits: ClosedRange<CGFloat> { (fitScale * 0.4)...(fitScale * 60) }
@@ -478,7 +488,7 @@ struct GraphCanvas: View {
         }
         var attempts = 0
         for i in order {
-            guard placed.count < labelBudget, attempts < 300 else { break }
+            guard placed.count < effectiveLabelBudget, attempts < 300 else { break }
             let node = scene.nodes[i]
             let dimmed = highlighted.map { !$0.contains(node.id) } ?? false
             if dimmed { continue }
