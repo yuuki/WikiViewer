@@ -132,7 +132,15 @@ public final class ImageCache: Sendable {
     private let state = Mutex(State())
     public let limitBytes: Int
 
-    public init(limitBytes: Int = 48 * 1024 * 1024) {
+    /// Decoded images kept by default: a Mac has memory to spare (and
+    /// frees the cache under memory pressure all the same).
+    #if os(macOS)
+    public static let defaultLimitBytes = 256 * 1024 * 1024
+    #else
+    public static let defaultLimitBytes = 48 * 1024 * 1024
+    #endif
+
+    public init(limitBytes: Int = defaultLimitBytes) {
         self.limitBytes = limitBytes
     }
 
