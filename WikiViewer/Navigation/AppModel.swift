@@ -24,6 +24,18 @@ final class AppModel {
             }
         }
     }
+    /// Set while the tab changes back to the one the window was left on,
+    /// rather than to one the reader chose (macOS: the Graph section then
+    /// leaves the restored documents alone).
+    @ObservationIgnored var restoringTab = false
+
+    /// Returns to the tab the window was left on.
+    func restoreTab(_ saved: AppTab) {
+        guard saved != tab else { return }
+        restoringTab = true
+        tab = saved
+    }
+
     /// Changed to ask the search tab to focus its field.
     private(set) var searchFocusRequest = SearchFocusRequest()
 

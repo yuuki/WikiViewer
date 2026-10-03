@@ -88,7 +88,13 @@ struct MacRootView: View {
         .onChange(of: app.showsInspector) { savedInspector = app.showsInspector }
         // The Graph section lists clusters; its map belongs in the detail column.
         .onChange(of: app.tab) {
-            if app.tab == .graph, documents.path.last != .graph { openDocument(.graph) }
+            // Back to the section the window was left on: the documents
+            // are restored as they were, not topped with the map.
+            let restoring = app.restoringTab
+            app.restoringTab = false
+            guard app.tab == .graph, documents.path.last != .graph,
+                  !restoring || documents.path.isEmpty else { return }
+            openDocument(.graph)
         }
     }
 
