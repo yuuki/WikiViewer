@@ -71,7 +71,8 @@ struct GraphOverviewView: View {
     }
 
     private func map(_ overview: GraphOverview) -> some View {
-        GraphCanvas(scene: Self.scene(overview), selection: selection, fitKey: overview.clusters.map(\.id), labelBudget: 60) { id in
+        GraphCanvas(scene: Self.scene(overview), selection: selection, fitKey: overview.clusters.map(\.id), labelBudget: 60,
+                    onDoubleClick: { openRoute(.graphCluster(id: $0, focus: nil)) }) { id in
             if let id, id == selection {
                 openRoute(.graphCluster(id: id, focus: nil))
             } else {
@@ -80,7 +81,8 @@ struct GraphOverviewView: View {
         }
         .accessibilityLabel(Text("Map of \(overview.clusters.count) clusters"))
         .accessibilityHint(Text("Switch to the list to browse clusters with VoiceOver"))
-        .safeAreaInset(edge: .bottom) {
+        .graphCard(empty: selection == nil,
+                   placeholder: "Click a cluster to see what is in it. Double-click opens it.") {
             if let selection, let cluster = overview.clusters.first(where: { $0.id == selection }) {
                 ClusterCard(cluster: cluster) {
                     openRoute(.graphCluster(id: cluster.id, focus: nil))

@@ -44,8 +44,8 @@ struct AppCommands: Commands {
                 app?.showsInspector.toggle()
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
-            // Only notes have an inspector.
-            .disabled(note == nil)
+            // Notes and graphs have an inspector.
+            .disabled(note == nil && !showsGraph)
             Divider()
             // ⌘=: the key ⌘+ is typed on; a "+" equivalent is not matched
             // without Shift.
@@ -109,6 +109,13 @@ struct AppCommands: Commands {
                 .keyboardShortcut("]", modifiers: .command)
                 .disabled(!(navigation?.canGoForward ?? false))
             Divider()
+            Button("Today's Note") { openTodaysNote() }
+                .keyboardShortcut("t", modifiers: [.command, .option])
+                .disabled(app == nil || startup.library?.session == nil)
+            Button("Recent Notes") { app?.open(.recents) }
+                .keyboardShortcut("r", modifiers: [.command, .option])
+                .disabled(app == nil)
+            Divider()
             tabButton("Files", .files, key: "1")
             tabButton("Tags", .tags, key: "2")
             tabButton("Graph", .graph, key: "3")
@@ -162,6 +169,29 @@ struct AppCommands: Commands {
         Button(title) { app?.tab = tab }
             .keyboardShortcut(key, modifiers: .command)
             .disabled(app == nil)
+    }
+
+    /// The daily note named after today, if the vault has one.
+    private func openTodaysNote() {
+        guard let app, let session = startup.library?.session else { return }
+        Task {
+            if let today = await LibraryHomeSections.findTodaysNote(in: session) {
+                app.open(.note(path: today.path, anchor: nil))
+            } else {
+                #if os(macOS)
+                NSSound.beep()
+                #endif
+            }
+        }
+    }
+
+    /// A graph is the window's document (it shows its selection in the
+    /// inspector).
+    private var showsGraph: Bool {
+        switch navigation?.path.last {
+        case .graph, .graphCluster, .localGraph: true
+        default: false
+        }
     }
 
     private var obsidianURL: URL? {

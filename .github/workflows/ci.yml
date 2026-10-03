@@ -20,3 +20,34 @@ jobs:
         run: swift test --package-path WikiKit
       - name: Indexer tests (indexer, publisher, end-to-end)
         run: swift test --package-path Indexer
+
+  mac-app:
+    name: macOS app
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      # The app targets macOS 27, whose SDK comes with Xcode 27; the
+      # image's default Xcode may be older.
+      # Until the image has one, the build is skipped with a notice: older
+      # Xcodes cannot open the project.
+      - name: Select Xcode
+        id: xcode
+        run: |
+          ls -d /Applications/Xcode*.app
+          xcode=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$xcode" ]; then
+            echo "DEVELOPER_DIR=$xcode/Contents/Developer" >> "$GITHUB_ENV"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=macOS app not built::The runner image has no Xcode 27, which the project needs."
+          fi
+      # Unsigned: CI has no signing identity, and building is what is checked.
+      - name: Build the macOS app
+        if: steps.xcode.outputs.found == 'true'
+        run: |
+          xcodebuild -version
+          xcodebuild -project WikiViewer.xcodeproj -scheme WikiViewer \
+            -destination 'platform=macOS' -configuration Debug \
+            -derivedDataPath build/DerivedDataMac \
+            CODE_SIGNING_ALLOWED=NO build

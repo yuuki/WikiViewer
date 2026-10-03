@@ -72,12 +72,15 @@ struct LocalGraphView: View {
     private var content: some View {
         if let graph {
             TimelineView(.animation(paused: transition == nil)) { timeline in
-                GraphCanvas(scene: scene(graph, at: timeline.date), selection: selection, fitKey: 0, labelBudget: 48) { tapped in
+                GraphCanvas(scene: scene(graph, at: timeline.date), selection: selection, fitKey: 0, labelBudget: 48,
+                            onDoubleClick: { open($0, in: graph) }) { tapped in
                     withAnimation(.snappy) { selection = tapped }
                 }
             }
             .accessibilityLabel(Text("Local graph of \(graph.center.title) with \(graph.members.count - 1) linked notes"))
-            .safeAreaInset(edge: .bottom) { card(graph) }
+            .graphCard(empty: selection == nil, placeholder: "Click a note to see what it links to. Double-click opens it.") {
+                card(graph)
+            }
         } else if failed {
             ContentUnavailableView("Not in Snapshot", systemImage: "doc.questionmark", description: Text("\(current) is not in the current snapshot."))
         } else {
@@ -156,6 +159,16 @@ struct LocalGraphView: View {
         let start = second.first?.parent.flatMap { angle[$0] } ?? -Double.pi / 2
         place(second.map(\.id), radius: 2.3, offset: start + Double.pi / 2)
         return result
+    }
+
+    /// A note opens; a missing one shows what links to it.
+    private func open(_ id: Int64, in graph: LocalGraph) {
+        if id < 0 {
+            let index = Int(-1 - id)
+            if graph.missing.indices.contains(index) { openRoute(.missing(target: graph.missing[index])) }
+        } else if let member = graph.members.first(where: { $0.id == id }) {
+            openRoute(.note(path: member.node.path, anchor: nil))
+        }
     }
 
     // MARK: Card

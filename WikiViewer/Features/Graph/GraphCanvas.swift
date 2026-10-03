@@ -3,8 +3,10 @@
 //  WikiViewer
 //
 //  An interactive node-link drawing: pan with one finger, pinch to zoom,
-//  tap to select. Touch has no hover, so selection does what hover does in
-//  wiki-lens: it brings out a node's links and neighbours and dims the rest.
+//  tap to select; on a Mac the mouse wheel zooms too, and a trackpad's
+//  two-finger scroll pans. Touch has no hover, so selection does what hover
+//  does in wiki-lens: it brings out a node's links and neighbours and dims
+//  the rest.
 //  With a pointer (macOS, iPad), hovering a node does the same while
 //  nothing is selected.
 //
@@ -15,6 +17,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct GraphScene {
     struct Node: Identifiable {
@@ -107,9 +112,13 @@ struct GraphCamera: Equatable {
         GraphCamera(center: CGPoint(x: center.x - t.width / scale, y: center.y - t.height / scale), scale: scale)
     }
 
+    /// `rect` in the middle of the view, `padding` from its top and bottom
+    /// and more from its sides: labels are centred under their nodes, so
+    /// the outermost ones reach past them.
     static func fitting(_ rect: CGRect, in size: CGSize, padding: CGFloat = 36) -> GraphCamera {
         let w = max(rect.width, 1e-6), h = max(rect.height, 1e-6)
-        let scale = min((size.width - 2 * padding) / w, (size.height - 2 * padding) / h)
+        let side = max(padding, min(2 * padding, size.width / 8))
+        let scale = min((size.width - 2 * side) / w, (size.height - 2 * padding) / h)
         return GraphCamera(center: CGPoint(x: rect.midX, y: rect.midY), scale: max(scale, 1e-3))
     }
 
@@ -127,7 +136,12 @@ struct GraphCanvas: View {
     var fitKey: AnyHashable = 0
     /// Brought to the middle of the view (zoomed in) when it changes.
     var focus: Int64? = nil
+    /// Labels drawn at most on a phone-sized view; a larger view (a Mac
+    /// window) draws proportionally more, up to four times as many.
     var labelBudget = 40
+    /// A double-click on a node (macOS): what a second tap on the selected
+    /// node does on a phone, or opening it.
+    var onDoubleClick: ((Int64) -> Void)? = nil
     let onTap: (Int64?) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -146,6 +160,11 @@ struct GraphCanvas: View {
     @State private var animation: CameraAnimation?
     /// The node under the pointer.
     @State private var hovered: Int64?
+    #if os(macOS)
+    /// Where the pointer is over the view, for zooming around it.
+    @State private var pointer: CGPoint?
+    @State private var scrollMonitor: Any?
+    #endif
 
     struct CameraAnimation: Equatable {
         var from: GraphCamera
@@ -158,6 +177,14 @@ struct GraphCanvas: View {
             let eased = 1 - pow(1 - t, 3)
             return from.interpolated(to: to, eased)
         }
+    }
+
+    /// The area of an iPhone in portrait, which `labelBudget` is for.
+    private static let budgetArea: CGFloat = 390 * 700
+
+    private var effectiveLabelBudget: Int {
+        let factor = min(max(size.width * size.height / Self.budgetArea, 1), 4)
+        return Int((CGFloat(labelBudget) * factor).rounded())
     }
 
     private var scaleLimits: ClosedRange<CGFloat> { (fitScale * 0.4)...(fitScale * 60) }
@@ -180,14 +207,32 @@ struct GraphCanvas: View {
             .onTapGesture(coordinateSpace: .local) { location in
                 onTap(hit(location))
             }
+            #if os(macOS)
+            // Alongside the single click, which has selected the node by
+            // the second click.
+            .simultaneousGesture(SpatialTapGesture(count: 2).onEnded { value in
+                if let onDoubleClick, let node = hit(value.location) { onDoubleClick(node) }
+            })
+            #endif
             .onContinuousHover(coordinateSpace: .local) { phase in
                 switch phase {
-                case .active(let location): hovered = gestureBase == nil ? hit(location) : nil
-                case .ended: hovered = nil
+                case .active(let location):
+                    hovered = gestureBase == nil ? hit(location) : nil
+                    #if os(macOS)
+                    pointer = location
+                    watchScrolling()
+                    #endif
+                case .ended:
+                    hovered = nil
+                    #if os(macOS)
+                    pointer = nil
+                    stopWatchingScrolling()
+                    #endif
                 }
             }
             #if os(macOS)
             .pointerStyle(hovered == nil ? .default : .link)
+            .onDisappear(perform: stopWatchingScrolling)
             #endif
             .onAppear { layout(size: proxy.size) }
             .onChange(of: proxy.size) { layout(size: proxy.size) }
@@ -222,11 +267,16 @@ struct GraphCanvas: View {
     private func layout(size newSize: CGSize) {
         guard newSize.width > 0, newSize.height > 0 else { return }
         let first = size == .zero
+        // Showing the whole graph: go on showing it in the new size (the
+        // window resized, the inspector opened).
+        let wasFitted = !first && animation == nil && isFitted
         size = newSize
         fitScale = GraphCamera.fitting(scene.bounds, in: newSize).scale
         if first || fittedKey != fitKey {
             fit(animated: false)
             if let focus { center(on: focus, animated: false) }
+        } else if wasFitted {
+            fit(animated: false)
         }
     }
 
@@ -284,6 +334,38 @@ struct GraphCanvas: View {
                 endGesture()
             }
     }
+
+    #if os(macOS)
+    /// A mouse wheel zooms around the pointer; a trackpad's two-finger
+    /// scroll pans, and zooms with ⌘ or ⌥ held (the pinch zooms too).
+    private func watchScrolling() {
+        guard scrollMonitor == nil else { return }
+        scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            guard let pointer, gestureBase == nil, size != .zero else { return event }
+            if let animation {
+                camera = animation.value(at: .now)
+                self.animation = nil
+            }
+            let zooms = !event.hasPreciseScrollingDeltas || !event.modifierFlags.intersection([.command, .option]).isEmpty
+            if zooms {
+                // A wheel's notch is about one line; a trackpad's delta is
+                // points. Away from the reader zooms in, whichever way the
+                // system scrolls content (natural scrolling inverts it).
+                let delta = event.isDirectionInvertedFromDevice ? -event.scrollingDeltaY : event.scrollingDeltaY
+                let steps = event.hasPreciseScrollingDeltas ? delta / 10 : delta
+                camera = camera.zoomed(by: pow(1.15, steps), around: pointer, in: size, limits: scaleLimits)
+            } else {
+                camera = camera.panned(by: CGSize(width: event.scrollingDeltaX, height: event.scrollingDeltaY))
+            }
+            return nil
+        }
+    }
+
+    private func stopWatchingScrolling() {
+        if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
+        scrollMonitor = nil
+    }
+    #endif
 
     private func beginGesture() {
         guard gestureBase == nil else { return }
@@ -415,7 +497,7 @@ struct GraphCanvas: View {
         }
         var attempts = 0
         for i in order {
-            guard placed.count < labelBudget, attempts < 300 else { break }
+            guard placed.count < effectiveLabelBudget, attempts < 300 else { break }
             let node = scene.nodes[i]
             let dimmed = highlighted.map { !$0.contains(node.id) } ?? false
             if dimmed { continue }

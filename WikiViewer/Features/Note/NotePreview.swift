@@ -27,6 +27,8 @@ private struct NotePreviewMenu: ViewModifier {
     @Environment(Library.self) private var library
     @Environment(\.openRoute) private var openRoute
     @Environment(ReadingHistory.self) private var history
+    @Environment(\.openURL) private var openURL
+    @AppStorage(ObsidianLink.vaultNameKey) private var obsidianVault = ""
 
     func body(content: Content) -> some View {
         content.contextMenu {
@@ -44,6 +46,9 @@ private struct NotePreviewMenu: ViewModifier {
             let pinned = history.isPinned(path)
             Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
                 history.togglePin(path: path, title: title)
+            }
+            if let obsidian = ObsidianLink.url(vault: obsidianVault, notePath: path) {
+                Button("Edit in Obsidian", systemImage: "square.and.pencil") { openURL(obsidian) }
             }
             Button("Copy Wikilink", systemImage: "curlybraces") {
                 Pasteboard.copy("[[\(VaultPath.basename(of: path))]]")
