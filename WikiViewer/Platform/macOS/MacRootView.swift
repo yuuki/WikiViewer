@@ -51,9 +51,12 @@ struct MacRootView: View {
                         .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
                 } content: {
                     ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
-                        .navigationSplitViewColumnWidth(min: 240, ideal: 320, max: 480)
+                        .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 420)
                 } detail: {
+                    // The note is what the window is for: the other columns
+                    // give way before it gets too narrow to read.
                     documentColumn
+                        .navigationSplitViewColumnWidth(min: 380, ideal: 680)
                 }
             }
         }
@@ -124,7 +127,7 @@ struct MacRootView: View {
 
     private var documentColumn: some View {
         DocumentColumn(navigation: documents)
-            .environment(\.noteTextScale, noteTextScale)
+            .environment(\.noteTextScale, noteTextScale * NoteTextScale.readingSize)
             .environment(documents)
             .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
     }
@@ -262,13 +265,12 @@ private struct MacSidebar: View {
                 Label("Graph", systemImage: "point.3.connected.trianglepath.dotted").tag(AppTab.graph)
                 Label("Search", systemImage: "magnifyingglass").tag(AppTab.search)
             }
-            Section {
-                if let today {
+            // The recent notes head the Files list (and Go > Recent Notes);
+            // today's note and the pins are here only, beside every section.
+            if let today {
+                Section {
                     shortcut("Today", systemImage: "calendar", route: .note(path: today.path, anchor: nil))
                         .notePreviewMenu(path: today.path, title: today.title)
-                }
-                if !history.recents.isEmpty {
-                    shortcut("Recent", systemImage: "clock", route: .recents)
                 }
             }
             if !history.pins.isEmpty {

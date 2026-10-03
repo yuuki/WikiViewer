@@ -16,9 +16,6 @@ struct BlockView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.headingLevelOffset) private var headingLevelOffset
 
-    /// Extra leading for running text: long notes read more easily.
-    static let bodyLineSpacing: CGFloat = 3
-
     var body: some View {
         switch block.kind {
         case .heading(let rawLevel, let text):
@@ -37,7 +34,7 @@ struct BlockView: View {
             Text(math: text.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.body, typeSize, scale: noteTextScale),
                  markingLinks: Self.previewsLinks)
                 .noteFont(.body)
-                .lineSpacing(Self.bodyLineSpacing)
+                .lineSpacing(NoteTextScale.lineSpacing(scale: noteTextScale))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .linkPreviewsOnHover()
@@ -73,7 +70,7 @@ struct BlockView: View {
             MathBlockView(latex: latex)
         case .html(let raw):
             Text(raw)
-                .noteFont(.footnote, design: .monospaced)
+                .noteFont(.noteDetail, design: .monospaced)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
         }
@@ -171,7 +168,7 @@ struct CodeBlockView: View {
             }
             HorizontalScroll {
                 Text(code)
-                    .noteFont(.footnote, design: .monospaced)
+                    .noteFont(.noteDetail, design: .monospaced)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: true, vertical: false)
             }
@@ -272,7 +269,7 @@ struct TableBlockView: View {
                 if !header.isEmpty {
                     GridRow {
                         ForEach(Array(header.enumerated()), id: \.offset) { _, cell in
-                            Text(math: cell.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.footnote, typeSize, scale: noteTextScale)).noteFont(.footnote, weight: .bold)
+                            Text(math: cell.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.noteDetail, typeSize, scale: noteTextScale)).noteFont(.noteDetail, weight: .bold)
                         }
                     }
                     Divider()
@@ -280,7 +277,7 @@ struct TableBlockView: View {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                            Text(math: cell.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.footnote, typeSize, scale: noteTextScale)).noteFont(.footnote)
+                            Text(math: cell.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.noteDetail, typeSize, scale: noteTextScale)).noteFont(.noteDetail)
                         }
                     }
                 }

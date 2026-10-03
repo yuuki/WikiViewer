@@ -152,7 +152,9 @@ struct QuickOpenPanel: View {
         .foregroundStyle(highlighted ? .white : .primary)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(highlighted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.clear), in: .rect(cornerRadius: 7))
+        // The system's selection color, as menus and Spotlight use: white
+        // text on the light accent of dark mode would not read.
+        .background(highlighted ? Color(nsColor: .selectedContentBackgroundColor) : .clear, in: .rect(cornerRadius: 7))
         .padding(.horizontal, 6)
         .contentShape(.rect)
     }

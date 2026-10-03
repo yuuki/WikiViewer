@@ -35,6 +35,32 @@ enum NoteTextScale {
     static var canEnlarge: Bool { current < steps.last! - 0.001 }
     static var canReduce: Bool { current > steps.first! + 0.001 }
 
+    /// macOS: at 100% note text is this much larger than the system's
+    /// (body 13 pt → 15 pt). The system sizes suit controls, not reading.
+    static let readingSize: CGFloat = 15.0 / 13
+
+    /// The widest the note's text column gets, for `scale` (the
+    /// environment's): about 42 body-size characters wide, which keeps
+    /// lines of Japanese and of Latin text at a readable length.
+    static func readingWidth(scale: CGFloat) -> CGFloat {
+        #if os(macOS)
+        NSFont.preferredFont(forTextStyle: .body).pointSize * scale * 42
+        #else
+        820 * scale
+        #endif
+    }
+
+    /// Extra leading for running text, for `scale` (the environment's).
+    /// macOS: about 1.6 lines of body text from one baseline to the next,
+    /// so Japanese does not look cramped.
+    static func lineSpacing(scale: CGFloat) -> CGFloat {
+        #if os(macOS)
+        NSFont.preferredFont(forTextStyle: .body).pointSize * scale * 0.35
+        #else
+        3
+        #endif
+    }
+
     static func font(_ style: Font.TextStyle, design: Font.Design, weight: Font.Weight?, scale: CGFloat) -> Font {
         var font = Font.system(style, design: design)
         #if os(macOS)
@@ -53,6 +79,30 @@ enum NoteTextScale {
     /// Point size for math set in text of `style`.
     static func mathSize(_ style: MathRenderer.TextStyle, _ typeSize: DynamicTypeSize, scale: CGFloat) -> CGFloat {
         MathRenderer.fontSize(style, typeSize) * scale
+    }
+}
+
+extension Font.TextStyle {
+    /// Code, tables, tags, the folder path and other secondary note text.
+    /// Footnote is 13 pt on iOS but 10 pt on macOS, too small to read
+    /// there; callout is 12 pt.
+    static var noteDetail: Font.TextStyle {
+        #if os(macOS)
+        .callout
+        #else
+        .footnote
+        #endif
+    }
+}
+
+extension MathRenderer.TextStyle {
+    /// Math in `Font.TextStyle.noteDetail` text.
+    static var noteDetail: MathRenderer.TextStyle {
+        #if os(macOS)
+        .callout
+        #else
+        .footnote
+        #endif
     }
 }
 
