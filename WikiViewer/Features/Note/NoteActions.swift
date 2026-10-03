@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 import WikiShared
 import WikiViewerKit
 
@@ -58,9 +59,13 @@ struct NoteActionItems: ToolbarContent {
                     Image(systemName: "square.and.pencil")
                 }
             }
+            ShareLink(item: NoteMarkdown(session: session, id: detail.id, title: detail.title),
+                      subject: Text(detail.title), preview: SharePreview(detail.title)) {
+                Label("Share Note…", systemImage: "square.and.arrow.up")
+            }
             if let obsidianURL {
                 ShareLink(item: obsidianURL, subject: Text(detail.title)) {
-                    Label("Share Link", systemImage: "square.and.arrow.up")
+                    Label("Share Link", systemImage: "link")
                 }
                 Button("Copy Obsidian Link", systemImage: "link") {
                     Pasteboard.copy(obsidianURL)
@@ -78,5 +83,38 @@ struct NoteActionItems: ToolbarContent {
                 }
             }
         }
+    }
+}
+
+/// A note's Markdown, read when shared: a `.md` file named after the note
+/// (Mail attaches it, Finder saves it), or plain text for apps that take
+/// text.
+struct NoteMarkdown: Transferable {
+    let session: LibrarySession
+    let id: Int64
+    let title: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: UTType(filenameExtension: "md", conformingTo: .plainText) ?? .plainText) { note in
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Share/\(note.id)", isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let file = dir.appendingPathComponent(note.fileName)
+            try Data(await note.body().utf8).write(to: file)
+            return SentTransferredFile(file)
+        }
+        DataRepresentation(exportedContentType: .plainText) { note in
+            Data(try await note.body().utf8)
+        }
+    }
+
+    /// The title without the characters a file name cannot have.
+    private var fileName: String {
+        let name = title.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        return (name.isEmpty ? "Note" : name) + ".md"
+    }
+
+    private func body() async throws -> String {
+        guard let body = try await session.notes.note(id: id)?.body else { throw CocoaError(.fileReadNoSuchFile) }
+        return body
     }
 }
