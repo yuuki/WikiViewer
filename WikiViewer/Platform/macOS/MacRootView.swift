@@ -187,6 +187,7 @@ struct MacRootView: View {
 
     private func restore() {
         app.documentNavigation = documents
+        app.openHandler = { show($0) }
         selection.handler = select
         guard !restored else { return }
         restored = true
@@ -219,6 +220,9 @@ private struct MacSidebar: View {
     @Environment(ReadingHistory.self) private var history
     @Environment(\.openRoute) private var openRoute
 
+    @Environment(Library.self) private var library
+    @State private var today: NoteSummary?
+
     var body: some View {
         List(selection: Binding(get: { app.tab }, set: { if let tab = $0 { app.tab = tab } })) {
             Section {
@@ -226,6 +230,15 @@ private struct MacSidebar: View {
                 Label("Tags", systemImage: "number").tag(AppTab.tags)
                 Label("Graph", systemImage: "point.3.connected.trianglepath.dotted").tag(AppTab.graph)
                 Label("Search", systemImage: "magnifyingglass").tag(AppTab.search)
+            }
+            Section {
+                if let today {
+                    shortcut("Today", systemImage: "calendar", route: .note(path: today.path, anchor: nil))
+                        .notePreviewMenu(path: today.path, title: today.title)
+                }
+                if !history.recents.isEmpty {
+                    shortcut("Recent", systemImage: "clock", route: .recents)
+                }
             }
             if !history.pins.isEmpty {
                 Section("Pinned") {
@@ -245,6 +258,28 @@ private struct MacSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        // Again on a new day, when the app has been open overnight.
+        .task(id: TodayKey(session: library.session?.id, day: LibraryHomeSections.dayString(.now))) {
+            guard let session = library.session else { return }
+            today = await LibraryHomeSections.findTodaysNote(in: session)
+        }
+    }
+
+    private struct TodayKey: Equatable {
+        var session: String?
+        var day: String
+    }
+
+    /// A row that opens `route` rather than selecting a section.
+    private func shortcut(_ title: LocalizedStringKey, systemImage: String, route: Route) -> some View {
+        Button {
+            openRoute(route)
+        } label: {
+            Label(title, systemImage: systemImage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
     }
 }
 

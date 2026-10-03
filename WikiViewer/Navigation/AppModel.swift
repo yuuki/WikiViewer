@@ -50,6 +50,14 @@ final class AppModel {
     /// The stack documents open in, whatever the tab (macOS detail column).
     @ObservationIgnored var documentNavigation: NavigationModel?
 
+    /// Opens a route as a link in the window would (macOS: lists in the
+    /// content column, documents in the detail column), for menu commands.
+    @ObservationIgnored var openHandler: ((Route) -> Void)?
+
+    func open(_ route: Route) {
+        if let openHandler { openHandler(route) } else { navigation?.push(route) }
+    }
+
     /// The stack the Go and Note menus act on.
     var navigation: NavigationModel? { documentNavigation ?? navigations[tab] }
 

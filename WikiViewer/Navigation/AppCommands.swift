@@ -109,6 +109,13 @@ struct AppCommands: Commands {
                 .keyboardShortcut("]", modifiers: .command)
                 .disabled(!(navigation?.canGoForward ?? false))
             Divider()
+            Button("Today's Note") { openTodaysNote() }
+                .keyboardShortcut("t", modifiers: [.command, .option])
+                .disabled(app == nil || startup.library?.session == nil)
+            Button("Recent Notes") { app?.open(.recents) }
+                .keyboardShortcut("r", modifiers: [.command, .option])
+                .disabled(app == nil)
+            Divider()
             tabButton("Files", .files, key: "1")
             tabButton("Tags", .tags, key: "2")
             tabButton("Graph", .graph, key: "3")
@@ -162,6 +169,20 @@ struct AppCommands: Commands {
         Button(title) { app?.tab = tab }
             .keyboardShortcut(key, modifiers: .command)
             .disabled(app == nil)
+    }
+
+    /// The daily note named after today, if the vault has one.
+    private func openTodaysNote() {
+        guard let app, let session = startup.library?.session else { return }
+        Task {
+            if let today = await LibraryHomeSections.findTodaysNote(in: session) {
+                app.open(.note(path: today.path, anchor: nil))
+            } else {
+                #if os(macOS)
+                NSSound.beep()
+                #endif
+            }
+        }
     }
 
     private var obsidianURL: URL? {
