@@ -299,6 +299,15 @@ M2 の残りの修正（M2 の後に対応）:
   Window メニュー）。Spotlight への登録は §1 の非目標。Export as PDF は保存先への書き込み権限が要る
   （サンドボックスは読み取り専用）ので印刷パネルの PDF に任せる。
 
+### 自分用の配布（2026-10-03）
+
+- `scripts/mac.sh install` で Release 版を /Applications に入れる（動いている版は終了し、前の版はゴミ箱へ）。
+  `scripts/mac.sh release` は入れずに build/Release に .app と zip を作る（他の Mac 用）。
+- バンドル ID は worktree でも素の ID（インストール版のコンテナは 1 つ）。ビルド番号は `git rev-list --count HEAD`。
+- Apple Development 署名は Release でも `get-task-allow` を付けるので、外して署名し直す
+  （`CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO` はビルド設定由来のサンドボックス権限まで落とす）。
+- 公証していないので、AirDrop などで受け取った zip は他の Mac で「このまま開く」が要る（SETUP.md §7）。
+
 ### macOS で見つかった SwiftUI の挙動（M2 の設計に効く）
 
 - `NavigationStack` に付けた `.environment` が push 先に伝わらない → `navigationDestination` の中でも渡す。
