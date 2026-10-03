@@ -164,6 +164,8 @@ struct GraphCanvas: View {
     /// Where the pointer is over the view, for zooming around it.
     @State private var pointer: CGPoint?
     @State private var scrollMonitor: Any?
+    /// The view takes the keyboard when clicked, for the arrow keys.
+    @FocusState private var focused: Bool
     #endif
 
     struct CameraAnimation: Equatable {
@@ -205,6 +207,9 @@ struct GraphCanvas: View {
             .contentShape(Rectangle())
             .gesture(panGesture.simultaneously(with: pinchGesture))
             .onTapGesture(coordinateSpace: .local) { location in
+                #if os(macOS)
+                focused = true
+                #endif
                 onTap(hit(location))
             }
             #if os(macOS)
@@ -233,6 +238,28 @@ struct GraphCanvas: View {
             #if os(macOS)
             .pointerStyle(hovered == nil ? .default : .link)
             .onDisappear(perform: stopWatchingScrolling)
+            // The keyboard: the arrow keys move the selection to the
+            // nearest node that way, Return opens it (as a double-click).
+            .focusable()
+            .focused($focused)
+            .focusEffectDisabled()
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow]) { press in
+                let direction: CGVector = switch press.key {
+                case .upArrow: CGVector(dx: 0, dy: -1)
+                case .downArrow: CGVector(dx: 0, dy: 1)
+                case .leftArrow: CGVector(dx: -1, dy: 0)
+                default: CGVector(dx: 1, dy: 0)
+                }
+                guard let next = node(from: selection, toward: direction) else { return .ignored }
+                onTap(next)
+                reveal(next)
+                return .handled
+            }
+            .onKeyPress(.return) {
+                guard let selection, let onDoubleClick else { return .ignored }
+                onDoubleClick(selection)
+                return .handled
+            }
             #endif
             .onAppear { layout(size: proxy.size) }
             .onChange(of: proxy.size) { layout(size: proxy.size) }
@@ -380,6 +407,45 @@ struct GraphCanvas: View {
         gestureBase = nil
         pan = .zero
         zoom = 1
+    }
+
+    // MARK: Keyboard
+
+    /// The nearest node from `id` (or from the middle of the view) within
+    /// 60° of `direction`, on screen: nearer the line counts for more.
+    private func node(from id: Int64?, toward direction: CGVector) -> Int64? {
+        let cam = liveCamera
+        let origin = id.flatMap { scene.index[$0] }.map { cam.screen(scene.nodes[$0].position, in: size) }
+        guard let origin else {
+            // Nothing selected: the node nearest the middle.
+            let middle = CGPoint(x: size.width / 2, y: size.height / 2)
+            return scene.nodes.min { a, b in
+                let pa = cam.screen(a.position, in: size), pb = cam.screen(b.position, in: size)
+                return hypot(pa.x - middle.x, pa.y - middle.y) < hypot(pb.x - middle.x, pb.y - middle.y)
+            }?.id
+        }
+        var best: (id: Int64, cost: CGFloat)?
+        for node in scene.nodes where node.id != id {
+            let p = cam.screen(node.position, in: size)
+            let dx = p.x - origin.x, dy = p.y - origin.y
+            let distance = hypot(dx, dy)
+            guard distance > 0.5 else { continue }
+            let cosine = (dx * direction.dx + dy * direction.dy) / distance
+            guard cosine > 0.5 else { continue }
+            let cost = distance * (2 - cosine)
+            if best == nil || cost < best!.cost { best = (node.id, cost) }
+        }
+        return best?.id
+    }
+
+    /// Brings `id` into view when the keyboard moved to it off screen.
+    private func reveal(_ id: Int64) {
+        guard let i = scene.index[id] else { return }
+        let p = liveCamera.screen(scene.nodes[i].position, in: size)
+        let inset = CGRect(origin: .zero, size: size).insetBy(dx: 40, dy: 40)
+        if !inset.contains(p) {
+            move(to: GraphCamera(center: scene.nodes[i].position, scale: camera.scale), animated: true)
+        }
     }
 
     // MARK: Hit testing
