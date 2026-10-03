@@ -17,6 +17,9 @@ struct SettingsView: View {
     @State private var folderError: String?
     @State private var showsURLError = false
     @AppStorage(ObsidianLink.vaultNameKey) private var obsidianVaultName = ""
+    #if os(macOS)
+    @AppStorage(NoteTextScale.defaultsKey) private var noteTextScale = 1.0
+    #endif
 
     var body: some View {
         Form {
@@ -76,6 +79,20 @@ struct SettingsView: View {
                 Text("A folder can be any location in the Files app, including an iCloud Drive folder your Mac publishes into. An address points at a published directory served over HTTPS.")
                 #endif
             }
+
+            #if os(macOS)
+            Section {
+                Picker("Text Size", selection: $noteTextScale) {
+                    ForEach(NoteTextScale.steps, id: \.self) { step in
+                        Text(step.formatted(.percent.precision(.fractionLength(0)))).tag(step)
+                    }
+                }
+            } header: {
+                Text("Reading")
+            } footer: {
+                Text("The size of note text. View > Bigger (⌘=) and Smaller (⌘-) change it too.")
+            }
+            #endif
 
             Section {
                 TextField("Vault name", text: $obsidianVaultName)
