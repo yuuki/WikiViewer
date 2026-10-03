@@ -50,12 +50,19 @@ struct MacRootView: View {
         }
         .overlay(alignment: .top) {
             if app.showingQuickOpen {
-                QuickOpenPanel { route, target in
-                    target == .automatic ? show(route) : openElsewhere(route, target)
-                } onClose: {
-                    app.showingQuickOpen = false
+                ZStack(alignment: .top) {
+                    // A click outside the palette closes it: the lists and
+                    // the sidebar do not take the keyboard from its field.
+                    Color.clear
+                        .contentShape(.rect)
+                        .onTapGesture { app.showingQuickOpen = false }
+                    QuickOpenPanel { route, target in
+                        target == .automatic ? show(route) : openElsewhere(route, target)
+                    } onClose: {
+                        app.showingQuickOpen = false
+                    }
+                    .padding(.top, 80)
                 }
-                .padding(.top, 80)
             }
         }
         .background { TabTitle(title: documentTitle) }
