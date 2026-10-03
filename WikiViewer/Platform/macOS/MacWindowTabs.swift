@@ -63,9 +63,9 @@ struct TabJoiner: NSViewRepresentable {
 #endif
 
 #if os(macOS)
-/// Labels the window's tab with `title` (the document it shows) rather than
-/// the window title, which names the list (SwiftUI takes it from the
-/// content column).
+/// Labels the window's tab and its Window menu item with `title` (the
+/// document it shows) rather than the window title, which names the list
+/// (SwiftUI takes it from the content column).
 struct TabTitle: NSViewRepresentable {
     let title: String?
 
@@ -88,9 +88,13 @@ struct TabTitle: NSViewRepresentable {
         }
 
         private func apply() {
+            guard let window else { return }
             // Without a document, nil: the tab shows the window title, and
             // follows it.
-            window?.tab.title = title
+            window.tab.title = title
+            // The Window menu too: every window is titled after its list
+            // ("Vault"), which tells them apart no better than "Untitled".
+            NSApp.changeWindowsItem(window, title: title ?? window.title, filename: false)
         }
     }
 }
