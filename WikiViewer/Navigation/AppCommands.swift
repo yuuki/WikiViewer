@@ -17,6 +17,8 @@ struct NoteFocus {
     var session: LibrarySession
     var openURL: OpenURLAction
     var find: NoteFind
+    /// The note as rendered, for printing.
+    var model: NoteModel
 }
 
 extension FocusedValues {
@@ -57,6 +59,18 @@ struct AppCommands: Commands {
                 .disabled(!NoteTextScale.canReduce)
             Button("Actual Size") { NoteTextScale.reset() }
                 .keyboardShortcut("0", modifiers: .command)
+        }
+        #endif
+
+        #if os(macOS)
+        CommandGroup(replacing: .printItem) {
+            // The print panel's PDF menu saves a PDF: the app may only
+            // read the files the reader picks.
+            Button("Print…") {
+                if let note, let library = startup.library { NotePrinter.run(note, library: library) }
+            }
+            .keyboardShortcut("p", modifiers: .command)
+            .disabled(note?.model.rendered == nil)
         }
         #endif
 

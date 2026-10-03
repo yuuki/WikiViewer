@@ -35,6 +35,7 @@ struct AssetEmbedView: View {
     @Environment(Library.self) private var library
     @Environment(\.displayScale) private var displayScale
     @Environment(\.embeddedAssets) private var embeddedAssets
+    @Environment(\.printedImages) private var printedImages
     @State private var loadedAsset: AssetInfo?
     @State private var image: CGImage?
     @State private var failure: String?
@@ -58,7 +59,7 @@ struct AssetEmbedView: View {
 
     var body: some View {
         Group {
-            if let image {
+            if let image = image ?? printedImages[assetID] {
                 Image(decorative: image, scale: displayScale)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -148,6 +149,11 @@ struct AssetEmbedView: View {
 extension EnvironmentValues {
     /// A note's embedded assets by id, prefetched with the note.
     @Entry var embeddedAssets: [Int64: AssetInfo] = [:]
+    /// The note's embedded images by asset id, decoded before printing: a
+    /// printed view is drawn once, before `.task` could load them.
+    @Entry var printedImages: [Int64: CGImage] = [:]
+    /// Set while a note is drawn for printing.
+    @Entry var isPrinting = false
 }
 
 struct AttachmentRow: View {

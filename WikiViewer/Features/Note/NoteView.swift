@@ -182,7 +182,7 @@ struct NoteView: View {
     /// Makes this note the target of the Note menu.
     private func publishNote() {
         guard let detail = model.detail, let session = library.session else { return }
-        navigation.note = NoteFocus(detail: detail, session: session, openURL: openURL, find: find)
+        navigation.note = NoteFocus(detail: detail, session: session, openURL: openURL, find: find, model: model)
     }
 
     private func scroll(to block: Int?) {
