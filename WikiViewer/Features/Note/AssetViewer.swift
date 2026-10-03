@@ -91,15 +91,22 @@ struct AssetViewer: View {
         }
     }
 
+    /// Where the named copies are made.
+    private static var copiesDirectory: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("Share", isDirectory: true)
+    }
+
     /// Blobs are named by their hash; share (or preview) a copy under the
     /// vault's name, with the extension of the blob's own format (the
-    /// snapshot may hold a downsized JPEG of a HEIC photo).
+    /// snapshot may hold a downsized JPEG of a HEIC photo). Each blob's copy
+    /// has its own folder, so attachments of the same name in different
+    /// folders do not replace each other.
     static func namedCopy(of url: URL, for asset: AssetInfo) -> URL? {
         var name = asset.name
         if let blobExt = asset.blobExt, !blobExt.isEmpty {
             name = (name as NSString).deletingPathExtension + "." + blobExt
         }
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("Share", isDirectory: true)
+        let dir = copiesDirectory.appendingPathComponent(asset.blobSHA256 ?? String(asset.id), isDirectory: true)
         let target = dir.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: target)
         do {
@@ -109,6 +116,12 @@ struct AssetViewer: View {
         } catch {
             return url
         }
+    }
+
+    /// Removes the copies made for earlier sessions: nothing shares or
+    /// previews them once the app has quit.
+    static func removeNamedCopies() {
+        try? FileManager.default.removeItem(at: copiesDirectory)
     }
 }
 

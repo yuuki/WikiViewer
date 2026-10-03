@@ -79,6 +79,7 @@ final class LibraryStartup {
 
     func start() async {
         guard library == nil, error == nil else { return }
+        AssetViewer.removeNamedCopies()
         do {
             let library = try SharedLibrary.library()
             self.library = library
