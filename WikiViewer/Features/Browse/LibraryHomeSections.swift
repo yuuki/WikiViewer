@@ -55,6 +55,7 @@ struct LibraryHomeSections: View {
                     }
                 }
             }
+            .listRowSection("today")
         }
         if !history.pins.isEmpty {
             Section("Pinned") {
@@ -69,6 +70,7 @@ struct LibraryHomeSections: View {
                 }
                 .onMove { history.movePins(from: $0, to: $1) }
             }
+            .listRowSection("pins")
         }
         if !listedRecents.isEmpty {
             Section {
@@ -80,6 +82,7 @@ struct LibraryHomeSections: View {
                             }
                         }
                 }
+                .listRowSection("recents")
             } header: {
                 HStack {
                     Text("Recent")
