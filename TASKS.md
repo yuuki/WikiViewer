@@ -231,6 +231,9 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       Settings, Share Note (Markdown), Open Recent, Dock menu, graph keyboard
       navigation, Reading Mode (⌃⌘R), ⌘ previews only on ⌘ held alone,
       Open Quickly in the toolbar
+- [x] Install for one's own Macs: `scripts/mac.sh release` / `install`
+      (Release, plain bundle ID, build number from git, re-signed without
+      get-task-allow), SETUP.md section 7
 - [ ] Handoff between two real devices (not yet tried)
 - [~] CI: build the macOS app (the job builds once the runner image has
       Xcode 27; until then it skips with a notice)

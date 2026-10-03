@@ -26,7 +26,8 @@ sessions do not step on each other.
 ## macOS app
 
 - `scripts/mac.sh run` builds and launches the macOS app; `scripts/mac.sh build`
-  only builds it. In a worktree the app's bundle ID is
+  only builds it. `scripts/mac.sh install` puts a Release build in
+  /Applications (the user's real app, plain bundle ID): only run it when asked. In a worktree the app's bundle ID is
   `<bundle id>.wt-<worktree>`, so its sandbox container (snapshots, settings)
   is its own. Quit or kill only this worktree's copy (`scripts/mac.sh quit`),
   never every process named WikiViewer.
