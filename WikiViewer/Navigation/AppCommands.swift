@@ -86,6 +86,15 @@ struct AppCommands: Commands {
             Button("Open Quickly…") { app?.showingQuickOpen = true }
                 .keyboardShortcut("o", modifiers: .command)
                 .disabled(app == nil)
+            Menu("Open Recent") {
+                ForEach(history.recents.prefix(Self.openRecentLimit)) { entry in
+                    Button(entry.title) { app?.open(.note(path: entry.path, anchor: nil)) }
+                }
+                Divider()
+                Button("Clear Menu") { history.clearRecents() }
+                    .disabled(history.recents.isEmpty)
+            }
+            .disabled(app == nil)
             #else
             Button("Search Notes") { app?.showSearch() }
                 .keyboardShortcut("o", modifiers: .command)
@@ -178,6 +187,9 @@ struct AppCommands: Commands {
             .disabled(detail == nil)
         }
     }
+
+    /// As many as the system's own Open Recent lists by default.
+    static let openRecentLimit = 10
 
     private func tabButton(_ title: LocalizedStringKey, _ tab: AppTab, key: KeyEquivalent) -> some View {
         Button(title) { app?.tab = tab }
