@@ -74,7 +74,7 @@ private struct NotePreviewMenu: ViewModifier {
 #if os(macOS)
 /// A preview of the note in a popover when ⌘ is held with the pointer over
 /// the view, until the pointer leaves: plain hovering, as when moving across
-/// a list to click, shows nothing.
+/// a list to click, shows nothing, and nor does ⌘ held for a shortcut.
 struct CommandHoverPreview: ViewModifier {
     let path: String
     let title: String
@@ -83,6 +83,7 @@ struct CommandHoverPreview: ViewModifier {
     @State private var hovering = false
     @State private var showing = false
     @State private var monitor: Any?
+    @State private var hold: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content
@@ -107,18 +108,33 @@ struct CommandHoverPreview: ViewModifier {
     }
 
     private func update() {
-        if !hovering {
+        guard hovering else {
+            cancelHold()
             showing = false
-        } else if NSEvent.modifierFlags.contains(.command) {
-            showing = true
+            return
         }
+        guard !showing else { return }
+        guard CommandHold.isCommandAlone else { return cancelHold() }
+        guard hold == nil else { return }
+        hold = Task {
+            try? await Task.sleep(for: CommandHold.delay)
+            if Task.isCancelled { return }
+            hold = nil
+            if hovering, CommandHold.isCommandAlone { showing = true }
+        }
+    }
+
+    private func cancelHold() {
+        hold?.cancel()
+        hold = nil
     }
 
     /// ⌘ pressed or released while the pointer rests on the view.
     private func watchCommandKey() {
         guard monitor == nil else { return }
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-            update()
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { event in
+            // ⌘ held for a shortcut (⌘O, ⌘[): no preview.
+            if event.type == .keyDown { cancelHold() } else { update() }
             return event
         }
     }
