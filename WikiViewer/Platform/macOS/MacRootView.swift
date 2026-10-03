@@ -50,12 +50,19 @@ struct MacRootView: View {
         }
         .overlay(alignment: .top) {
             if app.showingQuickOpen {
-                QuickOpenPanel { route, target in
-                    target == .automatic ? show(route) : openElsewhere(route, target)
-                } onClose: {
-                    app.showingQuickOpen = false
+                ZStack(alignment: .top) {
+                    // A click outside the palette closes it: the lists and
+                    // the sidebar do not take the keyboard from its field.
+                    Color.clear
+                        .contentShape(.rect)
+                        .onTapGesture { app.showingQuickOpen = false }
+                    QuickOpenPanel { route, target in
+                        target == .automatic ? show(route) : openElsewhere(route, target)
+                    } onClose: {
+                        app.showingQuickOpen = false
+                    }
+                    .padding(.top, 80)
                 }
-                .padding(.top, 80)
             }
         }
         .background { TabTitle(title: documentTitle) }
@@ -81,7 +88,13 @@ struct MacRootView: View {
         .onChange(of: app.showsInspector) { savedInspector = app.showsInspector }
         // The Graph section lists clusters; its map belongs in the detail column.
         .onChange(of: app.tab) {
-            if app.tab == .graph, documents.path.last != .graph { openDocument(.graph) }
+            // Back to the section the window was left on: the documents
+            // are restored as they were, not topped with the map.
+            let restoring = app.restoringTab
+            app.restoringTab = false
+            guard app.tab == .graph, documents.path.last != .graph,
+                  !restoring || documents.path.isEmpty else { return }
+            openDocument(.graph)
         }
     }
 

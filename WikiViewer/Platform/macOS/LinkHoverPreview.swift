@@ -51,6 +51,7 @@ extension View {
 
 private struct LinkHoverPreview: ViewModifier {
     @Environment(Library.self) private var library
+    @Environment(\.openURL) private var openURL
     @State private var layout = LinkRunLayout()
     @State private var hovered: (url: URL, rect: CGRect)?
     @State private var preview: Preview?
@@ -79,7 +80,7 @@ private struct LinkHoverPreview: ViewModifier {
                     stopWatching()
                 }
             }
-            .popover(isPresented: Binding { preview != nil } set: { if !$0 { preview = nil } },
+            .popover(isPresented: Binding { preview != nil } set: { if !$0 { dismissed() } },
                      attachmentAnchor: .rect(.rect(preview?.rect ?? .zero)), arrowEdge: .bottom) {
                 if let preview {
                     NotePreviewCard(path: preview.path, title: preview.title, session: library.session)
@@ -100,6 +101,14 @@ private struct LinkHoverPreview: ViewModifier {
             guard let note = try? await session.notes.summary(id: id), self.hovered?.url == url else { return }
             preview = Preview(path: note.path, title: note.title, rect: rect)
         }
+    }
+
+    /// The popover takes a click outside it only to close itself, so a
+    /// ⌘-click on the link it previews would do nothing: open the link
+    /// here (the click's ⌘ still picks a new tab).
+    private func dismissed() {
+        preview = nil
+        if NSApp.currentEvent?.type == .leftMouseDown, let hovered { openURL(hovered.url) }
     }
 
     private func watchCommandKey() {

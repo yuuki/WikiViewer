@@ -22,6 +22,12 @@ struct LibraryHomeSections: View {
 
     static let recentLimit = 5
 
+    /// The rows to show. Until `recents` is first filled, the history: with
+    /// no rows yet, the Group below is empty and its onChange never runs.
+    private var listedRecents: [HistoryEntry] {
+        recents.isEmpty ? Array(history.recents.prefix(Self.recentLimit)) : recents
+    }
+
     var body: some View {
         Group { sections }
             .onChange(of: history.recents, initial: true) {
@@ -49,6 +55,7 @@ struct LibraryHomeSections: View {
                     }
                 }
             }
+            .listRowSection("today")
         }
         if !history.pins.isEmpty {
             Section("Pinned") {
@@ -63,10 +70,11 @@ struct LibraryHomeSections: View {
                 }
                 .onMove { history.movePins(from: $0, to: $1) }
             }
+            .listRowSection("pins")
         }
-        if !recents.isEmpty {
+        if !listedRecents.isEmpty {
             Section {
-                ForEach(recents, id: \.[row: "recents"]) { entry in
+                ForEach(listedRecents, id: \.[row: "recents"]) { entry in
                     HistoryRow(entry: entry, systemImage: "clock")
                         .swipeActions {
                             Button("Remove", systemImage: "minus.circle", role: .destructive) {
@@ -74,6 +82,7 @@ struct LibraryHomeSections: View {
                             }
                         }
                 }
+                .listRowSection("recents")
             } header: {
                 HStack {
                     Text("Recent")

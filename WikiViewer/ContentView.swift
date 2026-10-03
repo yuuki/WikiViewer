@@ -52,7 +52,7 @@ struct ContentView: View {
             }
             #endif
             // Reopen the tab the reader left.
-            .onAppear { app.tab = savedTab }
+            .onAppear { app.restoreTab(savedTab) }
             .onChange(of: app.tab) { savedTab = app.tab }
             .onChange(of: scenePhase) {
                 if scenePhase != .active { history.save() }

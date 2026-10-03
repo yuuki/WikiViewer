@@ -118,6 +118,7 @@ struct RouteLink<Label: View>: View {
     let label: Label
     @Environment(\.openRoute) private var openRoute
     @Environment(\.selectsRows) private var selectsRows
+    @Environment(\.listRowSection) private var rowSection
 
     init(_ route: Route, @ViewBuilder label: () -> Label) {
         self.route = route
@@ -130,7 +131,7 @@ struct RouteLink<Label: View>: View {
             label
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)
-                .tag(route)
+                .tag(ListRowTag(section: rowSection, route: route))
         } else {
             Button { openRoute(route) } label: {
                 label
@@ -186,17 +187,30 @@ final class ListSelection {
         case activate
     }
 
-    /// The selected row. The window keeps it on the document it shows, so
-    /// a row can be clicked again after a link inside the note moved on.
-    var selected: Route?
+    /// The selected row's route. The window keeps it on the document it
+    /// shows, so a row can be clicked again after a link inside the note
+    /// moved on; in the section of the row last selected, as a note can be
+    /// listed twice (Recent and its folder).
+    var selected: Route? {
+        get { selectedRow?.route }
+        set { selectedRow = newValue.map { ListRowTag(section: section, route: $0) } }
+    }
+    private(set) var selectedRow: ListRowTag?
+    @ObservationIgnored private var section: String?
     /// Set when a list is opened from the keyboard, so it takes focus.
     var focusesNextList = false
+    /// Changed when the user selects a row, so the list takes keyboard
+    /// focus. Not when the selection follows the document: a link followed
+    /// in the note leaves the keyboard with the note.
+    private(set) var userSelections = 0
     @ObservationIgnored var handler: (Route, Input) -> Void = { _, _ in }
 
-    var binding: Binding<Route?> {
-        Binding { self.selected } set: { route in
-            guard let route else { return }
-            self.handler(route, Self.currentInput)
+    var binding: Binding<ListRowTag?> {
+        Binding { self.selectedRow } set: { row in
+            guard let row else { return }
+            self.section = row.section
+            self.userSelections += 1
+            self.handler(row.route, Self.currentInput)
         }
     }
 
@@ -213,7 +227,24 @@ final class ListSelection {
     }
 }
 
+/// A row of a selectable list: its route, in its section of the list.
+struct ListRowTag: Hashable {
+    var section: String?
+    var route: Route
+}
+
+extension View {
+    /// Rows of the section a route may also be listed in elsewhere in the
+    /// same list (Recent and the folder's notes): only the clicked one is
+    /// shown selected.
+    func listRowSection(_ section: String) -> some View {
+        environment(\.listRowSection, section)
+    }
+}
+
 extension EnvironmentValues {
+    /// The section of a selectable list the rows are in (`listRowSection`).
+    @Entry var listRowSection: String?
     /// Set by the macOS content column: its lists are selectable.
     @Entry var listSelection: ListSelection?
     /// Rows of a selectable list are tagged rather than buttons.
@@ -238,9 +269,7 @@ struct RouteList<Content: View>: View {
             .focused($focused)
             // A click on a row does not give the list keyboard focus on
             // its own; without it the arrow keys do nothing.
-            .onChange(of: selection.selected) {
-                if selection.selected != nil { focused = true }
-            }
+            .onChange(of: selection.userSelections) { focused = true }
             .onKeyPress(.return) {
                 selection.activate()
                 return .handled

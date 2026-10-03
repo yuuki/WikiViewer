@@ -70,6 +70,7 @@ struct SearchView: View {
                         }
                         .notePreviewMenu(path: hit.note.path, title: hit.note.title)
                     }
+                    .listRowSection("matches")
                 }
             }
         }
