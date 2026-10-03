@@ -1,5 +1,29 @@
 {
   "enabledPlugins": {
     "apple-skills@indie-apple-stack": true
+  },
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Code_iOS_Simulator__control",
+      "mcp__computer-use__list_apps",
+      "mcp__computer-use__list_granted_applications",
+      "mcp__computer-use__request_access",
+      "mcp__computer-use__open_application",
+      "mcp__computer-use__app_list_windows",
+      "mcp__computer-use__app_screenshot",
+      "mcp__computer-use__app_zoom",
+      "mcp__computer-use__app_ax_find",
+      "mcp__computer-use__app_focus",
+      "mcp__computer-use__app_click",
+      "mcp__computer-use__app_type",
+      "mcp__computer-use__app_key",
+      "mcp__computer-use__app_scroll",
+      "mcp__computer-use__app_drag",
+      "mcp__computer-use__app_menu",
+      "mcp__computer-use__app_batch",
+      "mcp__computer-use__app_release",
+      "Bash(scripts/sim.sh:*)",
+      "Bash(scripts/mac.sh:*)"
+    ]
   }
 }
