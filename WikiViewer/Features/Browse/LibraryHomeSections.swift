@@ -75,7 +75,7 @@ struct LibraryHomeSections: View {
         if !listedRecents.isEmpty {
             Section {
                 ForEach(listedRecents, id: \.[row: "recents"]) { entry in
-                    HistoryRow(entry: entry, systemImage: "clock")
+                    HistoryRow(entry: entry, systemImage: "clock", isRecent: true)
                         .swipeActions {
                             Button("Remove", systemImage: "minus.circle", role: .destructive) {
                                 history.removeRecent(entry.path)
@@ -111,6 +111,8 @@ struct LibraryHomeSections: View {
 struct HistoryRow: View {
     let entry: HistoryEntry
     let systemImage: String
+    /// A row of the recent notes, which its menu can remove.
+    var isRecent = false
 
     var body: some View {
         RouteLink(Route.note(path: entry.path, anchor: nil)) {
@@ -126,7 +128,7 @@ struct HistoryRow: View {
                 Image(systemName: systemImage)
             }
         }
-        .notePreviewMenu(path: entry.path, title: entry.title)
+        .notePreviewMenu(path: entry.path, title: entry.title, inRecents: isRecent)
     }
 }
 
@@ -138,7 +140,7 @@ struct RecentNotesView: View {
     var body: some View {
         RouteList {
             ForEach(history.recents) { entry in
-                HistoryRow(entry: entry, systemImage: "clock")
+                HistoryRow(entry: entry, systemImage: "clock", isRecent: true)
                     .swipeActions {
                         Button("Remove", systemImage: "minus.circle", role: .destructive) {
                             history.removeRecent(entry.path)

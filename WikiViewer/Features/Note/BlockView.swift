@@ -124,7 +124,7 @@ struct MathBlockView: View {
             ViewThatFits(in: .horizontal) {
                 rendered.image
                     .frame(maxWidth: .infinity)
-                ScrollView(.horizontal, showsIndicators: false) {
+                HorizontalScroll {
                     rendered.image
                 }
             }
@@ -169,7 +169,7 @@ struct CodeBlockView: View {
                     .noteFont(.caption2)
                     .foregroundStyle(.secondary)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
+            HorizontalScroll {
                 Text(code)
                     .noteFont(.footnote, design: .monospaced)
                     .textSelection(.enabled)
@@ -267,7 +267,7 @@ struct TableBlockView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        HorizontalScroll {
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
                 if !header.isEmpty {
                     GridRow {
@@ -287,6 +287,21 @@ struct TableBlockView: View {
             }
             .textSelection(.enabled)
             .padding(.vertical, 4)
+        }
+    }
+}
+
+/// Wide content (code, tables, display math) scrolls sideways; printed,
+/// where a scroll view draws nothing, it is drawn as it is.
+struct HorizontalScroll<Content: View>: View {
+    @ViewBuilder let content: Content
+    @Environment(\.isPrinting) private var isPrinting
+
+    var body: some View {
+        if isPrinting {
+            content
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) { content }
         }
     }
 }

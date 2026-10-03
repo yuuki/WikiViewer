@@ -19,6 +19,7 @@ struct MacRootView: View {
     let request: WindowRequest?
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.controlActiveState) private var activeState
     /// One stack of lists per section, so each section keeps its place.
     @State private var lists = Dictionary(uniqueKeysWithValues: AppTab.allCases.map { ($0, NavigationModel()) })
     @State private var documents = NavigationModel(maxDepth: 100)
@@ -27,6 +28,8 @@ struct MacRootView: View {
     /// a list replaces it instead of adding a step to the history.
     @State private var selectedDocument: Route?
     @State private var restored = false
+    /// Whether the inspector showed before reading mode, to restore after.
+    @State private var inspectorBeforeReading: Bool?
     @SceneStorage("WikiViewer.mac.lists") private var savedLists: Data?
     @SceneStorage("WikiViewer.mac.documents") private var savedDocuments: Data?
     @SceneStorage("WikiViewer.mac.inspector") private var savedInspector = true
@@ -35,18 +38,24 @@ struct MacRootView: View {
 
     var body: some View {
         let list = lists[app.tab] ?? NavigationModel()
-        NavigationSplitView {
-            MacSidebar()
-                .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
-                .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
-        } content: {
-            ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
-                .navigationSplitViewColumnWidth(min: 240, ideal: 320, max: 480)
-        } detail: {
-            DocumentColumn(navigation: documents)
-                .environment(\.noteTextScale, noteTextScale)
-                .environment(documents)
-                .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
+        Group {
+            // Reading mode: the document alone. (A three-column split view
+            // on macOS cannot hide its content column.) The lists keep
+            // their stacks meanwhile.
+            if app.readingMode {
+                documentColumn
+            } else {
+                NavigationSplitView {
+                    MacSidebar()
+                        .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
+                        .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
+                } content: {
+                    ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
+                        .navigationSplitViewColumnWidth(min: 240, ideal: 320, max: 480)
+                } detail: {
+                    documentColumn
+                }
+            }
         }
         .overlay(alignment: .top) {
             if app.showingQuickOpen {
@@ -86,6 +95,21 @@ struct MacRootView: View {
             if let top = documents.path.last, selection.selected != top { selection.selected = top }
         }
         .onChange(of: app.showsInspector) { savedInspector = app.showsInspector }
+        .onChange(of: app.readingMode) {
+            if app.readingMode {
+                inspectorBeforeReading = app.showsInspector
+                app.showsInspector = false
+            } else if let inspectorBeforeReading {
+                app.showsInspector = inspectorBeforeReading
+                self.inspectorBeforeReading = nil
+            }
+        }
+        // The Dock menu opens notes in the window last in front.
+        .onChange(of: activeState, initial: true) {
+            guard activeState == .key else { return }
+            DockMenu.openInWindow = { show($0) }
+            DockMenu.openWindow = openWindow
+        }
         // The Graph section lists clusters; its map belongs in the detail column.
         .onChange(of: app.tab) {
             // Back to the section the window was left on: the documents
@@ -96,6 +120,13 @@ struct MacRootView: View {
                   !restoring || documents.path.isEmpty else { return }
             openDocument(.graph)
         }
+    }
+
+    private var documentColumn: some View {
+        DocumentColumn(navigation: documents)
+            .environment(\.noteTextScale, noteTextScale)
+            .environment(documents)
+            .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
     }
 
     /// What the detail column shows, for the window's tab.
@@ -258,6 +289,7 @@ private struct MacSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom) { UpdateStatusFooter() }
         // Again on a new day, when the app has been open overnight.
         .task(id: TodayKey(session: library.session?.id, day: LibraryHomeSections.dayString(.now))) {
             guard let session = library.session else { return }
@@ -283,11 +315,57 @@ private struct MacSidebar: View {
     }
 }
 
+/// At the foot of the sidebar, whatever the section: an update under way,
+/// or the last one failed (the Files list says so only at its top).
+private struct UpdateStatusFooter: View {
+    @Environment(Library.self) private var library
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        switch library.updateStatus {
+        case .checking:
+            row { ProgressView().controlSize(.small) } text: { Text("Checking for updates…") }
+        case .downloading(let bytes):
+            row { ProgressView().controlSize(.small) } text: {
+                Text("Updating… \(bytes.formatted(.byteCount(style: .file)))")
+            }
+        case .failed(let message):
+            Button {
+                app.showSettings()
+            } label: {
+                row {
+                    Image(systemName: "exclamationmark.icloud").foregroundStyle(.orange)
+                } text: {
+                    Text("Couldn't Update")
+                }
+            }
+            .buttonStyle(.plain)
+            .help(Text("Showing the last downloaded snapshot. \(message)"))
+        case .idle, .upToDate, .updated:
+            EmptyView()
+        }
+    }
+
+    private func row(@ViewBuilder icon: () -> some View, @ViewBuilder text: () -> Text) -> some View {
+        HStack(spacing: 8) {
+            icon()
+            text().lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .contentShape(.rect)
+    }
+}
+
 /// The document on top of the window's history, with back and forward.
 /// Not a NavigationStack: its back button would land in the content
 /// column's toolbar, next to the list's title, and it has no forward.
 private struct DocumentColumn: View {
     let navigation: NavigationModel
+    @Environment(AppModel.self) private var app
 
     var body: some View {
         LibraryReady {
@@ -309,6 +387,10 @@ private struct DocumentColumn: View {
                 Button("Forward", systemImage: "chevron.forward") { navigation.forward() }
                     .disabled(!navigation.canGoForward)
                     .help("Go forward (⌘])")
+            }
+            ToolbarItem(placement: .navigation) {
+                Button("Open Quickly", systemImage: "magnifyingglass") { app.showingQuickOpen = true }
+                    .help("Open a note by its title (⌘O)")
             }
         }
     }

@@ -17,6 +17,8 @@ struct NoteFocus {
     var session: LibrarySession
     var openURL: OpenURLAction
     var find: NoteFind
+    /// The note as rendered, for printing.
+    var model: NoteModel
 }
 
 extension FocusedValues {
@@ -46,6 +48,11 @@ struct AppCommands: Commands {
             .keyboardShortcut("i", modifiers: [.command, .option])
             // Notes and graphs have an inspector.
             .disabled(note == nil && !showsGraph)
+            Button(app?.readingMode == true ? "Exit Reading Mode" : "Reading Mode") {
+                app?.readingMode.toggle()
+            }
+            .keyboardShortcut("r", modifiers: [.command, .control])
+            .disabled(app == nil)
             Divider()
             // ⌘=: the key ⌘+ is typed on; a "+" equivalent is not matched
             // without Shift.
@@ -57,6 +64,18 @@ struct AppCommands: Commands {
                 .disabled(!NoteTextScale.canReduce)
             Button("Actual Size") { NoteTextScale.reset() }
                 .keyboardShortcut("0", modifiers: .command)
+        }
+        #endif
+
+        #if os(macOS)
+        CommandGroup(replacing: .printItem) {
+            // The print panel's PDF menu saves a PDF: the app may only
+            // read the files the reader picks.
+            Button("Print…") {
+                if let note, let library = startup.library { NotePrinter.run(note, library: library) }
+            }
+            .keyboardShortcut("p", modifiers: .command)
+            .disabled(note?.model.rendered == nil)
         }
         #endif
 
@@ -72,6 +91,15 @@ struct AppCommands: Commands {
             Button("Open Quickly…") { app?.showingQuickOpen = true }
                 .keyboardShortcut("o", modifiers: .command)
                 .disabled(app == nil)
+            Menu("Open Recent") {
+                ForEach(history.recents.prefix(Self.openRecentLimit)) { entry in
+                    Button(entry.title) { app?.open(.note(path: entry.path, anchor: nil)) }
+                }
+                Divider()
+                Button("Clear Menu") { history.clearRecents() }
+                    .disabled(history.recents.isEmpty)
+            }
+            .disabled(app == nil)
             #else
             Button("Search Notes") { app?.showSearch() }
                 .keyboardShortcut("o", modifiers: .command)
@@ -164,6 +192,9 @@ struct AppCommands: Commands {
             .disabled(detail == nil)
         }
     }
+
+    /// As many as the system's own Open Recent lists by default.
+    static let openRecentLimit = 10
 
     private func tabButton(_ title: LocalizedStringKey, _ tab: AppTab, key: KeyEquivalent) -> some View {
         Button(title) { app?.tab = tab }

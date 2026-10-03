@@ -15,15 +15,18 @@ import AppKit
 #endif
 
 extension View {
-    /// Context menu with a preview of the note at `path` and quick actions.
-    func notePreviewMenu(path: String, title: String) -> some View {
-        modifier(NotePreviewMenu(path: path, title: title))
+    /// Context menu with a preview of the note at `path` and quick actions;
+    /// for a row of the recent notes, also one to remove it from them (what
+    /// swiping does on a phone).
+    func notePreviewMenu(path: String, title: String, inRecents: Bool = false) -> some View {
+        modifier(NotePreviewMenu(path: path, title: title, inRecents: inRecents))
     }
 }
 
 private struct NotePreviewMenu: ViewModifier {
     let path: String
     let title: String
+    let inRecents: Bool
     @Environment(Library.self) private var library
     @Environment(\.openRoute) private var openRoute
     @Environment(ReadingHistory.self) private var history
@@ -53,6 +56,12 @@ private struct NotePreviewMenu: ViewModifier {
             Button("Copy Wikilink", systemImage: "curlybraces") {
                 Pasteboard.copy("[[\(VaultPath.basename(of: path))]]")
             }
+            if inRecents {
+                Divider()
+                Button("Remove from Recent", systemImage: "minus.circle", role: .destructive) {
+                    history.removeRecent(path)
+                }
+            }
         } preview: {
             NotePreviewCard(path: path, title: title, session: library.session)
         }
@@ -65,7 +74,7 @@ private struct NotePreviewMenu: ViewModifier {
 #if os(macOS)
 /// A preview of the note in a popover when ⌘ is held with the pointer over
 /// the view, until the pointer leaves: plain hovering, as when moving across
-/// a list to click, shows nothing.
+/// a list to click, shows nothing, and nor does ⌘ held for a shortcut.
 struct CommandHoverPreview: ViewModifier {
     let path: String
     let title: String
@@ -74,6 +83,7 @@ struct CommandHoverPreview: ViewModifier {
     @State private var hovering = false
     @State private var showing = false
     @State private var monitor: Any?
+    @State private var hold: Task<Void, Never>?
 
     func body(content: Content) -> some View {
         content
@@ -98,18 +108,33 @@ struct CommandHoverPreview: ViewModifier {
     }
 
     private func update() {
-        if !hovering {
+        guard hovering else {
+            cancelHold()
             showing = false
-        } else if NSEvent.modifierFlags.contains(.command) {
-            showing = true
+            return
         }
+        guard !showing else { return }
+        guard CommandHold.isCommandAlone else { return cancelHold() }
+        guard hold == nil else { return }
+        hold = Task {
+            try? await Task.sleep(for: CommandHold.delay)
+            if Task.isCancelled { return }
+            hold = nil
+            if hovering, CommandHold.isCommandAlone { showing = true }
+        }
+    }
+
+    private func cancelHold() {
+        hold?.cancel()
+        hold = nil
     }
 
     /// ⌘ pressed or released while the pointer rests on the view.
     private func watchCommandKey() {
         guard monitor == nil else { return }
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-            update()
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { event in
+            // ⌘ held for a shortcut (⌘O, ⌘[): no preview.
+            if event.type == .keyDown { cancelHold() } else { update() }
             return event
         }
     }

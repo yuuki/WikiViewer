@@ -218,8 +218,22 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [x] M3: Quick Open palette (⌘O), find in note (⌘F/⌘G), note text size
       (⌘=/⌘-/⌘0), graph hover, ⌘-hover previews (rows and links in note
       text), Handoff of the open note
+- [x] Fixes after use (PR #24): keyboard stays with the note after a link,
+      first ⌘-click over a preview opens the tab, tab names, Recent at
+      launch, one selected row per note, Quick Open (quick Return, click
+      outside), Graph section restore, attachment copies
+- [x] Rest of M3 (PR #25): link context menu, wheel zoom / trackpad pan /
+      double-click in graphs, label budget by area, graph selection in the
+      inspector, check on activation, 256 MiB image cache, Today and Recent
+      in the sidebar and Go menu
+- [x] Desktop conventions: Window menu names documents, Print (⌘P),
+      update status in the sidebar, Remove from Recent, text size in
+      Settings, Share Note (Markdown), Open Recent, Dock menu, graph keyboard
+      navigation, Reading Mode (⌃⌘R), ⌘ previews only on ⌘ held alone,
+      Open Quickly in the toolbar
 - [ ] Handoff between two real devices (not yet tried)
-- [ ] CI: build the macOS app
+- [~] CI: build the macOS app (the job builds once the runner image has
+      Xcode 27; until then it skips with a notice)
 
 ## Deferred (explicit)
 - [-] Manifest signing (Ed25519). Hash validation is mandatory and implemented;

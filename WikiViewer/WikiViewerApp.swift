@@ -15,6 +15,9 @@ import BackgroundTasks
 struct WikiViewerApp: App {
     @State private var startup = LibraryStartup()
     @State private var history = ReadingHistory()
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(DockMenuDelegate.self) private var dockMenu
+    #endif
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -67,6 +70,9 @@ extension WikiViewerApp {
             WindowRoot(request: request)
         }
         .environment(history)
+        #if os(macOS)
+        .onAppear { DockMenu.history = history }
+        #endif
     }
 }
 

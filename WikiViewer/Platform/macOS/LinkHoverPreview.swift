@@ -60,6 +60,7 @@ private struct LinkHoverPreview: ViewModifier {
     @State private var hovered: (url: URL, rect: CGRect)?
     @State private var preview: Preview?
     @State private var monitor: Any?
+    @State private var hold: Task<Void, Never>?
 
     struct Preview: Equatable {
         var path: String
@@ -96,15 +97,24 @@ private struct LinkHoverPreview: ViewModifier {
     /// Shows the hovered link's note once ⌘ is down; it stays until the
     /// pointer leaves the link.
     private func update() {
-        guard let hovered, preview == nil, NSEvent.modifierFlags.contains(.command),
-              case .note(let id, _, _) = WikiLinkAction(url: hovered.url),
+        guard let hovered, preview == nil, CommandHold.isCommandAlone else { return cancelHold() }
+        guard hold == nil, case .note(let id, _, _) = WikiLinkAction(url: hovered.url),
               let session = library.session else { return }
         let rect = hovered.rect
         let url = hovered.url
-        Task {
-            guard let note = try? await session.notes.summary(id: id), self.hovered?.url == url else { return }
+        hold = Task {
+            try? await Task.sleep(for: CommandHold.delay)
+            if Task.isCancelled { return }
+            hold = nil
+            guard self.hovered?.url == url, CommandHold.isCommandAlone,
+                  let note = try? await session.notes.summary(id: id), self.hovered?.url == url else { return }
             preview = Preview(path: note.path, title: note.title, rect: rect)
         }
+    }
+
+    private func cancelHold() {
+        hold?.cancel()
+        hold = nil
     }
 
     /// The popover takes a click outside it only to close itself, so a
@@ -118,7 +128,12 @@ private struct LinkHoverPreview: ViewModifier {
     /// ⌘ pressed or released, or a right-click, over a link.
     private func watchCommandKey() {
         guard monitor == nil else { return }
-        monitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .rightMouseDown]) { event in
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown, .rightMouseDown]) { event in
+            // ⌘ held for a shortcut (⌘O, ⌘[): no preview.
+            if event.type == .keyDown {
+                cancelHold()
+                return event
+            }
             guard event.type == .rightMouseDown else {
                 update()
                 return event
@@ -135,6 +150,17 @@ private struct LinkHoverPreview: ViewModifier {
     private func stopWatching() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
+    }
+}
+
+/// ⌘ held alone for a moment brings up a preview; ⌘ pressed on the way to
+/// a shortcut, or with another modifier, does not.
+@MainActor
+enum CommandHold {
+    static let delay: Duration = .milliseconds(350)
+
+    static var isCommandAlone: Bool {
+        NSEvent.modifierFlags.intersection([.command, .shift, .option, .control]) == .command
     }
 }
 
@@ -206,8 +232,14 @@ enum LinkMenu {
 /// A menu item that runs a closure.
 @MainActor
 func actionMenuItem(_ title: String.LocalizationValue, systemImage: String, handler: @escaping () -> Void) -> NSMenuItem {
+    actionMenuItem(verbatim: String(localized: title), systemImage: systemImage, handler: handler)
+}
+
+/// A menu item titled with text that is not localized (a note's title).
+@MainActor
+func actionMenuItem(verbatim title: String, systemImage: String, handler: @escaping () -> Void) -> NSMenuItem {
     let action = MenuAction(handler: handler)
-    let item = NSMenuItem(title: String(localized: title), action: #selector(MenuAction.run), keyEquivalent: "")
+    let item = NSMenuItem(title: title, action: #selector(MenuAction.run), keyEquivalent: "")
     item.target = action
     // The item holds its target only weakly.
     item.representedObject = action
