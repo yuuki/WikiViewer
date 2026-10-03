@@ -65,6 +65,7 @@ struct CommandHoverPreview: ViewModifier {
     let path: String
     let title: String
     @Environment(Library.self) private var library
+    @Environment(\.openRoute) private var openRoute
     @State private var hovering = false
     @State private var showing = false
     @State private var monitor: Any?
@@ -76,10 +77,19 @@ struct CommandHoverPreview: ViewModifier {
                 if inside { watchCommandKey() } else { stopWatching() }
                 update()
             }
-            .popover(isPresented: $showing, arrowEdge: .trailing) {
+            .popover(isPresented: Binding { showing } set: { if !$0 { dismissed() } }, arrowEdge: .trailing) {
                 NotePreviewCard(path: path, title: title, session: library.session)
             }
             .onDisappear(perform: stopWatching)
+    }
+
+    /// The popover takes a click outside it only to close itself: a click
+    /// on the view opens the note (in a new tab for a ⌘-click).
+    private func dismissed() {
+        showing = false
+        if NSApp.currentEvent?.type == .leftMouseDown, hovering {
+            openRoute(.note(path: path, anchor: nil), in: RouteTarget.fromCurrentEvent)
+        }
     }
 
     private func update() {
