@@ -35,6 +35,8 @@ public struct RequestWorkerConfiguration: Sendable {
     public var statusRetention: TimeInterval = 30 * 24 * 3600
     /// Requests handled are appended here (JSON lines), if set.
     public var log: URL?
+    /// Reading signals (#42) are stored here; nil refuses them.
+    public var signals: SignalStore?
 
     public init(inbox: URL, publishDirectory: URL, vault: URL) {
         self.inbox = inbox
@@ -47,7 +49,8 @@ public struct RequestWorkerConfiguration: Sendable {
     /// Refuses configurations that would put the queue or the status files
     /// in the vault.
     public func validate() throws {
-        for (name, dir) in [("inbox", inbox), ("publish", publishDirectory)] where dir.isInside(vault) || dir == vault {
+        for (name, dir) in [("inbox", inbox), ("publish", publishDirectory)] + (signals.map { [("signals", $0.directory)] } ?? [])
+        where dir.isInside(vault) || dir == vault {
             throw IndexerError.unsafeLocation("\(name) directory \(dir.path) is inside the vault")
         }
     }
@@ -154,7 +157,15 @@ public final class RequestWorker: Sendable {
     func handle(_ request: HostRequest) async -> HostRequestStatus {
         let id = request.id
         if request.kind == .signals {
-            return HostRequestStatus(id: id, kind: request.kind, state: .failed, message: "This Mac does not store reading history.")
+            guard let signals = configuration.signals else {
+                return HostRequestStatus(id: id, kind: request.kind, state: .failed, message: "This Mac does not store reading history (wikiindex requests --signals).")
+            }
+            do {
+                let count = try signals.append(request)
+                return HostRequestStatus(id: id, kind: request.kind, state: .done, message: "Stored \(count) reading events.")
+            } catch {
+                return HostRequestStatus(id: id, kind: request.kind, state: .failed, message: "Could not store reading history: \(error)")
+            }
         }
         guard let runner = configuration.runner else {
             return HostRequestStatus(id: id, kind: request.kind, state: .failed, message: "No runner is configured on the Mac (wikiindex requests --runner).")

@@ -509,6 +509,20 @@ inbox outside it (`<PUBLISH>/inbox/`), and only the runner,
 
    Without `--token-file` the server refuses every request, as before.
 
+**Reading history** (Settings → Reading History, off by default) sends
+the notes you read to the Mac. Give the worker a private folder for it,
+outside the vault and the publish folder:
+
+```sh
+$BIN requests ... --signals "<STATE>/signals" [--signal-days 180]
+python3 scripts/reading-signals.py top --signals "<STATE>/signals"
+python3 scripts/reading-signals.py unconceptualized --signals "<STATE>/signals" --vault "<VAULT>"
+```
+
+`summary.json` there is what the vault's skills (hn-curation,
+wiki-survey-recommend) can read to rank by what you actually read;
+`unconceptualized` lists sources you read that no concept cites yet.
+
 To see what Claude would be asked without running it, run the runner by
 hand on a request file with `WIKIVIEWER_DRY_RUN=1`.
 

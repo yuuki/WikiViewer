@@ -11,6 +11,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import WikiShared
 
 struct HistoryEntry: Codable, Hashable, Identifiable {
     var path: String
@@ -27,6 +28,13 @@ final class ReadingHistory {
     /// Notes whose last reading is remembered (learning paths, recall).
     static let maxReadDates = 5_000
     static let defaultsKey = "WikiViewer.readingHistory"
+    /// Whether readings are kept to send to the Mac (#42); off by default.
+    static let shareKey = "WikiViewer.shareReadingHistory"
+    static let lastSentKey = "WikiViewer.readingHistorySentAt"
+    /// Readings waiting to be sent, at most.
+    static let maxPendingSignals = 2_000
+    /// Shorter visits (passing through a note) are not readings.
+    static let minimumReadingSeconds = 5
 
     private struct Stored: Codable {
         var positions: [String: Int] = [:]
@@ -40,6 +48,8 @@ final class ReadingHistory {
         /// Steps of a learning path the reader marked done (true) or not
         /// done (false) by hand, by path note and step note.
         var pathChecks: [String: [String: Bool]] = [:]
+        /// Readings not yet sent to the Mac (only kept while sharing is on).
+        var pendingSignals: [ReadingSignal] = []
 
         init() {}
 
@@ -52,6 +62,7 @@ final class ReadingHistory {
             pins = try c.decodeIfPresent([HistoryEntry].self, forKey: .pins) ?? []
             readDates = try c.decodeIfPresent([String: Date].self, forKey: .readDates) ?? [:]
             pathChecks = try c.decodeIfPresent([String: [String: Bool]].self, forKey: .pathChecks) ?? [:]
+            pendingSignals = try c.decodeIfPresent([ReadingSignal].self, forKey: .pendingSignals) ?? []
         }
     }
 
@@ -61,6 +72,19 @@ final class ReadingHistory {
     private(set) var pins: [HistoryEntry] = []
     /// Bumped when read dates or path checks change, for views to observe.
     private(set) var readRevision = 0
+    /// Send readings to the Mac (Settings). Turning it off drops what waits.
+    var sharesReadings: Bool {
+        didSet {
+            defaults.set(sharesReadings, forKey: Self.shareKey)
+            if !sharesReadings {
+                stored.pendingSignals = []
+                pendingSignalCount = 0
+                scheduleSave()
+            }
+        }
+    }
+    private(set) var pendingSignalCount = 0
+    private(set) var lastSent: Date?
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var saveTask: Task<Void, Never>?
 
@@ -74,6 +98,38 @@ final class ReadingHistory {
         }
         recents = stored.recents
         pins = stored.pins
+        sharesReadings = defaults.bool(forKey: Self.shareKey)
+        pendingSignalCount = stored.pendingSignals.count
+        lastSent = defaults.object(forKey: Self.lastSentKey) as? Date
+    }
+
+    // MARK: Readings for the Mac (#42)
+
+    /// Notes a reading of a note: when it was opened, how long it stayed
+    /// on screen and how far it was read. Kept only while sharing is on.
+    func recordReading(path: String, title: String, openedAt: Date, seconds: Int) {
+        guard sharesReadings, seconds >= Self.minimumReadingSeconds else { return }
+        stored.pendingSignals.append(ReadingSignal(path: path, title: title, openedAt: openedAt, seconds: seconds,
+                                                   block: stored.positions[path], pinned: isPinned(path)))
+        if stored.pendingSignals.count > Self.maxPendingSignals {
+            stored.pendingSignals.removeFirst(stored.pendingSignals.count - Self.maxPendingSignals)
+        }
+        pendingSignalCount = stored.pendingSignals.count
+        scheduleSave()
+    }
+
+    /// The readings to send and the current pins, as a request; the
+    /// readings are dropped from the device once queued (the queue keeps
+    /// the request until the Mac has it).
+    func takeSignalsRequest(device: String) -> HostRequest? {
+        guard sharesReadings, !stored.pendingSignals.isEmpty else { return nil }
+        let request = HostRequest(kind: .signals, device: device, signals: stored.pendingSignals, pins: stored.pins.map(\.path))
+        stored.pendingSignals = []
+        pendingSignalCount = 0
+        lastSent = Date()
+        defaults.set(lastSent, forKey: Self.lastSentKey)
+        save()
+        return request
     }
 
     func recordVisit(path: String, title: String) {

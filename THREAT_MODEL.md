@@ -12,6 +12,7 @@ how each protection is implemented, see the code and its tests.
 | Published artifacts | A publish folder: local, iCloud Drive, or behind HTTPS | A full plaintext copy of the notes, readable by anyone who can read the folder |
 | On-device snapshots | App container on the iPhone | A plaintext copy, protected by the iOS sandbox and Data Protection |
 | Obsidian account, Sync credentials, encryption password | Obsidian only | WikiViewer never needs or touches them |
+| Reading history (#42) | The device; on the Mac in `--signals DIR` if sharing is on | What was read, when, how long — a private record of interest |
 
 The iPhone needs **no** Obsidian credentials and **no** write access to the
 vault. Notes flow one way, from the builder to the viewer. The one way back
@@ -158,6 +159,20 @@ wrong, and the responses:
   text and are deleted after 30 days. `--log` keeps a copy on the Mac.
 - *Resource use.* One request runs at a time, each for at most 30 minutes
   (`--timeout`); runner output read back is capped at 1 MiB.
+
+**Reading history.** Sharing it is off until the reader turns it on in
+Settings; until then nothing is collected. When on, the device keeps at
+most 2,000 readings (note path, title, time opened, seconds on screen,
+how far, pinned) and sends them through the request queue about once an
+hour; turning sharing off deletes what is waiting. On the Mac,
+`wikiindex requests --signals DIR` keeps them outside the vault and
+outside the publish folder (so they never reach other devices), in a
+directory only the user can read (0700, files 0600), and deletes months
+older than `--signal-days` (180 by default). The worker never passes them
+to Claude; the vault's skills read `summary.json` only if the user runs
+`scripts/reading-signals.py` from them. A signals request goes through
+the same token and validation as any request (paths relative, at most
+5,000 readings and 1,000 pins).
 
 **Resource exhaustion.** Everything the phone accepts from a transport has a
 size limit, including manifests, chunk lists, pack parts and images. An update

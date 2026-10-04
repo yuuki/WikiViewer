@@ -59,6 +59,7 @@ struct ContentView: View {
                 if scenePhase != .active {
                     history.save()
                     digest.leave(showing: library.session?.info.generation)
+                    ReadingSignals.send(history: history, library: library, ifDueAfter: ReadingSignals.interval)
                 } else {
                     digest.arrive()
                 }

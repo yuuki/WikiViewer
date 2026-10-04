@@ -281,6 +281,12 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       questions on the cluster card, dashed gap links and a gap sheet
 - [-] #39 Tapping a dashed gap link itself (gaps open from the cluster
       card and the Gaps button instead)
+- [x] #42 Reading signals: opt-in collection on the device (readings ≥ 5 s,
+      pins), sent hourly through the request queue; `SignalStore` on the
+      Mac (`--signals DIR`, 0700, monthly JSONL, 180-day retention,
+      summary.json); `scripts/reading-signals.py` (top, unconceptualized)
+- [-] #42 Wiring the vault's hn-curation / wiki-survey-recommend skills to
+      summary.json is a vault change (outside this repository)
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner
