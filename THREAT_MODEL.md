@@ -151,6 +151,14 @@ wrong, and the responses:
 - *Explanations (#41)* are answered with read-only tools (Read, Glob,
   Grep): the result travels back in the status file and nothing is
   written to the vault. Dictation stays on the device; only text is sent.
+- *Audio episodes (#44)* need more than the other kinds: the explainer
+  skills run the plugin's narrate script (which talks to the local
+  VOICEVOX engine), ffmpeg and ffprobe. Writes are still limited to
+  `wiki/podcasts/`, `Attachments/podcasts/` and a scratch folder outside
+  the vault; `cp`, `mv` and other shell commands are not allowed, and
+  there is no web access. ffmpeg itself can write any file it is given,
+  so a podcast request is the most trusting kind: only send them from
+  your own devices or the nightly job.
 - *Prompt injection from note text.* Claude reads vault notes, which may
   contain clipped web text. With the allow-list above, the worst outcome is
   a wrong or unwanted page under `wiki/` (the vault is a git repository, so

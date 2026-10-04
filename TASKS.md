@@ -303,6 +303,14 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       episode card with chapters opening their notes, audio embeds, the
       home "Listen" section, download for offline
 - [-] #43 Resuming a broken download (a transfer starts over)
+- [x] #44 Podcast: `podcast` requests (note menu, or
+      `scripts/podcast-request.py` for a nightly "today's episode"), the
+      runner's podcast prompt (explainer-audio-guide, chapters timed per
+      Guide segment, episode note in the format #43 reads), VOICEVOX and
+      ffmpeg preflight, a scratch folder outside the vault
+- [-] #44 Step 1 (install VOICEVOX, make and listen to one episode) is the
+      user's: VOICEVOX was not installed on this Mac and the Claude CLI's
+      login had expired, so no episode was generated in development
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

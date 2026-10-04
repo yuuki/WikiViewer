@@ -43,6 +43,7 @@ struct NoteView: View {
     @State private var askDraft: AskDraft?
     @State private var requestingPath = false
     @State private var explaining = false
+    @State private var confirmingEpisode = false
     /// When the note came on screen, for the reading history (#42).
     @State private var openedAt: Date?
 
@@ -112,6 +113,9 @@ struct NoteView: View {
                     ToolbarItem(placement: .secondaryAction) {
                         Button("Explain It…", systemImage: "text.bubble") { explaining = true }
                     }
+                    ToolbarItem(placement: .secondaryAction) {
+                        Button("Make Audio Episode…", systemImage: "headphones") { confirmingEpisode = true }
+                    }
                 }
                 if let detail = model.detail, let session = library.session {
                     NoteActionItems(detail: detail, session: session)
@@ -158,6 +162,14 @@ struct NoteView: View {
             }
             .assetPresentation(item: $viewingAsset)
             .sheet(item: $askDraft) { AskClaudeSheet(draft: $0) }
+            .confirmationDialog("Ask Claude on your Mac to make a two-voice audio episode about this note? It takes several minutes and needs VOICEVOX on the Mac; the episode arrives under Listen.",
+                                isPresented: $confirmingEpisode, titleVisibility: .visible) {
+                Button("Make Episode") {
+                    try? library.submit(HostRequest(kind: .podcast, device: DeviceName.current, notePath: path,
+                                                    noteTitle: model.detail?.title ?? VaultPath.basename(of: path)))
+                }
+                .disabled(!library.acceptsRequests)
+            }
             .sheet(isPresented: $explaining) {
                 ExplainSheet(notePath: path, noteTitle: model.detail?.title ?? VaultPath.basename(of: path))
             }
