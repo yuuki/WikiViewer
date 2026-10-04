@@ -73,6 +73,8 @@ OPTIONS
   --graph-label-types LIST
                        comma-separated frontmatter types a cluster is named
                        after first (default concept,question,entity,source)
+  --graph-resolution R clustering resolution: higher gives more, smaller
+                       clusters (default 2.5)
   --no-graph           do not build the link graph
   --force              publish even if nothing changed
   --verbose            debug logging
@@ -153,6 +155,8 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     if let types = args.options["graph-label-types"] {
         config.graph.labelTypes = types.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
     }
+    config.graph.resolution = args.double("graph-resolution", config.graph.resolution)
+    guard config.graph.resolution > 0 else { throw CLIError("--graph-resolution must be a positive number") }
     config.graph.enabled = !args.flags.contains("no-graph")
     return config
 }

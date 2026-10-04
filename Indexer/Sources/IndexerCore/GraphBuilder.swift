@@ -7,7 +7,7 @@
 //  structure without ever holding the whole graph:
 //
 //    notes + resolved links ─▶ undirected weighted graph (notes in scope)
-//      ─▶ Louvain communities, started from the previous clusters
+//      ─▶ Leiden communities, coupled to the previous clusters
 //      ─▶ stable cluster ids (matched to the previous ones by overlap)
 //      ─▶ ForceAtlas2 layout of each changed cluster, started from its
 //         previous layout; unchanged clusters keep theirs exactly
@@ -37,6 +37,9 @@ public struct GraphConfiguration: Sendable, Equatable {
     /// A cluster is named after its most linked note, preferring these
     /// frontmatter `type` values in this order.
     public var labelTypes: [String] = ["concept", "question", "entity", "source"]
+    /// Modularity resolution of the clustering: higher gives more, smaller
+    /// clusters. 2.5 gives about 80 topical clusters for ~18k notes.
+    public var resolution = 2.5
     /// Turns graph analysis off (the graph tables stay empty).
     public var enabled = true
 
@@ -55,7 +58,7 @@ public struct GraphConfiguration: Sendable, Equatable {
     }
 
     var fingerprint: String {
-        "v1|\(enabled)|\(includePatterns.joined(separator: "\u{1}"))|\(excludePatterns.joined(separator: "\u{1}"))|\(labelTypes.joined(separator: ","))"
+        "v1|\(enabled)|\(includePatterns.joined(separator: "\u{1}"))|\(excludePatterns.joined(separator: "\u{1}"))|\(labelTypes.joined(separator: ","))|\(resolution)"
     }
 }
 
@@ -76,13 +79,21 @@ public enum GraphBuilder {
 
     static let stateKey = "graph_state"
 
-    /// True if the stored graph was laid out by an earlier version whose
-    /// layouts need repairing (State.layoutVersion). The indexer then
-    /// publishes on start, since refresh only runs with a publication.
+    /// What a note gains, per unit of its degree, by staying in its previous
+    /// cluster. On the author's vault 0.05 kept clusters as stable as warm-
+    /// started Louvain (about 10 notes move when 30 are added) while they
+    /// stayed as fine as clusters computed afresh; 0.1 and more let clusters
+    /// grow too large again as the vault grows.
+    static let coupling = 0.05
+
+    /// True if the stored graph was made by an earlier version whose
+    /// layouts need repairing (State.layoutVersion) or whose clusters came
+    /// from another method (State.method). The indexer then publishes on
+    /// start, since refresh only runs with a publication.
     public static func needsLayoutRepair(builder: BuilderDatabase, configuration: GraphConfiguration) throws -> Bool {
         guard configuration.enabled, let json = try builder.state(stateKey),
               let state = try? JSONDecoder().decode(State.self, from: Data(json.utf8)) else { return false }
-        return state.layoutVersion != State.layoutVersion
+        return state.layoutVersion != State.layoutVersion || state.method != State.method(configuration)
     }
 
     /// Recomputes the graph tables if the notes or links in scope changed.
@@ -92,13 +103,14 @@ public enum GraphBuilder {
         var state = (try builder.state(stateKey)).flatMap { try? JSONDecoder().decode(State.self, from: Data($0.utf8)) } ?? State()
         let input = configuration.enabled ? try builder.writer.read { try Input.load($0, configuration: configuration) } : Input()
         let fingerprint = input.fingerprint(configuration)
-        if fingerprint == state.fingerprint, state.layoutVersion == State.layoutVersion {
+        if fingerprint == state.fingerprint, state.layoutVersion == State.layoutVersion, state.method == State.method(configuration) {
             return Summary(unchanged: true)
         }
         let previous = try builder.writer.read { try Rows.load($0) }
         let rows = compute(input: input, previous: previous, state: &state, configuration: configuration)
         state.fingerprint = fingerprint
         state.layoutVersion = State.layoutVersion
+        state.method = State.method(configuration)
         let stateJSON = String(decoding: try JSONEncoder().encode(state), as: UTF8.self)
         let written = try builder.writer.write { db in
             let n = try rows.write(db, replacing: previous)
@@ -123,8 +135,16 @@ public enum GraphBuilder {
         /// diverged before steps were bounded.
         static let layoutVersion = 1
 
+        /// How clusters are found. The clusters of another method are not
+        /// followed: coupling to them would keep their faults (Louvain's
+        /// oversized clusters), so the next refresh starts afresh.
+        static func method(_ configuration: GraphConfiguration) -> String {
+            "leiden-coupled|\(configuration.resolution)|\(GraphBuilder.coupling)"
+        }
+
         var fingerprint = ""
         var layoutVersion: Int?
+        var method: String?
         /// Cluster ids are never reused, so a removed cluster's colour does
         /// not jump to an unrelated one.
         var nextClusterID: Int64 = 1
@@ -203,7 +223,7 @@ public enum GraphBuilder {
             for (source, target, count) in directed {
                 let a = index[source]!, b = index[target]!
                 input.inbound[b] += count
-                pairs[Louvain.pairKey(min(a, b), max(a, b)), default: 0] += Double(count)
+                pairs[WeightedGraph.pairKey(min(a, b), max(a, b)), default: 0] += Double(count)
             }
             input.edges = pairs.map { (Int($0.key >> 32), Int($0.key & 0xFFFF_FFFF), $0.value) }
             input.edges.sort { ($0.a, $0.b) < ($1.a, $1.b) }
@@ -336,10 +356,11 @@ public enum GraphBuilder {
         }
         let graph = WeightedGraph(nodeCount: n, edges: input.edges)
 
-        // 1. Communities, starting from the previous clusters. Notes that
-        //    were not clustered start alone (negative ids never collide).
-        let initial = input.nodes.enumerated().map { i, node in previous.nodes[node.id].map { Int($0.cluster) } ?? -(i + 1) }
-        let community = Louvain.communities(graph, initial: initial)
+        // 1. Communities, coupled to the previous clusters if they were
+        //    found the same way.
+        let follow = state.method == State.method(configuration)
+        let before = follow ? input.nodes.map { node in previous.nodes[node.id].map { Int($0.cluster) } } : nil
+        let community = Leiden.following(graph, previous: before, resolution: configuration.resolution, coupling: coupling)
         var groups: [[Int]] = Array(repeating: [], count: (community.max() ?? -1) + 1)
         for (i, c) in community.enumerated() { groups[c].append(i) }
         groups = groups.filter { $0.count >= GraphGeometry.minimumClusterSize }
@@ -398,7 +419,7 @@ public enum GraphBuilder {
         for (key, w) in between {
             var drawn = false
             if let a = topIndex[key.a], let b = topIndex[key.b] {
-                drawn = skeleton.contains(Louvain.pairKey(min(a, b), max(a, b)))
+                drawn = skeleton.contains(WeightedGraph.pairKey(min(a, b), max(a, b)))
             }
             rows.links[key] = LinkRow(weight: Int(w), skeleton: drawn)
         }
@@ -684,13 +705,13 @@ public enum GraphBuilder {
             let ra = find(l.a), rb = find(l.b)
             if ra != rb {
                 parent[ra] = rb
-                result.insert(Louvain.pairKey(l.a, l.b))
+                result.insert(WeightedGraph.pairKey(l.a, l.b))
             }
         }
         var perCluster = [Int](repeating: 0, count: count)
         for l in strongest {
             if perCluster[l.a] < 2 || perCluster[l.b] < 2 {
-                result.insert(Louvain.pairKey(l.a, l.b))
+                result.insert(WeightedGraph.pairKey(l.a, l.b))
                 perCluster[l.a] += 1
                 perCluster[l.b] += 1
             }

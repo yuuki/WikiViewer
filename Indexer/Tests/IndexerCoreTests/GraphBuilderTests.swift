@@ -4,32 +4,36 @@ import Testing
 @testable import IndexerCore
 import WikiShared
 
-@Suite struct LouvainTests {
+@Suite struct LeidenTests {
     /// Two 5-cliques joined by one link.
     static func barbell() -> WeightedGraph {
+        WeightedGraph(nodeCount: 10, edges: cliques(2, size: 5) + [(4, 5, 1)])
+    }
+
+    static func cliques(_ count: Int, size: Int) -> [(a: Int, b: Int, weight: Double)] {
         var edges: [(a: Int, b: Int, weight: Double)] = []
-        for base in [0, 5] {
-            for i in base..<(base + 5) {
-                for j in (i + 1)..<(base + 5) { edges.append((i, j, 1)) }
+        for k in 0..<count {
+            let base = k * size
+            for i in base..<(base + size) {
+                for j in (i + 1)..<(base + size) { edges.append((i, j, 1)) }
             }
         }
-        edges.append((4, 5, 1))
-        return WeightedGraph(nodeCount: 10, edges: edges)
+        return edges
     }
 
     @Test func separatesCliques() {
         let graph = Self.barbell()
-        let c = Louvain.communities(graph)
+        let c = Leiden.communities(graph)
         #expect(Set(c[0..<5]).count == 1)
         #expect(Set(c[5..<10]).count == 1)
         #expect(c[0] != c[9])
-        #expect(Louvain.modularity(graph, community: c) > 0.4)
+        #expect(graph.modularity(c) > 0.4)
     }
 
     @Test func warmStartKeepsAGoodPartition() {
         let graph = Self.barbell()
-        let first = Louvain.communities(graph)
-        let again = Louvain.communities(graph, initial: first.map { $0 + 100 })
+        let first = Leiden.communities(graph)
+        let again = Leiden.communities(graph, initial: first.map { $0 + 100 })
         #expect(again == first)
     }
 
@@ -37,15 +41,72 @@ import WikiShared
         let graph = Self.barbell()
         // Node 4 starts in the wrong clique.
         let initial = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
-        let c = Louvain.communities(graph, initial: initial)
+        let c = Leiden.communities(graph, initial: initial)
         #expect(c[4] == c[0])
         #expect(c[5] == c[9])
+    }
+
+    /// Louvain cannot split a community it starts from: no single node
+    /// gains by leaving. Leiden's refinement can.
+    @Test func warmStartSplitsMergedCommunities() {
+        let graph = Self.barbell()
+        let c = Leiden.communities(graph, initial: Array(repeating: 0, count: 10))
+        #expect(c[0] != c[9])
+    }
+
+    /// Six 6-cliques in a ring. Merging two neighbours gains
+    /// 1 − γ·32·32/192, so below γ ≈ 0.19 they merge, above they stay apart.
+    @Test func resolutionGivesSmallerCommunities() {
+        var edges = Self.cliques(6, size: 6)
+        for k in 0..<6 { edges.append((k * 6, ((k + 1) % 6) * 6 + 1, 1)) }
+        let graph = WeightedGraph(nodeCount: 36, edges: edges)
+        let coarse = Set(Leiden.converged(graph, initial: nil, resolution: 0.1)).count
+        let fine = Set(Leiden.converged(graph, initial: nil, resolution: 1)).count
+        #expect(coarse < fine)
+        #expect(fine == 6)
+    }
+
+    /// Node 10 links to both cliques alike: it stays wherever it was.
+    @Test func followingKeepsBorderlineNodesWhereTheyWere() {
+        var edges = Self.cliques(2, size: 5)
+        edges += [(10, 0, 1), (10, 1, 1), (10, 5, 1), (10, 6, 1)]
+        let graph = WeightedGraph(nodeCount: 11, edges: edges)
+        for side in [0, 1] {
+            let previous: [Int?] = (0..<10).map { $0 < 5 ? 0 : 1 } + [side]
+            let c = Leiden.following(graph, previous: previous, resolution: 1, coupling: 0.05)
+            #expect(c[10] == c[side == 0 ? 0 : 9])
+            #expect(c[0] != c[9])
+        }
+    }
+
+    /// Coupling does not preserve a community that should not exist.
+    @Test func followingStillSplitsMergedCommunities() {
+        let graph = Self.barbell()
+        let c = Leiden.following(graph, previous: Array(repeating: 7, count: 10), resolution: 1, coupling: 0.05)
+        #expect(Set(c[0..<5]).count == 1)
+        #expect(c[0] != c[9])
+    }
+
+    @Test func followingNothingStartsAfresh() {
+        let graph = Self.barbell()
+        let fresh = Leiden.converged(graph, initial: nil, resolution: 1)
+        #expect(Leiden.following(graph, previous: nil, resolution: 1, coupling: 0.05) == fresh)
+        #expect(Leiden.following(graph, previous: Array(repeating: nil, count: 10), resolution: 1, coupling: 0.05) == fresh)
+    }
+
+    /// Notes not clustered before join a community on their merits.
+    @Test func followingPlacesNewNodes() {
+        let graph = Self.barbell()
+        let previous: [Int?] = [0, 0, 0, 0, nil, 1, 1, 1, 1, nil]
+        let c = Leiden.following(graph, previous: previous, resolution: 1, coupling: 0.05)
+        #expect(c[4] == c[0])
+        #expect(c[9] == c[5])
     }
 }
 
 @Suite struct ForceLayoutTests {
     @Test func spreadsNodesAndStaysFinite() {
-        let graph = LouvainTests.barbell()
+        let graph = LeidenTests.barbell()
         var positions = (0..<10).map { i in SIMD2(Double(i % 3), Double(i / 3)) }
         var edges: [ForceAtlas2.Edge] = []
         for i in 0..<10 {
@@ -158,6 +219,9 @@ import WikiShared
         var config = base.config
         config.vault = vault
         config.graph.excludePatterns = ["Index.md"]
+        // The default resolution is meant for thousands of notes; it splits
+        // a topic of five.
+        config.graph.resolution = 1
         let env = Env(tmp: base.tmp, vault: vault, config: config)
         try writeVault(env)
         let indexer = try Indexer(configuration: env.config)
@@ -268,12 +332,28 @@ import WikiShared
         #expect(try await indexer.needsLayoutRepair() == false)
     }
 
+    /// Clusters from another method (Louvain before) are not followed: the
+    /// next start publishes clusters found afresh.
+    @Test func clustersOfAnotherMethodAreRecomputedOnStart() async throws {
+        let (env, indexer) = try await Self.makeIndexer()
+        _ = try #require(try await indexer.publish())
+        let before = try await Self.snapshot(indexer)
+        try await indexer.editGraphState { $0["method"] = nil }
+        #expect(try await indexer.needsLayoutRepair())
+        let summary = try await indexer.refreshGraphForTesting()
+        #expect(!summary.unchanged)
+        #expect(try await Self.snapshot(indexer).membership.count == before.membership.count)
+        #expect(try await indexer.needsLayoutRepair() == false)
+        #expect(try await indexer.refreshGraphForTesting().unchanged)
+        _ = env
+    }
+
     /// Overview order (by size) need not follow id order; the skeleton must
     /// not depend on it.
     @Test func skeletonIgnoresIdOrder() {
         let links: [(a: Int, b: Int, weight: Double)] = [(0, 1, 3), (1, 2, 1)]
         let skeleton = GraphBuilder.skeletonLinks(count: 3, links: links)
-        #expect(skeleton == [Louvain.pairKey(0, 1), Louvain.pairKey(1, 2)])
+        #expect(skeleton == [WeightedGraph.pairKey(0, 1), WeightedGraph.pairKey(1, 2)])
     }
 
     @Test func largerClusterWithHigherIdKeepsSkeleton() async throws {
