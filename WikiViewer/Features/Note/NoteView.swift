@@ -280,6 +280,15 @@ struct NoteView: View {
                         NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil,
                                    showsProperties: !Self.hasInspector, provenance: model.provenance)
                             .id("header")
+                        if let episode = model.episode {
+                            PlayerCard(item: episode) { chapter in
+                                Task {
+                                    guard let id = chapter.noteID, let note = try? await session.notes.summary(id: id) else { return }
+                                    openRoute(.note(path: note.path, anchor: chapter.heading.map { NoteAnchor(heading: $0) }))
+                                }
+                            }
+                            .id("episode")
+                        }
                         if let thesis = model.provenance?.thesis {
                             ThesisCard(thesis: thesis, headings: rendered.headings.map { ($0.blockID, $0.text) }) { scroll(to: $0) }
                                 .id("thesis")
@@ -362,6 +371,8 @@ final class NoteModel {
     private(set) var backlinks: [Backlink] = []
     private(set) var backlinkTotal = 0
     private(set) var backlinksHaveMore = false
+    /// The recording of an episode note (#43), with its chapters.
+    private(set) var episode: AudioPlayer.Item?
     /// Neighbours by role (#38).
     private(set) var related: [RelatedGroup] = []
     /// Who wrote the note and what it rests on (#37).
@@ -396,6 +407,12 @@ final class NoteModel {
             self.links = links
             embeddedAssets = try await session.assets.assets(ids: links.filter(\.isEmbed).compactMap(\.targetAssetID))
             related = (try? await session.related.related(to: id)) ?? []
+            episode = nil
+            if let summary = try? await session.episodes.episode(noteID: id), let assetID = summary.audioAssetID,
+               let asset = try? await session.assets.asset(id: assetID) {
+                episode = AudioPlayer.Item(asset: asset, title: detail.title, notePath: detail.path,
+                                           chapters: EpisodeChapters.parse(body: detail.body, links: links))
+            }
             provenance = NoteProvenance.make(path: detail.path, properties: detail.properties, links: links)
             if LearningPath.isPath(properties: detail.properties), let path = LearningPath.parse(body: detail.body, links: links) {
                 var notes: [Int64: NoteSummary] = [:]

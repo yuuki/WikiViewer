@@ -27,6 +27,9 @@
         }
       }
     },
+    "%@ / %@": {
+      "shouldTranslate": false
+    },
     "%@ is not in the current snapshot.": {
       "localizations": {
         "ja": {
@@ -286,6 +289,26 @@
         }
       }
     },
+    "Available offline": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オフラインで聴ける"
+          }
+        }
+      }
+    },
+    "Back 15 seconds": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 秒戻る"
+          }
+        }
+      }
+    },
     "Base": {
       "localizations": {
         "ja": {
@@ -392,6 +415,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "ここを中心に"
+          }
+        }
+      }
+    },
+    "Chapters": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "章"
           }
         }
       }
@@ -826,6 +859,16 @@
         }
       }
     },
+    "Download for Offline": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オフライン用にダウンロード"
+          }
+        }
+      }
+    },
     "Downloading generation %lld…": {
       "localizations": {
         "ja": {
@@ -1062,6 +1105,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "忘れた"
+          }
+        }
+      }
+    },
+    "Forward 15 seconds": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "15 秒進む"
           }
         }
       }
@@ -1432,6 +1485,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "リスト"
+          }
+        }
+      }
+    },
+    "Listen": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聴く"
           }
         }
       }
@@ -2029,6 +2092,26 @@
         }
       }
     },
+    "Open the episode": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回のノートを開く"
+          }
+        }
+      }
+    },
+    "Open the note": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノートを開く"
+          }
+        }
+      }
+    },
     "Open “%@”": {
       "localizations": {
         "ja": {
@@ -2149,6 +2232,16 @@
         }
       }
     },
+    "Pause": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一時停止"
+          }
+        }
+      }
+    },
     "Pin": {
       "localizations": {
         "ja": {
@@ -2165,6 +2258,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "ピン留め"
+          }
+        }
+      }
+    },
+    "Play": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生"
+          }
+        }
+      }
+    },
+    "Playback Speed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生速度"
           }
         }
       }
@@ -2415,6 +2528,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude への依頼"
+          }
+        }
+      }
+    },
+    "Resumes at %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ から再開"
           }
         }
       }
@@ -2769,6 +2892,16 @@
         }
       }
     },
+    "Speed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "速度"
+          }
+        }
+      }
+    },
     "Start Speaking": {
       "localizations": {
         "ja": {
@@ -2905,6 +3038,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "最新のスナップショットでグラフが変わりました。概観に戻ってノートを探し直してください。"
+          }
+        }
+      }
+    },
+    "The recording could not be fetched. Connect to your Mac's folder or address, or download it while online.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "録音を取得できませんでした。Mac のフォルダかアドレスに接続するか、オンラインのうちにダウンロードしてください。"
           }
         }
       }

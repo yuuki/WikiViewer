@@ -204,6 +204,15 @@ candidates of the vault's wiki-gap reports into the extras folder; with
 cluster (at most `--max-summaries`, default 10, per run). Run it after
 `watch` has published, for example nightly.
 
+### Audio episodes
+
+Audio files in the vault (m4a, mp3, aac, wav, up to `--audio-max`, default
+512 MB each; `--audio-max 0` publishes none) are published so the app can
+play them. A note with `type: episode` that links its recording becomes
+an episode on the Files tab's **Listen**, with chapters from lines like
+`- [03:12] topic [[Note#Heading]]`. Large recordings make the publish
+folder (and an iCloud Drive upload) larger.
+
 ### What changed
 
 Each publication also records which notes it added, changed and removed,

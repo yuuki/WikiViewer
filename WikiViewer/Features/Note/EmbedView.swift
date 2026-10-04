@@ -76,6 +76,9 @@ struct AssetEmbedView: View {
                     AttachmentRow(asset: asset, note: nil)
                 }
                 .buttonStyle(.plain)
+            } else if let asset, asset.kind == .audio, asset.blobSHA256 != nil {
+                // ![[x.m4a]]: a player (#43).
+                PlayerCard(item: AudioPlayer.Item(asset: asset, title: VaultPath.basename(of: asset.name), notePath: nil, chapters: []))
             } else if let asset, asset.kind != .image || asset.blobSHA256 == nil || failure != nil {
                 Button { viewing = asset } label: {
                     AttachmentRow(asset: asset, note: failure)
