@@ -213,6 +213,29 @@ an episode on the Files tab's **Listen**, with chapters from lines like
 `- [03:12] topic [[Note#Heading]]`. Large recordings make the publish
 folder (and an iCloud Drive upload) larger.
 
+### Making episodes (#44)
+
+Episodes are made on the Mac by Claude with the explainer-studio audio
+skills, which need [VOICEVOX](https://voicevox.hiroshiba.jp) (the app,
+or its engine on `http://127.0.0.1:50021`) and `ffmpeg`. Install VOICEVOX
+yourself, then try one episode by hand in the vault's Claude session (for
+example `/explainer-audio-guide` on a note) and listen before automating.
+
+- **On demand**: a note's menu → **Make Audio Episode…** sends a request;
+  `wikiindex requests` runs it (give it `--timeout 3600`: an episode takes
+  longer than a question).
+- **Nightly**: a LaunchAgent can queue "today's episode" (the sources
+  ingested today) into the same inbox:
+
+  ```sh
+  python3 scripts/podcast-request.py --inbox "<PUBLISH>/inbox"
+  ```
+
+The runner writes the recording to `Attachments/podcasts/` and the
+episode note (with chapters) to `wiki/podcasts/` in the vault; consider
+leaving `Attachments/podcasts/` out of the vault's git repository. A
+20-minute episode is about 10–20 MB.
+
 ### What changed
 
 Each publication also records which notes it added, changed and removed,

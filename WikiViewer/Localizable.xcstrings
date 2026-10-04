@@ -249,6 +249,16 @@
         }
       }
     },
+    "Ask Claude on your Mac to make a two-voice audio episode about this note? It takes several minutes and needs VOICEVOX on the Mac; the episode arrives under Listen.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このノートについて、Mac の Claude に 2 人の掛け合いの音声の回を作ってもらいますか?数分かかり、Mac に VOICEVOX が必要です。できた回は「聴く」に届きます。"
+          }
+        }
+      }
+    },
     "Ask Claude…": {
       "localizations": {
         "ja": {
@@ -1525,6 +1535,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "ローカルストレージ"
+          }
+        }
+      }
+    },
+    "Make Audio Episode…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声の回を作る…"
+          }
+        }
+      }
+    },
+    "Make Episode": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回を作る"
           }
         }
       }
