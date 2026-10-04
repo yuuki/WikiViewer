@@ -296,6 +296,13 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       misconception, heading) in the status — nothing written to the
       vault — and an explanation screen that follows the request and
       jumps to the headings
+- [x] #43 Listening: audio published as content-addressed blobs
+      (`--audio-max`, streamed copy verified against its digest), schema 8
+      `episodes`, `AudioPlayer` (background, lock screen and earphones,
+      ±15 s, speed, per-recording position, chapters as next/previous),
+      episode card with chapters opening their notes, audio embeds, the
+      home "Listen" section, download for offline
+- [-] #43 Resuming a broken download (a transfer starts over)
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner
@@ -315,7 +322,7 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [-] A generation that fails to open is discarded even on transient errors.
 - [-] Publish-directory lock (only the state directory is locked).
 - [-] Asset downloads are not cancelled when rows scroll away (bounded to 4).
-- [-] PDF/audio/video preview (metadata + placeholder today).
+- [-] PDF/video preview (metadata + placeholder today). Audio plays (#43).
 - [-] Unlinked mentions, Canvas, Dataview (out of scope).
 - [-] Graph: wiki-lens's Health Dashboard, Gap Finder, Growth Timeline and 3D
       Layers are not reproduced; the Graph tab covers Backbone Graph and Local

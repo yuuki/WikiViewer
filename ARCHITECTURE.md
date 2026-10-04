@@ -33,8 +33,8 @@ follow links, see backlinks and search, quickly and offline.
 
 Editing, syncing changes back, Obsidian plugins (the Graph tab re-creates
 the wiki-lens network views natively; it does not run the plugin), Dataview, Canvas, arbitrary
-JavaScript, and exact reproduction of Obsidian's rendering. PDF, audio and
-video are recognized but not yet previewed.
+JavaScript, and exact reproduction of Obsidian's rendering. PDF and video
+are recognized but not yet previewed; audio plays (below).
 
 ## Approach in one paragraph
 
@@ -462,6 +462,21 @@ FSRS-style scheduler (stability and difficulty per question, moved by the
 reader's grade) and daily limits, stored on the device, since the
 reader's memory, not the vault, decides it.
 
+### Audio: published as it is, played on the device (schema 8)
+
+Listening to review needs the recording on the phone. Unlike images,
+audio is not re-encoded: the indexer publishes each m4a/mp3/aac/wav file
+up to `--audio-max` (512 MB) under its own digest, with the images, and
+the app fetches it the same way (verified against the digest, kept while
+a retained generation refers to it) — on demand, or ahead of time for
+offline listening. Downloads are not resumable yet: a broken transfer
+starts over. An episode is a note with `type: episode` that links its
+recording; its chapters are its own `- [mm:ss] topic [[Note#Heading]]`
+lines, so the player can open the note the current topic is about. The
+`episodes` table, rebuilt before each publication, lists them newest
+first for the home screen. Where a recording was left, and the playback
+speed, stay on the device.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the
@@ -512,7 +527,7 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
   text matches (titles and aliases are always checked in full).
 - Backlinks and tag lists are ordered by recency, not by title.
 - Remote images in notes are shown as links and not fetched (privacy, memory).
-- PDF, audio and video have no preview yet, and the originals a source
+- PDF and video have no preview yet, and the originals a source
   page cites (`.raw/`) are not published: the app shows their names and
   their addresses online, not the page a claim comes from.
 - Math is typeset by SwiftMath, which covers common LaTeX math but not all

@@ -32,6 +32,28 @@ public struct AssetStore: Sendable {
         return FileManager.default.fileExists(atPath: url.path)
     }
 
+    /// Copies the file at `source` under its digest unless it already
+    /// exists (streamed: a long recording never sits in memory).
+    public func putFile(_ source: URL, sha256: String, ext: String) throws {
+        guard let url = url(sha256: sha256, ext: ext) else { throw IndexerError.publicationFailed("unsafe blob name \(sha256).\(ext)") }
+        if FileManager.default.fileExists(atPath: url.path) { return }
+        let dir = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let tmp = dir.appendingPathComponent(".\(sha256).\(UUID().uuidString).tmp")
+        do {
+            try FileManager.default.copyItem(at: source, to: tmp)
+            // The copy must be the bytes that were hashed.
+            guard try Digest.sha256Hex(fileAt: tmp).hex == sha256 else {
+                throw IndexerError.publicationFailed("\(source.lastPathComponent) changed while it was copied")
+            }
+            try fsyncPath(tmp)
+            try atomicRename(tmp, to: url)
+        } catch {
+            try? FileManager.default.removeItem(at: tmp)
+            throw error
+        }
+    }
+
     /// Writes `data` under its digest unless it already exists.
     public func put(_ data: Data, sha256: String, ext: String) throws {
         guard let url = url(sha256: sha256, ext: ext) else { throw IndexerError.publicationFailed("unsafe blob name \(sha256).\(ext)") }
@@ -90,9 +112,12 @@ public enum AssetProcessor {
                 return .processed(AssetOutcome(meta: meta, sourceSHA256: Digest.sha256Hex(data), blob: nil, producedDerivative: false, text: String(decoding: data, as: UTF8.self)))
             }
         }
+        if kind == .audio {
+            return audio(vault: vault, path: path, configuration: configuration, store: store)
+        }
         guard kind == .image else {
-            // PDFs, audio and video: metadata only for now (the viewer shows
-            // a placeholder). Hash by streaming so large media never sits in memory.
+            // PDFs and video: metadata only for now (the viewer shows a
+            // placeholder). Hash by streaming so large media never sits in memory.
             return hashOnly(vault: vault, path: path, maximumBytes: configuration.maximumAssetBytes)
         }
         switch StableReader.read(vault: vault, relativePath: path, maximumBytes: maximumImageBytes) {
@@ -114,6 +139,26 @@ public enum AssetProcessor {
                 Log.warning("asset \(path): derivative failed: \(error)")
                 return .processed(AssetOutcome(meta: meta, sourceSHA256: sha, blob: nil, producedDerivative: false))
             }
+        }
+    }
+
+    /// Audio (#43) is published as it is, under its own digest, up to
+    /// `audioMaximumBytes`; the app streams it to disk and plays it.
+    static func audio(vault: URL, path: String, configuration: IndexerConfiguration, store: AssetStore) -> Result {
+        let hashed = hashOnly(vault: vault, path: path, maximumBytes: configuration.maximumAssetBytes)
+        guard case .processed(var outcome) = hashed, configuration.audioMaximumBytes > 0,
+              outcome.meta.size <= Int64(configuration.audioMaximumBytes) else { return hashed }
+        let ext = VaultPath.fileExtension(of: path)
+        guard ["m4a", "mp3", "aac", "wav"].contains(ext) else { return hashed }
+        do {
+            if !store.contains(sha256: outcome.sourceSHA256, ext: ext) {
+                try store.putFile(URL(fileURLWithPath: vault.canonicalPath + "/" + path), sha256: outcome.sourceSHA256, ext: ext)
+            }
+            outcome.blob = AssetBlobInfo(sha256: outcome.sourceSHA256, ext: ext, size: outcome.meta.size, width: nil, height: nil)
+            return .processed(outcome)
+        } catch {
+            Log.warning("asset \(path): \(error)")
+            return .unstable
         }
     }
 

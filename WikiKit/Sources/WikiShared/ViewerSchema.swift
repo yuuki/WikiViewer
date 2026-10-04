@@ -3,11 +3,11 @@
 //  WikiShared
 //
 
-/// SQLite schema of the published viewer database (schema version 7:
+/// SQLite schema of the published viewer database (schema version 8:
 /// version 1 plus the Obsidian Bases tables (2), the link graph (3), the
 /// record of what changed between generations (4) and the host's extras:
 /// role-labelled neighbours (5), cluster summaries and gaps (6), recall
-/// questions (7).
+/// questions (7), audio episodes (8).
 ///
 /// The builder database uses exactly these tables plus builder-only tables
 /// (see `builderOnlyTables`), which are emptied in every published snapshot.
@@ -48,6 +48,7 @@ public enum ViewerSchema {
         "graph_clusters", "graph_cluster_links", "graph_nodes", "graph_types",
         "generation_log", "change_log", "log_entries",
         "related", "graph_cluster_notes", "graph_gaps", "recall_items",
+        "episodes",
     ]
 
     public static let builderOnlyTables = ["builder_state", "asset_derivatives", "pending_changes"]
@@ -443,6 +444,18 @@ public enum ViewerSchema {
         ) WITHOUT ROWID
         """,
         "CREATE INDEX recall_items_created ON recall_items(created, id)",
+        // Audio episodes (version 8): notes with `type: episode` and the
+        // audio asset they play, rebuilt before each publication
+        // (Episodes.swift). published: YYYY-MM-DD; duration in seconds.
+        """
+        CREATE TABLE episodes(
+          note_id INTEGER PRIMARY KEY,
+          audio_asset_id INTEGER,
+          published TEXT NOT NULL,
+          duration INTEGER
+        )
+        """,
+        "CREATE INDEX episodes_published ON episodes(published, note_id)",
         // Builder-only tables. Present in snapshots but emptied.
         """
         CREATE TABLE builder_state(

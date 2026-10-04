@@ -413,6 +413,8 @@ public actor Indexer {
         let changes = try builder.writer.write { db in try ChangeLog.record(db, generation: generation, configuration: changeConfiguration) }
         Log.debug(changes.description)
         let baseStats = try builder.writer.write { db in try BaseBuilder.rebuild(db) }
+        let episodes = try builder.writer.write { db in try Episodes.rebuild(db) }
+        if episodes > 0 { Log.debug("episodes: \(episodes)") }
         if baseStats.bases > 0 { Log.info("bases: \(baseStats)") }
         refreshGraph()
         refreshExtras()

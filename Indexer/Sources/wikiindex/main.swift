@@ -49,6 +49,8 @@ USAGE
 
 OPTIONS
   --image-max N        longest side of image derivatives (default 2048)
+  --audio-max MB       publish audio files (m4a, mp3, aac, wav) up to this
+                       size for playing in the app (default 512; 0: none)
   --retain N           published generations to keep (default 3)
   --quiet SECONDS      publication quiet period after a burst (default 20)
   --quick-quiet SECONDS
@@ -152,6 +154,7 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     var config = IndexerConfiguration(vault: try args.url("vault"), stateDirectory: try args.url("state"), publishDirectory: try args.url("publish"))
     config.imageMaxDimension = args.int("image-max", config.imageMaxDimension)
     config.retainedGenerations = args.int("retain", config.retainedGenerations)
+    config.audioMaximumBytes = args.int("audio-max", 512) * 1024 * 1024
     config.quietPeriod = .milliseconds(Int(args.double("quiet", 20) * 1000))
     config.quickQuietPeriod = .milliseconds(Int(args.double("quick-quiet", 3) * 1000))
     config.quickPublishMaxFiles = args.int("quick-files", config.quickPublishMaxFiles)

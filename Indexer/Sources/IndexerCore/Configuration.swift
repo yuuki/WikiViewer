@@ -46,6 +46,8 @@ public struct IndexerConfiguration: Sendable {
     public var extrasCheckInterval: Duration = .seconds(5)
     /// Maximum note size that is indexed; larger files are skipped with a warning.
     public var maximumNoteBytes: Int = 8 * 1024 * 1024
+    /// Largest audio file published for playing (#43); 0 publishes none.
+    public var audioMaximumBytes: Int = 512 * 1024 * 1024
     /// Maximum asset size that is hashed / processed.
     public var maximumAssetBytes: Int = 512 * 1024 * 1024
     /// Concurrent read+parse workers for notes.

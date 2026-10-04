@@ -119,6 +119,7 @@ struct LibraryHomeSections: View {
             }
             .listRowSection("recall")
         }
+        ListenHomeSection(episodes: feed.episodes)
         LearningPathsHomeSection(paths: feed.paths, hasMore: feed.morePaths)
         if !listedRecents.isEmpty {
             Section {
@@ -166,10 +167,13 @@ final class HomeFeed {
     private(set) var morePaths = false
     /// Recall questions due today (#40).
     private(set) var recallDue = 0
+    /// The newest audio episodes (#43).
+    private(set) var episodes: [EpisodeSummary] = []
 
     func load(session: LibrarySession, digestState: DigestState, recall: RecallStore) async {
         let items = (try? await session.recall.items()) ?? []
         recallDue = recall.queue(items).count
+        episodes = (try? await session.episodes.recent(limit: 3)) ?? []
         let start = await digestState.start(in: session)
         digest = try? await session.changes.digest(after: start)
         if let folder = try? await session.folders.folderID(path: LearningPathsHomeSection.folder),

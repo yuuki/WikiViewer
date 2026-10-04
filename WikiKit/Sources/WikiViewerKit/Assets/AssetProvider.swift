@@ -25,6 +25,8 @@ public actor AssetProvider {
     private var inFlight: [String: Task<URL, any Error>] = [:]
     /// Hard cap for a single blob download.
     public static let maximumBlobBytes: Int64 = 128 * 1024 * 1024
+    /// Recordings (#43) are larger than images.
+    public static let maximumAudioBytes: Int64 = 512 * 1024 * 1024
     /// At most this many blob downloads run at once (fast scrolling through
     /// an image-heavy note must not start dozens of transfers).
     public static let maximumConcurrentFetches = 4
@@ -72,7 +74,8 @@ public actor AssetProvider {
         if FileManager.default.fileExists(atPath: local.path) { return local }
         if let task = inFlight[sha] { return try await task.value }
         guard let source = explicitSource ?? defaultSource else { throw AssetError.noSource }
-        let maximum = min(asset.blobSize ?? Self.maximumBlobBytes, Self.maximumBlobBytes)
+        let cap = asset.kind == .audio ? Self.maximumAudioBytes : Self.maximumBlobBytes
+        let maximum = min(asset.blobSize ?? cap, cap)
         let task = Task<URL, any Error> {
             await acquireSlot()
             defer { releaseSlot() }
