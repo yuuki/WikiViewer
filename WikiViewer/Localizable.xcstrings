@@ -17,6 +17,16 @@
     "%@ %@": {
       "shouldTranslate": false
     },
+    "%@ (not in the snapshot)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@(スナップショットに無い)"
+          }
+        }
+      }
+    },
     "%@ is not in the current snapshot.": {
       "localizations": {
         "ja": {
@@ -266,6 +276,16 @@
         }
       }
     },
+    "Based on %lld sources": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "根拠: %lld 件"
+          }
+        }
+      }
+    },
     "Bases": {
       "localizations": {
         "ja": {
@@ -496,6 +516,16 @@
         }
       }
     },
+    "Confidence: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "確信度: %@"
+          }
+        }
+      }
+    },
     "Connect Your Vault": {
       "localizations": {
         "ja": {
@@ -522,6 +552,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mac の Claude にノートについて質問するには、vault のフォルダかアドレスに接続してください。"
+          }
+        }
+      }
+    },
+    "Contradicted": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反対"
           }
         }
       }
@@ -886,6 +926,16 @@
         }
       }
     },
+    "From: ": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出自: "
+          }
+        }
+      }
+    },
     "Generation": {
       "localizations": {
         "ja": {
@@ -966,12 +1016,32 @@
         }
       }
     },
+    "Insufficient Evidence": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "根拠不足"
+          }
+        }
+      }
+    },
     "Is this true?": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "これは本当か"
+          }
+        }
+      }
+    },
+    "Judged %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "判定 %@"
           }
         }
       }
@@ -1226,6 +1296,16 @@
         }
       }
     },
+    "Mixed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "賛否混在"
+          }
+        }
+      }
+    },
     "More": {
       "localizations": {
         "ja": {
@@ -1456,12 +1536,32 @@
         }
       }
     },
+    "Not for sharing (publish: false)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "共有しない原本(publish: false)"
+          }
+        }
+      }
+    },
     "Not in Snapshot": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "スナップショットにありません"
+          }
+        }
+      }
+    },
+    "Not Judged": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未判定"
           }
         }
       }
@@ -1609,6 +1709,36 @@
         }
       }
     },
+    "Original": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原本"
+          }
+        }
+      }
+    },
+    "Original: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原本: %@"
+          }
+        }
+      }
+    },
+    "Originals under .raw/ stay on the Mac; they are not in the snapshot.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ".raw/ の原本は Mac に残り、スナップショットには含まれません。"
+          }
+        }
+      }
+    },
     "Other Log Entries": {
       "localizations": {
         "ja": {
@@ -1645,6 +1775,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "目次"
+          }
+        }
+      }
+    },
+    "Partially Supported": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分的に支持"
           }
         }
       }
@@ -1785,6 +1925,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新日（新しい順）"
+          }
+        }
+      }
+    },
+    "Recompiled %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再編纂 %@"
           }
         }
       }
@@ -2199,6 +2349,16 @@
         }
       }
     },
+    "Supported": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "支持"
+          }
+        }
+      }
+    },
     "Switch to the demo vault? Your update source is replaced; choose it again to switch back.": {
       "localizations": {
         "ja": {
@@ -2359,6 +2519,16 @@
         }
       }
     },
+    "Unverified": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未検証"
+          }
+        }
+      }
+    },
     "Up to date (%@)": {
       "localizations": {
         "ja": {
@@ -2385,6 +2555,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新"
+          }
+        }
+      }
+    },
+    "Updated %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@に更新"
           }
         }
       }
@@ -2469,6 +2649,16 @@
         }
       }
     },
+    "Verdict": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "判定"
+          }
+        }
+      }
+    },
     "Verdicts": {
       "localizations": {
         "ja": {
@@ -2485,6 +2675,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "命題の判定: %lld"
+          }
+        }
+      }
+    },
+    "Verified": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検証済み"
+          }
+        }
+      }
+    },
+    "Verified %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検証済み %@"
           }
         }
       }
@@ -2581,6 +2791,26 @@
     },
     "https://host/publish": {
       "shouldTranslate": false
+    },
+    "Written by Claude": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude が書いた"
+          }
+        }
+      }
+    },
+    "Written by you": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "あなたが書いた"
+          }
+        }
+      }
     },
     "Your Notes": {
       "localizations": {

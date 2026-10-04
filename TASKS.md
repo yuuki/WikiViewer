@@ -263,6 +263,11 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       digest screen. The demo snapshot is now built with
       `--graph-resolution 1` (at 2.5 Leiden splits the 11-note fixture into
       clusters below the minimum size)
+- [x] #37 Provenance lens: `NoteProvenance` (author, verification, freshness,
+      sources, originals, thesis verdict) from frontmatter and link rows;
+      provenance line under the title, verdict card on thesis pages
+- [-] #37 Jumping from a claim to the page of the original PDF: originals
+      under `.raw/` are not published and PDF preview is deferred
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner
