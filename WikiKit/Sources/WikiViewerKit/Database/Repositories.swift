@@ -227,7 +227,7 @@ public struct LinkRepository: Sendable {
     public func outgoingLinks(of noteID: Int64) async throws -> [OutgoingLink] {
         try await database.reader.read { db in
             try Row.fetchAll(db, sql: """
-                SELECT ordinal, kind, is_embed, raw, target_path, heading, block_id, display, target_note_id, target_asset_id
+                SELECT ordinal, kind, is_embed, raw, target_path, heading, block_id, display, target_note_id, target_asset_id, line
                 FROM links WHERE source_note_id = ? ORDER BY ordinal LIMIT ?
                 """, arguments: [noteID, Self.maxLinksPerNote]).map { row in
                 OutgoingLink(
@@ -240,7 +240,8 @@ public struct LinkRepository: Sendable {
                     blockID: row["block_id"],
                     display: row["display"],
                     targetNoteID: row["target_note_id"],
-                    targetAssetID: row["target_asset_id"]
+                    targetAssetID: row["target_asset_id"],
+                    line: row["line"]
                 )
             }
         }

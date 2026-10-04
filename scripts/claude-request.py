@@ -120,7 +120,31 @@ vault の CLAUDE.md と wiki/CLAUDE.md の規約(既存ノートを書き換え�
 最後に、書いたノートの vault 相対パスを answer_path に、読者向けの一言を message に入れて返す。"""
 
 
-PROMPTS = {"ask": ask_prompt}
+def path_prompt(req):
+    start = ""
+    if req.get("notePath"):
+        start = f"\n読者はノート `{req['notePath']}` を読んでいて、ここから始めたい。"
+    return f"""WikiViewer の読者が、ある主題を理解するための読む順番(学習経路)を求めている。{start}
+
+主題:
+{quoted(req['text'])}
+
+vault に既にあるノート(wiki の concept / source / entity と、一次レイヤーのノート)を、前提になるものが先に来る順に並べた学習経路ノートを 1 枚書く。
+- 前提関係の根拠は、リンクグラフ(wiki-related の配役つき近傍、とくに definition の役)と各ページの定義節で判断する。根拠のない順番は付けない。
+- 材料が欠けている箇所は、wiki-gap の考え方で「橋渡し文献が要る」段として明示する。最新の `wiki/meta/gap-report-*.md` に該当する候補があればリンクする。
+- 書き込めるのは `wiki/` 配下だけである。既存ノートは書き換えない。Web は使えない。
+
+置き場所と形式(アプリはこの形式を読む):
+- パス: `wiki/paths/<主題>.md`(同名があれば日付を付ける)。
+- frontmatter は vault の規約(wiki/meta/conventions.md §2)に従い、`type: path`、`topic: "<主題>"`、`status: seed` を持つ。
+- 本文の `## 経路` 節に、**行頭から始まる番号付きリスト**で段を書く。1 段 = 1 行。段の最初の wikilink がその段で読むノートで、続けて「— なぜこの位置か」を一文で書く。見出しを指すなら `[[ノート#見出し]]`。
+- 橋渡し文献が要る段は wikilink を置かず、「橋渡し: <欠けている話題> — <何が欠けていて、どんな文献が要るか>」と書く。
+- 補足は番号付きリストの外(段の下の字下げした箇条書きや別の節)に書く。
+
+最後に、書いたノートの vault 相対パスを answer_path に、読者向けの一言を message に入れて返す。"""
+
+
+PROMPTS = {"ask": ask_prompt, "path": path_prompt}
 
 
 def run_claude(prompt):

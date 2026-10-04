@@ -437,6 +437,10 @@ phone with the next snapshot. **Requests** (on the Files tab and in Settings)
 shows each one: not sent, queued, in progress, answered. Offline, requests
 wait on the device and are sent later.
 
+**Learning Path…** (in a note's menu, or in Requests) asks for the
+notes on a subject in reading order; the path arrives under `wiki/paths/`
+and shows as steps with what you have read.
+
 The app and `wikiindex` still never write to the vault. Requests wait in an
 inbox outside it (`<PUBLISH>/inbox/`), and only the runner,
 `scripts/claude-request.py`, starts Claude, with Write and Edit limited to

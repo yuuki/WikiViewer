@@ -252,6 +252,10 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 ## Phase P — reading companion (issues #34–#44)
 - [x] #34 Requests to Claude: queue, HTTP/folder inbox, worker, runner,
       ask sheet with paragraph selection, Requests list, note section
+- [x] #35 Learning paths: `path` requests, `type: path` notes under
+      `wiki/paths/` shown as steps (numbered list, first resolved link per
+      step, steps without one are gaps), progress on the device
+      (read dates + manual checks in ReadingHistory), home section
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

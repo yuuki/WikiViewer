@@ -103,6 +103,16 @@
         }
       }
     },
+    "%lld of %lld read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld / %2$lld 読了"
+          }
+        }
+      }
+    },
     "%lld pending": {
       "localizations": {
         "ja": {
@@ -266,6 +276,16 @@
         }
       }
     },
+    "Bridge needed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "橋渡し文献が要る"
+          }
+        }
+      }
+    },
     "Builder": {
       "localizations": {
         "ja": {
@@ -352,6 +372,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mac の Claude が wiki のソースに照らして主張を判定し、判定を wiki/questions のノートとして書きます。"
+          }
+        }
+      }
+    },
+    "Claude on your Mac orders the notes the vault has on this subject, each after what it builds on, and marks where a bridging source is missing. The path arrives as a note under wiki/paths.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac の Claude が、この主題について vault にあるノートを前提の順に並べ、橋渡しの文献が欠けている箇所を示します。経路は wiki/paths のノートとして届きます。"
           }
         }
       }
@@ -716,6 +746,16 @@
         }
       }
     },
+    "Every step read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべての段を読んだ"
+          }
+        }
+      }
+    },
     "Expanded": {
       "localizations": {
         "ja": {
@@ -916,12 +956,42 @@
         }
       }
     },
+    "Learning Path": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "学習経路"
+          }
+        }
+      }
+    },
     "Learning path: %@": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "学習経路: %@"
+          }
+        }
+      }
+    },
+    "Learning Paths": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "学習経路"
+          }
+        }
+      }
+    },
+    "Learning Path…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "学習経路…"
           }
         }
       }
@@ -1046,6 +1116,26 @@
         }
       }
     },
+    "Mark as not read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未読にする"
+          }
+        }
+      }
+    },
+    "Mark as read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既読にする"
+          }
+        }
+      }
+    },
     "Memory footprint": {
       "localizations": {
         "ja": {
@@ -1062,6 +1152,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "埋め込み先がありません: %@"
+          }
+        }
+      }
+    },
+    "Missing material": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "材料が欠けている"
+          }
+        }
+      }
+    },
+    "More": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他"
           }
         }
       }
@@ -1152,6 +1262,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "下位タグ"
+          }
+        }
+      }
+    },
+    "New Learning Path…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい学習経路…"
           }
         }
       }
@@ -1465,6 +1585,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "処理待ち"
+          }
+        }
+      }
+    },
+    "Read Next": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "次に読む"
           }
         }
       }
@@ -1859,6 +1989,16 @@
         }
       }
     },
+    "Subject": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主題"
+          }
+        }
+      }
+    },
     "Switch to the demo vault? Your update source is replaced; choose it again to switch back.": {
       "localizations": {
         "ja": {
@@ -2125,6 +2265,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "ビュー"
+          }
+        }
+      }
+    },
+    "What do you want to understand?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何を理解したいか"
           }
         }
       }

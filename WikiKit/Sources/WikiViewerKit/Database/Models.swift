@@ -89,6 +89,8 @@ public struct OutgoingLink: Sendable, Hashable {
     public var display: String?
     public var targetNoteID: Int64?
     public var targetAssetID: Int64?
+    /// Line in the body (0-based); -1 for a link in a frontmatter value.
+    public var line: Int = 0
 
     public var isResolved: Bool { targetNoteID != nil || targetAssetID != nil }
 }
