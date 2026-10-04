@@ -145,6 +145,7 @@ struct MacRootView: View {
         case .base(let path), .localGraph(let path): return VaultPath.basename(of: path)
         case .missing(let target): return target
         case .graph, .graphCluster: return String(localized: "Graph")
+        case .recall: return String(localized: "Recall")
         case .folder, .tag, .tags, .search, .recents, .requests, .digest: return nil
         }
     }

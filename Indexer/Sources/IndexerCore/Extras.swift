@@ -25,6 +25,11 @@
 //    "detail": "…", "recommendations": ["…"], "verdict": "real-gap",
 //    "report": "<vault path>"}]}.
 //
+//  - `recall.json` (#40): questions to recall notes read days ago, made by
+//    scripts/make-recall.py: {"items": [{"id": "…", "note": "<vault path>",
+//    "heading": "…", "question": "…", "answer": "…", "created":
+//    "YYYY-MM-DD"}]}.
+//
 //  A missing file empties its table; a malformed line is skipped.
 //
 
@@ -37,10 +42,12 @@ enum Extras {
     static let relatedFile = "related.jsonl"
     static let clusterNotesFile = "cluster-notes.json"
     static let gapsFile = "gaps.json"
+    static let recallFile = "recall.json"
     /// Written to the state directory for the tools that make the extras.
     static let clusterExportFile = "graph-clusters.json"
     /// Files the importer reads, in the signature.
-    static let files = [relatedFile, clusterNotesFile, gapsFile]
+    static let files = [relatedFile, clusterNotesFile, gapsFile, recallFile]
+    static let maximumRecallItems = 2_000
     /// Members per cluster in the export, and compared for staleness.
     static let exportedMembers = 40
     static let maximumGaps = 500
@@ -53,7 +60,8 @@ enum Extras {
         var written = 0
         var clusterNotes = 0
         var gaps = 0
-        var description: String { "extras: \(related) neighbours, \(clusterNotes) cluster notes, \(gaps) gaps, \(written) rows written" }
+        var recall = 0
+        var description: String { "extras: \(related) neighbours, \(clusterNotes) cluster notes, \(gaps) gaps, \(recall) recall questions, \(written) rows written" }
     }
 
     /// Name, size and modification time of each extras file.
@@ -70,6 +78,7 @@ enum Extras {
         (summary.related, summary.written) = try importRelated(db, file: directory.appendingPathComponent(relatedFile))
         summary.clusterNotes = try importClusterNotes(db, file: directory.appendingPathComponent(clusterNotesFile))
         summary.gaps = try importGaps(db, file: directory.appendingPathComponent(gapsFile))
+        summary.recall = try importRecall(db, file: directory.appendingPathComponent(recallFile))
         try db.execute(sql: "INSERT OR REPLACE INTO builder_state(key, value) VALUES (?, ?)", arguments: [signatureKey, signature(of: directory)])
         return summary
     }
@@ -281,6 +290,52 @@ enum Extras {
                 INSERT INTO graph_gaps(id, note_a, note_b, cluster_a, cluster_b, title, detail, recommendations, verdict, report_note_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, arguments: [i + 1, row.noteA, row.noteB, row.clusterA, row.clusterB, row.title, row.detail, row.recommendations, row.verdict, row.report])
+        }
+        return desired.count
+    }
+
+    // MARK: Recall
+
+    struct RecallFile: Decodable {
+        struct Item: Decodable {
+            var id: String
+            var note: String
+            var heading: String?
+            var question: String
+            var answer: String
+            var created: String
+        }
+
+        var items: [Item]
+    }
+
+    struct RecallRow: Hashable {
+        var id: String, noteID: Int64, heading: String?, question: String, answer: String, created: String
+    }
+
+    static func importRecall(_ db: Database, file: URL) throws -> Int {
+        var desired: [String: RecallRow] = [:]
+        if let data = try readBounded(file), let recall = try? JSONDecoder().decode(RecallFile.self, from: data) {
+            // Newest first, so the limit keeps the newest.
+            for item in recall.items.sorted(by: { ($0.created, $0.id) > ($1.created, $1.id) }) where desired.count < maximumRecallItems {
+                guard !item.id.isEmpty, item.id.count <= 80, desired[item.id] == nil,
+                      let noteID = try Int64.fetchOne(db, sql: "SELECT id FROM notes WHERE path = ?", arguments: [item.note]) else { continue }
+                desired[item.id] = RecallRow(id: item.id, noteID: noteID, heading: item.heading.flatMap { $0.isEmpty ? nil : String($0.prefix(300)) },
+                                             question: String(item.question.prefix(1_000)), answer: String(item.answer.prefix(4_000)),
+                                             created: String(item.created.prefix(10)))
+            }
+        }
+        var existing: [String: RecallRow] = [:]
+        for row in try Row.fetchAll(db, sql: "SELECT * FROM recall_items") {
+            existing[row["id"]] = RecallRow(id: row["id"], noteID: row["note_id"], heading: row["heading"], question: row["question"],
+                                            answer: row["answer"], created: row["created"])
+        }
+        for id in existing.keys where desired[id] == nil {
+            try db.execute(sql: "DELETE FROM recall_items WHERE id = ?", arguments: [id])
+        }
+        for (id, row) in desired where existing[id] != row {
+            try db.execute(sql: "INSERT OR REPLACE INTO recall_items(id, note_id, heading, question, answer, created) VALUES (?, ?, ?, ?, ?, ?)",
+                           arguments: [row.id, row.noteID, row.heading, row.question, row.answer, row.created])
         }
         return desired.count
     }

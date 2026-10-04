@@ -70,6 +70,26 @@ import WikiShared
         #expect(try await neighbours(builder).isEmpty, "no file, no neighbours")
     }
 
+    @Test func recallQuestionsAreImportedNewestFirstAndBounded() async throws {
+        let (env, extras) = try env()
+        let recall = """
+        {"items": [
+          {"id": "q1", "note": "Projects/Alpha.md", "heading": "Summary", "question": "Alpha とは?", "answer": "最初のプロジェクト", "created": "2026-10-03"},
+          {"id": "q2", "note": "Missing.md", "question": "?", "answer": "!", "created": "2026-10-04"},
+          {"id": "", "note": "Home.md", "question": "?", "answer": "!", "created": "2026-10-04"}
+        ]}
+        """
+        try Data(recall.utf8).write(to: extras.appendingPathComponent("recall.json"))
+        let indexer = try Indexer(configuration: env.config)
+        let builder = await indexer.builder
+        _ = try await indexer.reconcile()
+        _ = try await indexer.publish()
+        let rows = try await builder.writer.read { db in
+            try Row.fetchAll(db, sql: "SELECT id, heading, question FROM recall_items").map { [$0["id"] as String, $0["heading"] as String? ?? "", $0["question"] as String] }
+        }
+        #expect(rows == [["q1", "Summary", "Alpha とは?"]], "unknown notes and empty ids are skipped")
+    }
+
     @Test func extrasMustBeOutsideTheVault() throws {
         var env = try Env(copyFixture: true)
         env.config.extrasDirectory = env.vault.appendingPathComponent("extras")

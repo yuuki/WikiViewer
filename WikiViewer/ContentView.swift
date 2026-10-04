@@ -200,4 +200,5 @@ struct WindowRequest: Hashable, Codable {
         .environment(AppModel())
         .environment(ReadingHistory())
         .environment(DigestState())
+        .environment(RecallStore(fileURL: nil))
 }

@@ -519,6 +519,16 @@ python3 scripts/reading-signals.py top --signals "<STATE>/signals"
 python3 scripts/reading-signals.py unconceptualized --signals "<STATE>/signals" --vault "<VAULT>"
 ```
 
+Recall practice uses that history: each night
+
+```sh
+python3 scripts/make-recall.py --signals "<STATE>/signals" --vault "<VAULT>" --out "<STATE>/extras"
+```
+
+asks Claude for questions about notes you read 2–14 days ago (add
+`--mechanical` to make simple questions from the notes' sections without
+Claude); they appear under **Recall** on the Files tab.
+
 `summary.json` there is what the vault's skills (hn-curation,
 wiki-survey-recommend) can read to rank by what you actually read;
 `unconceptualized` lists sources you read that no concept cites yet.

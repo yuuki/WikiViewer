@@ -28,6 +28,7 @@ public final class LibrarySession: Sendable, Identifiable {
     public let bases: BaseRepository
     public let changes: ChangeRepository
     public let related: RelatedRepository
+    public let recall: RecallRepository
     public let search: any SearchEngine
 
     public var id: String { installed?.name ?? database.url.path }
@@ -45,6 +46,7 @@ public final class LibrarySession: Sendable, Identifiable {
         bases = BaseRepository(database: database)
         changes = ChangeRepository(database: database)
         related = RelatedRepository(database: database)
+        recall = RecallRepository(database: database)
         search = TrigramSearchEngine(database: database)
     }
 }

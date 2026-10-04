@@ -93,6 +93,16 @@
         }
       }
     },
+    "%lld left today": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日の残り %lld 問"
+          }
+        }
+      }
+    },
     "%lld links": {
       "localizations": {
         "ja": {
@@ -129,6 +139,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 件待ち"
+          }
+        }
+      }
+    },
+    "%lld questions": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 問"
           }
         }
       }
@@ -766,6 +786,16 @@
         }
       }
     },
+    "Discard This Question": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この問いを捨てる"
+          }
+        }
+      }
+    },
     "Display": {
       "localizations": {
         "ja": {
@@ -792,6 +822,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "世代 %lld をダウンロード中…"
+          }
+        }
+      }
+    },
+    "Easy": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "簡単"
           }
         }
       }
@@ -966,6 +1006,16 @@
         }
       }
     },
+    "Forgot": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "忘れた"
+          }
+        }
+      }
+    },
     "From --token-file": {
       "localizations": {
         "ja": {
@@ -1026,6 +1076,16 @@
         }
       }
     },
+    "Good": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "思い出せた"
+          }
+        }
+      }
+    },
     "Graph": {
       "localizations": {
         "ja": {
@@ -1036,12 +1096,32 @@
         }
       }
     },
+    "Hard": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "難しい"
+          }
+        }
+      }
+    },
     "Has nested tags": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "下位タグあり"
+          }
+        }
+      }
+    },
+    "How well did you remember?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "どのくらい思い出せたか"
           }
         }
       }
@@ -1536,6 +1616,16 @@
         }
       }
     },
+    "New per Day: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 日の新しい問い: %lld"
+          }
+        }
+      }
+    },
     "New Sources": {
       "localizations": {
         "ja": {
@@ -1756,6 +1846,16 @@
         }
       }
     },
+    "Nothing to Recall": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日の問いはありません"
+          }
+        }
+      }
+    },
     "Obsidian": {
       "shouldTranslate": false
     },
@@ -1825,6 +1925,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "設定を開く"
+          }
+        }
+      }
+    },
+    "Open “%@”": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」を開く"
           }
         }
       }
@@ -2009,6 +2119,16 @@
         }
       }
     },
+    "Questions about notes you read a few days ago appear here once your Mac makes them (scripts/make-recall.py).": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "数日前に読んだノートについての問いは、Mac が作ると(scripts/make-recall.py)ここに出ます。"
+          }
+        }
+      }
+    },
     "Queued": {
       "localizations": {
         "ja": {
@@ -2055,6 +2175,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "読書履歴"
+          }
+        }
+      }
+    },
+    "Recall": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想起練習"
           }
         }
       }
@@ -2175,6 +2305,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude への依頼"
+          }
+        }
+      }
+    },
+    "Reviews per Day: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 日の復習: %lld"
           }
         }
       }
@@ -2335,6 +2475,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "すべての種類を表示"
+          }
+        }
+      }
+    },
+    "Show Answer": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "答えを見る"
           }
         }
       }
@@ -3058,6 +3208,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "あなたが書いた"
+          }
+        }
+      }
+    },
+    "You are done for today.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今日の分は終わりました。"
           }
         }
       }
