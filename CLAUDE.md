@@ -38,6 +38,9 @@ sessions do not step on each other.
 - `scripts/device.sh run` builds, installs and launches the app on the first
   paired iPhone. `WV_DEVICE=<name or UDID>` picks another one.
 - The device is shared by every worktree, so only run it when asked.
+- `scripts/resign.sh` (run by the LaunchAgent `local.wikiviewer-resign`)
+  re-signs and reinstalls the app from `main` before the Personal Team
+  profile expires. Only run it when asked; `scripts/resign.sh status` is safe.
 
 ## Sandbox
 

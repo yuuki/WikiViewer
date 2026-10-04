@@ -344,9 +344,36 @@ developer: **Settings → General → VPN & Device Management → Developer App 
 your Apple account → Trust**.
 
 Apps signed with a Personal Team expire after 7 days. Run the app from Xcode
-again to re-sign it.
+again to re-sign it, or let the Mac do it (next section).
 
 Then load a snapshot as in section 4.
+
+### Keep the app signed
+
+`scripts/resign.sh` renews the app before its profile expires: it builds the
+local `main` branch in its own worktree with Automatic Signing
+(`-allowProvisioningUpdates`), which gets a new 7-day profile, and installs
+it over the copy on the iPhone with `devicectl`, over Wi-Fi when the phone is
+not plugged in. The app keeps its data. A LaunchAgent runs it every 2 hours;
+a run does nothing until a renewal is due, 5 days after the last success or
+when less than 48 hours are left.
+
+```sh
+scripts/resign.sh run --force   # renew now
+scripts/resign.sh status        # last success, expiry, next renewal
+```
+
+The iPhone must be paired, on the same network and **unlocked since it last
+locked recently**: iOS refuses an install to a phone that has stayed locked
+("The device has not been unlocked recently"). Such a run fails and the next
+one retries with the app it already built; a notification appears when less
+than a day is left. Logs and the xcodebuild output of each build are in
+`~/Library/Logs/WikiViewerResign/`; the state and the build worktree are in
+`~/Library/Application Support/WikiViewerResign/`.
+
+The LaunchAgent is `local.wikiviewer-resign`. Its plist lives with the
+indexer's agents in the vault (`~/obsidian/research/launchd/`), installed by
+`bin/install-launchagents.sh` there.
 
 ## 7. Install on a Mac
 
