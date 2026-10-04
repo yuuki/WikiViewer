@@ -268,6 +268,12 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       provenance line under the title, verdict card on thesis pages
 - [-] #37 Jumping from a claim to the page of the original PDF: originals
       under `.raw/` are not published and PDF preview is deferred
+- [x] #38 Neighbours by role: `--extras DIR` (imported before each
+      publication, watched by `watch`), `related.jsonl` from
+      `scripts/export-related.py` (the vault's wiki-related for every
+      graph page), schema 5 `related` table (≤ 12 per note),
+      `RelatedRepository`, Related under the note (iOS) and an inspector
+      pane (macOS)
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

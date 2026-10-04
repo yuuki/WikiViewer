@@ -39,6 +39,11 @@ public struct IndexerConfiguration: Sendable {
     public var graph = GraphConfiguration()
     /// What changed between generations (see ChangeLog.swift).
     public var changeLog = ChangeLogConfiguration()
+    /// Host-made data shown next to the notes (see Extras.swift), outside
+    /// the vault; nil for none.
+    public var extrasDirectory: URL?
+    /// How often `watch` checks the extras for changes.
+    public var extrasCheckInterval: Duration = .seconds(5)
     /// Maximum note size that is indexed; larger files are skipped with a warning.
     public var maximumNoteBytes: Int = 8 * 1024 * 1024
     /// Maximum asset size that is hashed / processed.
@@ -124,7 +129,7 @@ public struct IndexerConfiguration: Sendable {
         guard FileManager.default.fileExists(atPath: vault.path, isDirectory: &isDir), isDir.boolValue else {
             throw IndexerError.notADirectory(vault.path)
         }
-        for (name, dir) in [("state", stateDirectory), ("publish", publishDirectory)] {
+        for (name, dir) in [("state", stateDirectory), ("publish", publishDirectory)] + (extrasDirectory.map { [("extras", $0)] } ?? []) {
             if dir.isInside(vault) {
                 throw IndexerError.unsafeLocation("\(name) directory \(dir.path) is inside the vault; the vault must never be written to")
             }

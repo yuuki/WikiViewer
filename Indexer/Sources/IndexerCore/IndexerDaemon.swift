@@ -60,6 +60,7 @@ public final class IndexerDaemon: Sendable {
             group.addTask { [indexer] in
                 var scheduler = PublicationScheduler(configuration: config, now: .now)
                 var patternFiles = FilterFiles(configuration: config)
+                var extrasCheckedAt = ContinuousClock.now
                 let dirty = await indexer.hasUnpublishedChanges
                 if needsInitialPublication || dirty {
                     scheduler.recordChange(at: .now)
@@ -83,6 +84,13 @@ public final class IndexerDaemon: Sendable {
                     case .tick:
                         if !patternFiles.isEmpty {
                             await Self.checkFilterFiles(indexer: indexer, files: &patternFiles, scheduler: &scheduler, now: now)
+                        }
+                        if config.extrasDirectory != nil, now - extrasCheckedAt >= config.extrasCheckInterval {
+                            extrasCheckedAt = now
+                            if await indexer.checkExtras() {
+                                Log.info("extras changed; publishing")
+                                scheduler.recordChange(at: now)
+                            }
                         }
                         try await Self.handleTick(indexer: indexer, scheduler: &scheduler, now: now, onPublish: onPublish)
                     }

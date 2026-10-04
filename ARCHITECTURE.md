@@ -429,6 +429,19 @@ the original online (`url`, `doi`, `arxiv_id`) instead; `publish: false`
 marks an original not to share. A thesis page (wiki-thesis) gets its
 verdict, confidence and the way to its evidence table at the top.
 
+### Host-made extras beside the notes (schema 5)
+
+Some of what the reader wants next to a note is computed by the vault's
+own tools, not written in it: wiki-related's neighbours by role (what a
+page builds on, its evidence, what contradicts it, its peers). Those tools
+are Python and need the vault's whole graph, so they run on the Mac and
+leave their results in one directory outside the vault (`--extras`). The
+indexer imports each file before a publication into a bounded table
+(at most 12 neighbours per note), writing only rows that differ, and
+`watch` publishes when a file changes. `scripts/export-related.py` runs
+wiki-related for every wiki page (about 18,000 in 85 s) without writing
+into the vault. A missing file simply empties its table.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the

@@ -13,7 +13,7 @@ import WikiViewerKit
 
 struct NoteInspector: View {
     enum Pane: String, CaseIterable, Identifiable {
-        case outline, backlinks, info
+        case outline, backlinks, related, info
         var id: Self { self }
     }
 
@@ -29,6 +29,7 @@ struct NoteInspector: View {
             Picker("Inspector", selection: $pane) {
                 Text("Outline").tag(Pane.outline)
                 Text("Backlinks").tag(Pane.backlinks)
+                Text("Related").tag(Pane.related)
                 Text("Info").tag(Pane.info)
             }
             .pickerStyle(.segmented)
@@ -38,6 +39,10 @@ struct NoteInspector: View {
             switch pane {
             case .outline: outline
             case .backlinks: backlinks
+            case .related:
+                ScrollView {
+                    RelatedSection(groups: model.related).padding(12)
+                }
             case .info: info
             }
         }

@@ -276,6 +276,10 @@ struct NoteView: View {
                             blockRow(block)
                         }
                         if !Self.hasInspector {
+                            if !model.related.isEmpty {
+                                RelatedSection(groups: model.related)
+                                    .padding(.top, 24)
+                            }
                             NoteRequestsSection(path: path)
                                 .padding(.top, 24)
                             BacklinksSection(model: model, session: session)
@@ -342,6 +346,8 @@ final class NoteModel {
     private(set) var backlinks: [Backlink] = []
     private(set) var backlinkTotal = 0
     private(set) var backlinksHaveMore = false
+    /// Neighbours by role (#38).
+    private(set) var related: [RelatedGroup] = []
     /// Who wrote the note and what it rests on (#37).
     private(set) var provenance: NoteProvenance?
     /// The steps of a learning path note (#35), with their notes.
@@ -373,6 +379,7 @@ final class NoteModel {
             tags = try await session.tags.tags(of: id)
             self.links = links
             embeddedAssets = try await session.assets.assets(ids: links.filter(\.isEmbed).compactMap(\.targetAssetID))
+            related = (try? await session.related.related(to: id)) ?? []
             provenance = NoteProvenance.make(path: detail.path, properties: detail.properties, links: links)
             if LearningPath.isPath(properties: detail.properties), let path = LearningPath.parse(body: detail.body, links: links) {
                 var notes: [Int64: NoteSummary] = [:]
