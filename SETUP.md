@@ -192,6 +192,18 @@ Run the export after the vault's graph is rebuilt (for example nightly);
 `watch` publishes the change. Without the file, notes show no related
 section.
 
+### Cluster summaries, open questions and gaps
+
+```sh
+python3 scripts/export-graph-lens.py --vault "<VAULT>" --state "<STATE>" --out "<STATE>/extras" [--summarize]
+```
+
+writes each cluster's open questions (from its concept pages) and the gap
+candidates of the vault's wiki-gap reports into the extras folder; with
+`--summarize` Claude also writes a short summary of each new or changed
+cluster (at most `--max-summaries`, default 10, per run). Run it after
+`watch` has published, for example nightly.
+
 ### What changed
 
 Each publication also records which notes it added, changed and removed,

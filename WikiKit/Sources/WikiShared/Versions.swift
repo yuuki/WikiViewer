@@ -17,11 +17,11 @@
 ///   versions differ.
 public enum WikiVersions {
     public static let formatVersion = 1
-    public static let schemaVersion = 5
+    public static let schemaVersion = 6
     public static let scannerVersion = 1
 
     /// Schema versions this build of the viewer can read.
-    public static let readableSchemaVersions: ClosedRange<Int> = 5...5
+    public static let readableSchemaVersions: ClosedRange<Int> = 6...6
     /// Artifact format versions this build of the viewer can read.
     public static let readableFormatVersions: ClosedRange<Int> = 1...1
 }

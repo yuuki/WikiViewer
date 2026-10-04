@@ -21,6 +21,9 @@ struct GraphOverviewView: View {
     @AppStorage("WikiViewer.graph.overviewAsList") private var showsList = false
     @State private var query = ""
     @State private var hits: [SearchHit] = []
+    /// Gaps between clusters (#39), drawn dashed.
+    @State private var gaps: [GraphGap] = []
+    @State private var showingGaps: [GraphGap]?
 
     var body: some View {
         content
@@ -29,6 +32,13 @@ struct GraphOverviewView: View {
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 // macOS lists the clusters in the content column beside the map.
+                if !gaps.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Gaps", systemImage: "point.topleft.down.to.point.bottomright.curvepath") {
+                            showingGaps = gaps
+                        }
+                    }
+                }
                 #if os(iOS)
                 if overview?.clusters.isEmpty == false {
                     ToolbarItem(placement: .primaryAction) {
@@ -46,6 +56,9 @@ struct GraphOverviewView: View {
             #endif
             .task(id: library.session?.id) { await load() }
             .task(id: query) { await search() }
+            .sheet(item: Binding(get: { showingGaps.map(GapSheetItem.init) }, set: { showingGaps = $0?.gaps })) { item in
+                GapListView(gaps: item.gaps)
+            }
     }
 
     /// macOS shows the cluster list in the content column, so the map is
@@ -84,7 +97,7 @@ struct GraphOverviewView: View {
     }
 
     private func map(_ overview: GraphOverview) -> some View {
-        GraphCanvas(scene: Self.scene(overview), selection: selection, fitKey: overview.clusters.map(\.id), labelBudget: 60,
+        GraphCanvas(scene: Self.scene(overview, gaps: gaps), selection: selection, fitKey: overview.clusters.map(\.id), labelBudget: 60,
                     onDoubleClick: { openRoute(.graphCluster(id: $0, focus: nil)) }) { id in
             if let id, id == selection {
                 openRoute(.graphCluster(id: id, focus: nil))
@@ -99,7 +112,7 @@ struct GraphOverviewView: View {
         .graphCard(empty: selection == nil,
                    placeholder: "Click a cluster to see what is in it. Double-click opens it.") {
             if let selection, let cluster = overview.clusters.first(where: { $0.id == selection }) {
-                ClusterCard(cluster: cluster) {
+                ClusterCard(cluster: cluster, onShowGaps: { showingGaps = $0 }) {
                     openRoute(.graphCluster(id: cluster.id, focus: nil))
                 } onClose: {
                     withAnimation(.snappy) { self.selection = nil }
@@ -109,7 +122,7 @@ struct GraphOverviewView: View {
         }
     }
 
-    static func scene(_ overview: GraphOverview) -> GraphScene {
+    static func scene(_ overview: GraphOverview, gaps: [GraphGap] = []) -> GraphScene {
         let nodes = overview.clusters.map { c in
             GraphScene.Node(id: c.id, position: CGPoint(x: c.x, y: -c.y), radius: c.radius, color: GraphPalette.cluster(c.id),
                             label: c.label, sublabel: String(localized: "\(c.size) notes"), priority: Double(c.size), style: .bubble)
@@ -118,7 +131,12 @@ struct GraphOverviewView: View {
         let edges = overview.links.map { l in
             GraphScene.Edge(a: l.a, b: l.b, width: 1.2 + 4 * log(1 + Double(l.weight)) / log(1 + strongest), onlyWhenSelected: !l.skeleton)
         }
-        return GraphScene(nodes: nodes, edges: edges)
+        var seen = Set<[Int64]>()
+        let gapEdges = gaps.compactMap { gap -> GraphScene.Edge? in
+            guard gap.crossesClusters, let a = gap.clusterA, let b = gap.clusterB, seen.insert([min(a, b), max(a, b)]).inserted else { return nil }
+            return GraphScene.Edge(a: a, b: b, width: 1.5, dashed: true)
+        }
+        return GraphScene(nodes: nodes, edges: edges + gapEdges)
     }
 
     private var searchResults: some View {
@@ -141,6 +159,7 @@ struct GraphOverviewView: View {
         guard let session = library.session else { return }
         do {
             overview = try await session.graph.overview()
+            gaps = (try? await session.graph.crossClusterGaps()) ?? []
             failure = nil
             if let selection, overview?.clusters.contains(where: { $0.id == selection }) != true { self.selection = nil }
         } catch {
@@ -168,6 +187,12 @@ struct GraphOverviewView: View {
             openRoute(.localGraph(path: note.path))
         }
     }
+}
+
+/// Lets a list of gaps drive `.sheet(item:)`.
+struct GapSheetItem: Identifiable {
+    let gaps: [GraphGap]
+    var id: [Int64] { gaps.map(\.id) }
 }
 
 /// Every cluster, largest first, with its best-known notes. Also the
