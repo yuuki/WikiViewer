@@ -179,37 +179,24 @@ struct PathRequestSheet: View {
 struct LearningPathsHomeSection: View {
     static let folder = "wiki/paths"
     static let limit = 5
-    @Environment(Library.self) private var library
-    @State private var paths: [NoteSummary] = []
-    @State private var hasMore = false
+    let paths: [NoteSummary]
+    let hasMore: Bool
 
     var body: some View {
-        Group {
-            if !paths.isEmpty {
-                Section {
-                    ForEach(paths, id: \.[row: "paths"]) { note in
-                        RouteLink(Route.note(path: note.path, anchor: nil)) {
-                            Label(note.title, systemImage: "map")
-                        }
+        if !paths.isEmpty {
+            Section {
+                ForEach(paths, id: \.[row: "paths"]) { note in
+                    RouteLink(Route.note(path: note.path, anchor: nil)) {
+                        Label(note.title, systemImage: "map")
                     }
-                    if hasMore {
-                        RouteLink("Show All", route: Route.folder(path: Self.folder))
-                    }
-                } header: {
-                    Text("Learning Paths")
                 }
-                .listRowSection("paths")
+                if hasMore {
+                    RouteLink("Show All", route: Route.folder(path: Self.folder))
+                }
+            } header: {
+                Text("Learning Paths")
             }
-        }
-        .task(id: library.session?.id) {
-            guard let session = library.session,
-                  let folder = try? await session.folders.folderID(path: Self.folder),
-                  let page = try? await session.folders.notes(in: folder, order: .modifiedNewest, limit: Self.limit) else {
-                paths = []
-                return
-            }
-            paths = page.items
-            hasMore = page.hasMore
+            .listRowSection("paths")
         }
     }
 }

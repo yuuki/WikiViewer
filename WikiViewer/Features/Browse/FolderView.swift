@@ -16,6 +16,9 @@ struct FolderView: View {
     @Environment(AppModel.self) private var app
     @State private var model = FolderModel()
     @State private var today: NoteSummary?
+    /// What the home sections show beyond history (root only).
+    @State private var feed = HomeFeed()
+    @Environment(DigestState.self) private var digestState
     @State private var viewingAsset: AssetInfo?
     /// Refreshed every minute so the snapshot's age stays right.
     @State private var now = Date.now
@@ -33,7 +36,7 @@ struct FolderView: View {
                 UpdateFailureBanner(message: message)
             }
             if path.isEmpty {
-                LibraryHomeSections(today: today)
+                LibraryHomeSections(today: today, feed: feed)
             }
             if !model.folders.isEmpty {
                 Section {
@@ -158,6 +161,10 @@ struct FolderView: View {
             order = FolderSortStore.order(for: path)
             await model.load(path: path, order: order, session: session)
             if path.isEmpty { today = await LibraryHomeSections.findTodaysNote(in: session) }
+        }
+        .task(id: DigestHomeSection.TaskKey(session: library.session?.id, baseline: digestState.baseline, range: digestState.range)) {
+            guard path.isEmpty, let session = library.session else { return }
+            await feed.load(session: session, digestState: digestState)
         }
     }
 }

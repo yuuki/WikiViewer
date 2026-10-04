@@ -23,6 +23,8 @@ public enum Route: Hashable, Codable, Sendable {
     case recents
     /// Requests to the Mac's Claude and their answers.
     case requests
+    /// What changed in the vault since the reader last looked.
+    case digest
     /// The Graph tab's cluster overview.
     case graph
     /// One cluster; `focus` is a note path to select on arrival.
@@ -54,7 +56,7 @@ extension Route {
     /// column and documents in the detail column.
     public var isList: Bool {
         switch self {
-        case .folder, .tag, .tags, .search, .recents, .requests: true
+        case .folder, .tag, .tags, .search, .recents, .requests, .digest: true
         case .note, .base, .missing, .graph, .graphCluster, .localGraph: false
         }
     }
@@ -88,6 +90,7 @@ public enum RouteDispatch: Equatable, Sendable {
         case .folder(let path): return .showList(.files, Route.folderChain(path))
         case .recents: return .showList(.files, [.recents])
         case .requests: return .showList(.files, [.requests])
+        case .digest: return .showList(.files, [.digest])
         case .tag(let name): return .showList(.tags, [.tag(name: name)])
         case .tags: return .showList(.tags, [])
         case .search: return .showList(.search, [])

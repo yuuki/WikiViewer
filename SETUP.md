@@ -177,6 +177,14 @@ The app follows the source while it is open. When it is closed, iOS may also
 refresh it in the background if **Settings → General → Background App
 Refresh** is on; iOS decides how often.
 
+### What changed
+
+Each publication also records which notes it added, changed and removed,
+and the new entries of `wiki/log.md` (another note with `--log-note`). The
+app's Files tab shows them as **Since Your Last Visit**. Nothing needs to
+be set up; the first publication after an upgrade only sets the starting
+point.
+
 ## 4. Get the snapshot to the app
 
 ### Option A: iCloud Drive

@@ -230,6 +230,7 @@ public final class BuilderDatabase: Sendable {
                 return
             }
             try deleteNoteChildren(db, noteID: noteID)
+            try ChangeLog.notePending(db, path: path, kind: .modified)
             try db.execute(
                 sql: "UPDATE notes SET title = ?, mtime_ns = ?, size = ?, content_hash = ?, indexed_gen = ?, frontmatter = ?, body = ? WHERE id = ?",
                 arguments: [parsed.title, meta.mtimeNs, meta.size, contentHash, generation, parsed.frontmatterJSON, parsed.body, noteID]
@@ -244,6 +245,7 @@ public final class BuilderDatabase: Sendable {
                 arguments: [path, folderID, basename, basenameKey, parsed.title, meta.mtimeNs, meta.size, contentHash, generation, parsed.frontmatterJSON, parsed.body]
             )
             noteID = db.lastInsertedRowID
+            try ChangeLog.notePending(db, path: path, kind: .added)
             try db.execute(sql: "UPDATE folders SET note_count = note_count + 1 WHERE id = ?", arguments: [folderID])
             work.keys.insert(basenameKey)
         }
@@ -306,6 +308,7 @@ public final class BuilderDatabase: Sendable {
         let folderID: Int64 = row["folder_id"]
         try deleteNoteChildren(db, noteID: id)
         try db.execute(sql: "DELETE FROM notes WHERE id = ?", arguments: [id])
+        try ChangeLog.notePending(db, path: path, kind: .removed)
         try db.execute(sql: "UPDATE folders SET note_count = note_count - 1 WHERE id = ?", arguments: [folderID])
         try pruneFolders(db, from: folderID, cache: &folders)
         work.keys.insert(row["basename_key"])

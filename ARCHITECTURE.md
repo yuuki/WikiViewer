@@ -389,6 +389,30 @@ Cost: a second Mac process, and answers are as fast as Claude plus one
 publication. The vault's rule that `wiki/` is Claude's and the primary
 layer the human's is enforced by the runner's allow-list, not by WikiViewer.
 
+### What changed, recorded on the host (schema 4)
+
+When Claude updates the vault overnight, the reader wants to read what
+happened, not hunt for it. The phone cannot compare two generations (that
+would read every note), so the indexer records it as it goes: every note
+written or deleted is noted in a builder-only table, and before a
+publication those notes become `change_log` rows of that generation (path,
+kind, title, frontmatter type, author by `Provenance`), with the
+generation's time and counts in `generation_log`. New entries of the
+vault's operation log (`wiki/log.md`, `--log-note`) are stored with the
+generation they first appear in, together with the pages they link to.
+
+"Since you last looked" differs per device, so the host does not decide
+it: each device remembers the generation it was showing when it was last
+put away and reads the rows after it (or after the last generation before
+a date), along the primary keys. The first publication of a builder only
+sets the baseline — indexing a whole vault is not news — and rows older
+than 30 days, or beyond 2,000 notes per generation, are not kept.
+
+Who made a change is approximated by who wrote the note: an explicit
+`author_kind`, a wiki `address`, or the `wiki/` folder mean Claude;
+anything else the reader. The indexer reads only the vault, so an edit
+the reader made to a wiki page in Obsidian still counts as Claude's.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the
@@ -442,6 +466,8 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
 - PDF, audio and video have no preview yet.
 - Math is typeset by SwiftMath, which covers common LaTeX math but not all
   of MathJax; a formula it cannot parse is shown as its source.
+- "What changed" attributes a change to the note's author, not to whoever
+  edited it last, and keeps 30 days.
 - Bases: views are shown as lists (table, cards and list views alike, one row
   per note with its columns as label–value pairs); summaries, `this`,
   `file.ctime`, embedded bases' own rendering and ```` ```base ```` code blocks

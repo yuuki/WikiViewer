@@ -3,8 +3,9 @@
 //  WikiShared
 //
 
-/// SQLite schema of the published viewer database (schema version 3:
-/// version 1 plus the Obsidian Bases tables (2) and the link graph (3)).
+/// SQLite schema of the published viewer database (schema version 4:
+/// version 1 plus the Obsidian Bases tables (2), the link graph (3) and
+/// the record of what changed between generations (4).
 ///
 /// The builder database uses exactly these tables plus builder-only tables
 /// (see `builderOnlyTables`), which are emptied in every published snapshot.
@@ -43,9 +44,17 @@ public enum ViewerSchema {
         "links", "headings", "blocks", "assets", "notes_fts",
         "bases", "base_cells", "base_rows", "base_groups",
         "graph_clusters", "graph_cluster_links", "graph_nodes", "graph_types",
+        "generation_log", "change_log", "log_entries",
     ]
 
-    public static let builderOnlyTables = ["builder_state", "asset_derivatives"]
+    public static let builderOnlyTables = ["builder_state", "asset_derivatives", "pending_changes"]
+
+    /// `change_log.kind`.
+    public enum ChangeKind: Int, Sendable, Codable {
+        case added = 0
+        case modified = 1
+        case removed = 2
+    }
 
     public enum LinkKind: Int, Sendable {
         case wiki = 0
@@ -323,11 +332,62 @@ public enum ViewerSchema {
           node_count INTEGER NOT NULL
         ) WITHOUT ROWID
         """,
+        // What changed (version 4), for "what happened since you last
+        // looked". One row per published generation, with its time and
+        // how many notes it added, changed and removed.
+        """
+        CREATE TABLE generation_log(
+          generation INTEGER PRIMARY KEY,
+          created_at TEXT NOT NULL,
+          added INTEGER NOT NULL,
+          modified INTEGER NOT NULL,
+          removed INTEGER NOT NULL
+        )
+        """,
+        // The notes each generation added, changed or removed (kind:
+        // ChangeKind), by path (a removed note has no row in `notes`).
+        // type: the note's frontmatter type; author: Provenance.Author.
+        // Bounded: a generation records at most ChangeLog.maximumRowsPerGeneration
+        // notes and rows older than the retention period are dropped.
+        """
+        CREATE TABLE change_log(
+          generation INTEGER NOT NULL,
+          path TEXT NOT NULL,
+          kind INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          type TEXT,
+          author INTEGER NOT NULL,
+          PRIMARY KEY(generation, path)
+        ) WITHOUT ROWID
+        """,
+        // Entries of the vault's operation log (`wiki/log.md`), each with
+        // the generation it first appeared in. pages: JSON array of
+        // [label, note path] for the notes the entry links to.
+        """
+        CREATE TABLE log_entries(
+          id INTEGER PRIMARY KEY,
+          entry_key TEXT NOT NULL UNIQUE,
+          generation INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          operation TEXT NOT NULL,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          pages TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX log_entries_generation ON log_entries(generation, id)",
         // Builder-only tables. Present in snapshots but emptied.
         """
         CREATE TABLE builder_state(
           key TEXT PRIMARY KEY NOT NULL,
           value TEXT NOT NULL
+        ) WITHOUT ROWID
+        """,
+        // Notes changed since the last publication (kind: ChangeKind).
+        """
+        CREATE TABLE pending_changes(
+          path TEXT PRIMARY KEY NOT NULL,
+          kind INTEGER NOT NULL
         ) WITHOUT ROWID
         """,
         """

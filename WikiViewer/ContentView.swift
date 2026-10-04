@@ -15,6 +15,7 @@ struct ContentView: View {
     @Environment(Library.self) private var library
     @Environment(AppModel.self) private var app
     @Environment(ReadingHistory.self) private var history
+    @Environment(DigestState.self) private var digest
     @Environment(\.scenePhase) private var scenePhase
     #if os(macOS)
     @Environment(\.openSettings) private var openSettings
@@ -54,8 +55,13 @@ struct ContentView: View {
             // Reopen the tab the reader left.
             .onAppear { app.restoreTab(savedTab) }
             .onChange(of: app.tab) { savedTab = app.tab }
-            .onChange(of: scenePhase) {
-                if scenePhase != .active { history.save() }
+            .onChange(of: scenePhase, initial: true) {
+                if scenePhase != .active {
+                    history.save()
+                    digest.leave(showing: library.session?.info.generation)
+                } else {
+                    digest.arrive()
+                }
             }
             #if os(iOS)
             // While the app is in the foreground, keep the snapshot current:
@@ -192,4 +198,5 @@ struct WindowRequest: Hashable, Codable {
     ContentView()
         .environment(AppModel())
         .environment(ReadingHistory())
+        .environment(DigestState())
 }

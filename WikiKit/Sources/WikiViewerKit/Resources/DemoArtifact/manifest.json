@@ -7,20 +7,20 @@
   },
   "builder" : "wikiindex\/1",
   "chunks" : {
-    "byteSize" : 231,
+    "byteSize" : 296,
     "chunkSize" : 131072,
-    "count" : 3,
+    "count" : 4,
     "path" : "generations\/viewer-000001.chunks",
-    "sha256" : "c85b82c301035b2a48b39a0f9d5bc20c757e0d30319917e8b69aee378139affd"
+    "sha256" : "4262cc0f5e264e3ed56a496f7dd245cee8625b97259a06aad4e38ffa39dcb51f"
   },
-  "createdAt" : "2026-09-27T07:37:51Z",
+  "createdAt" : "2026-10-04T07:16:52Z",
   "database" : {
-    "byteSize" : 385024,
+    "byteSize" : 450560,
     "path" : "generations\/viewer-000001.sqlite",
-    "sha256" : "bbbb000ac34a46f9da44885fef3c863b64f26597226db80496d3f70472e63cf8"
+    "sha256" : "5f1ac11071f2bbf0b2160f0514a3fb9e19e992909a8d95e66bcfc23426c7bc9c"
   },
   "formatVersion" : 1,
   "generation" : 1,
   "noteCount" : 11,
-  "schemaVersion" : 3
+  "schemaVersion" : 4
 }
