@@ -68,8 +68,8 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   Assets are selected by folder like notes (include the attachments folder);
   publishing only the assets that included notes embed is deferred. An include
   file listing no folder is an error, never "the whole vault".
-- D20 Graph (schema v3): the host clusters (Louvain, warm-started from the
-  previous clusters) and lays out (ForceAtlas2 + Barnes-Hut per cluster; a
+- D20 Graph (schema v3): the host clusters (Leiden at modularity
+  resolution 2.5, coupled to the previous clusters by anchor nodes) and lays out (ForceAtlas2 + Barnes-Hut per cluster; a
   bubble layout for the 60 largest clusters) before each publication and
   writes only changed rows of `graph_*`; state kept in `builder_state`. The
   phone draws one cluster (≤ 400 most linked notes) or a local graph (≤ 36

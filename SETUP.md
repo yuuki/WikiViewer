@@ -157,8 +157,12 @@ A pattern is a folder or an fnmatch(3) pattern on the note path (`*` also
 crosses `/`), case-insensitive. Clusters are named after their most linked
 note, preferring the frontmatter `type` values given by
 `--graph-label-types` (default `concept,question,entity,source`); `type` and
-`status` also colour the notes in the app. `--no-graph` turns the graph off.
-Changing these options recomputes the graph on the next publication.
+`status` also colour the notes in the app. `--graph-resolution` (default 2.5)
+sets how fine the clusters are: higher gives more, smaller clusters. The
+default suits a vault of thousands of notes; a vault of a few hundred may
+want 1. `--no-graph` turns the graph off. Changing these options recomputes
+the graph on the next publication; a new resolution also lays out every
+cluster afresh once.
 
 The viewer database schema is version 3 since the graph was added: update the
 indexer and the app together. The indexer rebuilds its builder database once

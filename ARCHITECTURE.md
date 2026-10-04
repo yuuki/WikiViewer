@@ -316,7 +316,7 @@ as fresh as the last publication.
 The Graph tab reproduces the network views of the vault's wiki-lens plugin
 (Backbone Graph and Local Lens) in a form suited to a phone. Clustering and
 layout need the whole graph, so like link resolution they run on the Mac:
-before each publication the indexer finds Louvain communities among the notes
+before each publication the indexer finds Leiden communities among the notes
 in scope, lays out each cluster with ForceAtlas2 (Barnes-Hut above a few
 hundred notes), lays out the largest clusters as non-overlapping bubbles for
 the overview, and stores the result in the `graph_*` tables. The phone reads
@@ -324,9 +324,25 @@ at most 60 clusters for the overview, at most 400 notes (the most linked) of
 one cluster, and a few dozen notes for a note's local graph, which it ranks
 from the link rows in about a dozen bounded queries.
 
+Clusters should be topics. Plain modularity merged unrelated topics in a
+vault of 18k notes (blockchain, trusted computing and SDN in one cluster of
+1,000 notes), so the clustering uses modularity at resolution 2.5
+(`--graph-resolution`), about 80 clusters of at most ~700 notes there.
+
 The map must not reshuffle with every edit, and a one-note edit must not
-rewrite thousands of rows (every delta pack would grow). So Louvain starts
-from the previous clusters, clusters keep their id (and colour) by overlap
+rewrite thousands of rows (every delta pack would grow). Starting from the
+previous clusters is not the way to get there: Louvain started that way
+never splits a cluster, so clusters only grow with the vault (which is how
+the 1,000-note clusters came about), and Leiden started that way moves
+hundreds of notes between near-equal partitions on every run. Instead the
+objective itself rewards staying put: each previous cluster gets an anchor
+node linked to its former members with weight 0.05 × their degree (temporal
+coupling as in multislice modularity), and Leiden runs on that graph until a
+run changes nothing. On the author's vault, adding 30 notes then moves about
+10 others, and after the vault grows fivefold the clusters are as fine as
+clusters computed afresh. Clusters made another way (by an older version or
+at another resolution) are not followed; the next refresh starts afresh.
+Clusters keep their id (and colour) by overlap
 with the previous ones, a cluster whose members and inner links are unchanged
 keeps its layout exactly, a changed one starts from its previous layout, and
 only rows that differ are written. Nothing is recomputed when the notes and

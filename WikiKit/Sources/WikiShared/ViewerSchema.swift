@@ -26,7 +26,7 @@
 /// - Page size 8192 (set by the builder) packs 2–3 KB note rows better than
 ///   4096 (−16% for `notes`).
 /// - `graph_*` tables (version 3) hold the link graph the host has already
-///   analysed: Louvain clusters, a layout per cluster and one for the
+///   analysed: Leiden clusters, a layout per cluster and one for the
 ///   cluster overview. The phone reads them a cluster at a time and never
 ///   lays out or clusters the graph itself (see GraphBuilder.swift).
 public enum ViewerSchema {
