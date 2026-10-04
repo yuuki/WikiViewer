@@ -148,6 +148,9 @@ wrong, and the responses:
   capped (`--max-budget-usd`). The prompt quotes the reader's text in a
   fence, as data. The worker accepts an answer path only if it is an
   existing `.md` file under `wiki/`, reached without symbolic links.
+- *Explanations (#41)* are answered with read-only tools (Read, Glob,
+  Grep): the result travels back in the status file and nothing is
+  written to the vault. Dictation stays on the device; only text is sent.
 - *Prompt injection from note text.* Claude reads vault notes, which may
   contain clipped web text. With the allow-list above, the worst outcome is
   a wrong or unwanted page under `wiki/` (the vault is a git repository, so

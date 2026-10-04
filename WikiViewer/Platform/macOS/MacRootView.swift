@@ -146,6 +146,7 @@ struct MacRootView: View {
         case .missing(let target): return target
         case .graph, .graphCluster: return String(localized: "Graph")
         case .recall: return String(localized: "Recall")
+        case .explanation: return String(localized: "Explanation")
         case .folder, .tag, .tags, .search, .recents, .requests, .digest: return nil
         }
     }

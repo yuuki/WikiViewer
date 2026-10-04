@@ -291,6 +291,11 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       notes read 2–14 days ago, by Claude or `--mechanical`), schema 7
       `recall_items`, `RecallCard`/`RecallQueue` (FSRS-style, daily limits,
       discard), home row and recall screen with a jump to the section
+- [x] #41 Explain it: `explain` requests (typed or dictated text only),
+      runner with read-only tools returning findings (missing /
+      misconception, heading) in the status — nothing written to the
+      vault — and an explanation screen that follows the request and
+      jumps to the headings
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

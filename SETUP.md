@@ -472,6 +472,12 @@ phone with the next snapshot. **Requests** (on the Files tab and in Settings)
 shows each one: not sent, queued, in progress, answered. Offline, requests
 wait on the device and are sent later.
 
+**Explain It…** (in a note's menu) sends your own explanation of the note
+— typed, or dictated with the keyboard's microphone (only text is sent) —
+and Claude returns what you left out or got wrong, each with the heading
+to reread. Claude only reads the vault for this, and nothing is saved in
+it.
+
 **Learning Path…** (in a note's menu, or in Requests) asks for the
 notes on a subject in reading order; the path arrives under `wiki/paths/`
 and shows as steps with what you have read.
