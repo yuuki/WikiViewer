@@ -42,6 +42,7 @@ struct NoteView: View {
     @State private var askSelection: Set<Int>?
     @State private var askDraft: AskDraft?
     @State private var requestingPath = false
+    @State private var explaining = false
     /// When the note came on screen, for the reading history (#42).
     @State private var openedAt: Date?
 
@@ -108,6 +109,9 @@ struct NoteView: View {
                     ToolbarItem(placement: .secondaryAction) {
                         Button("Learning Path…", systemImage: "map") { requestingPath = true }
                     }
+                    ToolbarItem(placement: .secondaryAction) {
+                        Button("Explain It…", systemImage: "text.bubble") { explaining = true }
+                    }
                 }
                 if let detail = model.detail, let session = library.session {
                     NoteActionItems(detail: detail, session: session)
@@ -154,6 +158,9 @@ struct NoteView: View {
             }
             .assetPresentation(item: $viewingAsset)
             .sheet(item: $askDraft) { AskClaudeSheet(draft: $0) }
+            .sheet(isPresented: $explaining) {
+                ExplainSheet(notePath: path, noteTitle: model.detail?.title ?? VaultPath.basename(of: path))
+            }
             .sheet(isPresented: $requestingPath) {
                 PathRequestSheet(notePath: path, noteTitle: model.detail?.title)
             }

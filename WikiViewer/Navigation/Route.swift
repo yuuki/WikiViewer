@@ -100,6 +100,7 @@ struct RouteView: View {
         case .requests: RequestsView()
         case .digest: DigestView()
         case .recall: RecallView()
+        case .explanation(let id): ExplanationView(id: id)
         case .graph: GraphOverviewView()
         case .graphCluster(let id, let focus): ClusterGraphView(id: id, focus: focus)
         case .localGraph(let path): LocalGraphView(path: path)

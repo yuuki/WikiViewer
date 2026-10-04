@@ -110,7 +110,7 @@ struct LibraryHomeSections: View {
                         HStack {
                             Text("Recall")
                             Spacer()
-                            Text("\(feed.recallDue) questions").font(.caption).foregroundStyle(.secondary)
+                            Text("\(feed.recallDue) due").font(.caption).foregroundStyle(.secondary)
                         }
                     } icon: {
                         Image(systemName: "brain")

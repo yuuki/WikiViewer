@@ -75,7 +75,9 @@ struct RequestRow: View {
 
     var body: some View {
         Group {
-            if let answer = entry.status?.answerPath, answerArrived {
+            if entry.request.kind == .explain {
+                RouteLink(Route.explanation(id: entry.id)) { content }
+            } else if let answer = entry.status?.answerPath, answerArrived {
                 RouteLink(Route.note(path: answer, anchor: nil)) { content }
             } else if let note = entry.request.notePath, entry.phase != .done || entry.status?.findings != nil {
                 // Until the answer arrives, the note it is about; an

@@ -40,6 +40,10 @@ ALLOWED_TOOLS = [
     "Bash(rg *)", "Bash(git status*)", "Bash(git diff*)", "Bash(git add *)", "Bash(git commit *)",
 ]
 DISALLOWED_TOOLS = ["WebFetch", "WebSearch", "NotebookEdit"]
+# Kinds that only read the vault (the answer travels back in the status).
+READ_ONLY_KINDS = {"explain"}
+READ_ONLY_TOOLS = ["Read", "Glob", "Grep"]
+READ_ONLY_DISALLOWED = DISALLOWED_TOOLS + ["Write", "Edit", "MultiEdit", "Bash"]
 
 RESULT_SCHEMA = {
     "type": "object",
@@ -144,10 +148,26 @@ vault に既にあるノート(wiki の concept / source / entity と、一次�
 最後に、書いたノートの vault 相対パスを answer_path に、読者向けの一言を message に入れて返す。"""
 
 
-PROMPTS = {"ask": ask_prompt, "path": path_prompt}
+def explain_prompt(req):
+    return f"""WikiViewer の読者が、ノートを読んだあと自分の言葉で要点を説明した。説明をノートと照合する。
+
+対象ノート: `{req['notePath']}`(題: {req.get('noteTitle') or ''})
+
+読者の説明(音声入力の書き起こしを含む。誤字は気にしない):
+{quoted(req['text'])}
+
+ノートを Read で読み、説明と照合して、次の 2 種類だけを findings に返す。褒め言葉や言い換えの提案は要らない。
+- kind "missing": ノートの要点なのに説明から抜けているもの
+- kind "misconception": ノートの記述と食い違う、または誤解しているもの
+各項目の text は 1〜2 文の日本語常体で、何がどう違うかを具体的に書く。heading にはその点が書かれているノートの見出し(`#` は付けない。無ければ null)。
+抜けも誤解も無ければ findings は空にし、message に一言そう書く。
+ファイルは書かない(answer_path は null)。Web は使えない。"""
 
 
-def run_claude(prompt):
+PROMPTS = {"ask": ask_prompt, "path": path_prompt, "explain": explain_prompt}
+
+
+def run_claude(prompt, read_only=False):
     claude = os.environ.get("CLAUDE_BIN") or shutil.which("claude")
     if not claude:
         raise RuntimeError("claude is not installed or not on PATH (set CLAUDE_BIN)")
@@ -155,8 +175,8 @@ def run_claude(prompt):
         claude, "-p", prompt,
         "--output-format", "json",
         "--json-schema", json.dumps(RESULT_SCHEMA),
-        "--allowedTools", *ALLOWED_TOOLS,
-        "--disallowedTools", *DISALLOWED_TOOLS,
+        "--allowedTools", *(READ_ONLY_TOOLS if read_only else ALLOWED_TOOLS),
+        "--disallowedTools", *(READ_ONLY_DISALLOWED if read_only else DISALLOWED_TOOLS),
         "--max-budget-usd", os.environ.get("WIKIVIEWER_MAX_BUDGET_USD", "5"),
         "--no-session-persistence",
     ]
@@ -202,7 +222,9 @@ def main():
         make = PROMPTS.get(req.get("kind"))
         if make is None:
             raise RuntimeError(f"this runner does not handle {req.get('kind')!r} requests")
-        result = run_claude(make(req))
+        result = run_claude(make(req), read_only=req.get("kind") in READ_ONLY_KINDS)
+        if req.get("kind") in READ_ONLY_KINDS:
+            result["answer_path"] = None
         out = {"answer_path": result.get("answer_path"), "message": result.get("message")}
         if result.get("findings"):
             out["findings"] = result["findings"]

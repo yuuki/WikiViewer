@@ -93,6 +93,16 @@
         }
       }
     },
+    "%lld due": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 問"
+          }
+        }
+      }
+    },
     "%lld left today": {
       "localizations": {
         "ja": {
@@ -139,16 +149,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld 件待ち"
-          }
-        }
-      }
-    },
-    "%lld questions": {
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld 問"
           }
         }
       }
@@ -432,6 +432,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mac の Claude が wiki/ のノートで答えます。回答は後のスナップショットで届き、進み具合は「依頼」で見られます。オフラインのあいだ、依頼はこの端末で待ちます。"
+          }
+        }
+      }
+    },
+    "Claude on your Mac is reading your explanation. This usually takes a minute or two; you can leave this screen.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac の Claude が説明を読んでいます。ふつう 1〜2 分かかります。この画面を離れても構いません。"
           }
         }
       }
@@ -906,6 +916,46 @@
         }
       }
     },
+    "Explain It": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "説明してみる"
+          }
+        }
+      }
+    },
+    "Explain It…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "説明してみる…"
+          }
+        }
+      }
+    },
+    "Explain “%@”": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」を説明する"
+          }
+        }
+      }
+    },
+    "Explanation": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "説明"
+          }
+        }
+      }
+    },
     "Failed": {
       "localizations": {
         "ja": {
@@ -1076,6 +1126,16 @@
         }
       }
     },
+    "Go to “%@”": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」へ"
+          }
+        }
+      }
+    },
     "Good": {
       "localizations": {
         "ja": {
@@ -1162,6 +1222,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "処理中"
+          }
+        }
+      }
+    },
+    "In your own words…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分の言葉で…"
           }
         }
       }
@@ -1466,6 +1536,16 @@
         }
       }
     },
+    "Missing": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "抜け"
+          }
+        }
+      }
+    },
     "Missing embed: %@": {
       "localizations": {
         "ja": {
@@ -1482,6 +1562,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "材料が欠けている"
+          }
+        }
+      }
+    },
+    "Misunderstood": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "誤解"
           }
         }
       }
@@ -1832,6 +1922,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "この期間に vault は変わっていません。"
+          }
+        }
+      }
+    },
+    "Nothing missing or wrong.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "抜けも誤解もありません。"
           }
         }
       }
@@ -2275,6 +2375,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "削除"
+          }
+        }
+      }
+    },
+    "Request Removed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依頼は削除されました"
           }
         }
       }
@@ -3182,6 +3292,16 @@
         }
       }
     },
+    "Write or dictate (the keyboard's microphone) the main points as you would explain them to someone. Claude on your Mac compares them with the note and returns only what is missing or wrong. Only the text is sent; nothing is saved in the vault.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人に説明するつもりで要点を書くか、キーボードのマイクで話してください。Mac の Claude がノートと照合し、抜けと誤解だけを返します。送るのは文字だけで、vault には何も保存しません。"
+          }
+        }
+      }
+    },
     "Written before the cluster changed": {
       "localizations": {
         "ja": {
@@ -3218,6 +3338,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "今日の分は終わりました。"
+          }
+        }
+      }
+    },
+    "Your Explanation": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "あなたの説明"
           }
         }
       }

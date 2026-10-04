@@ -27,6 +27,8 @@ public enum Route: Hashable, Codable, Sendable {
     case digest
     /// Recall practice: today's questions.
     case recall
+    /// What Claude found in the reader's explanation of a note (a request).
+    case explanation(id: UUID)
     /// The Graph tab's cluster overview.
     case graph
     /// One cluster; `focus` is a note path to select on arrival.
@@ -59,7 +61,7 @@ extension Route {
     public var isList: Bool {
         switch self {
         case .folder, .tag, .tags, .search, .recents, .requests, .digest: true
-        case .note, .base, .missing, .graph, .graphCluster, .localGraph, .recall: false
+        case .note, .base, .missing, .graph, .graphCluster, .localGraph, .recall, .explanation: false
         }
     }
 
@@ -96,7 +98,7 @@ public enum RouteDispatch: Equatable, Sendable {
         case .tag(let name): return .showList(.tags, [.tag(name: name)])
         case .tags: return .showList(.tags, [])
         case .search: return .showList(.search, [])
-        case .note, .base, .missing, .graph, .graphCluster, .localGraph, .recall: return .openDocument(route)
+        case .note, .base, .missing, .graph, .graphCluster, .localGraph, .recall, .explanation: return .openDocument(route)
         }
     }
 }
