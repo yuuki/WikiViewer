@@ -56,8 +56,13 @@ struct NoteInspector: View {
 
     private var backlinks: some View {
         ScrollView {
-            BacklinksSection(model: model, session: session)
-                .padding(12)
+            VStack(alignment: .leading, spacing: 20) {
+                if let path = model.detail?.path {
+                    NoteRequestsSection(path: path)
+                }
+                BacklinksSection(model: model, session: session)
+            }
+            .padding(12)
         }
     }
 

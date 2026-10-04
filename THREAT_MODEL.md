@@ -14,7 +14,10 @@ how each protection is implemented, see the code and its tests.
 | Obsidian account, Sync credentials, encryption password | Obsidian only | WikiViewer never needs or touches them |
 
 The iPhone needs **no** Obsidian credentials and **no** write access to the
-vault. Data flows one way, from the builder to the viewer.
+vault. Notes flow one way, from the builder to the viewer. The one way back
+is a **request** (a question about a note): data the app puts in a queue
+outside the vault, which the Mac hands to Claude Code running in the vault
+(see "Requests from the app" below).
 
 ## Trust boundaries
 
@@ -25,10 +28,16 @@ vault. Data flows one way, from the builder to the viewer.
    networks and servers alike.
 3. **Note content → screen.** Note text is untrusted, since it may come from
    web clippings or shared notes.
+4. **Device → Mac (requests).** A request is untrusted until the Mac has
+   checked it: who sent it (HTTP: a bearer token; folder: whoever can write
+   the synced folder), its size and its fields. Its text is the reader's
+   own words, but it reaches Claude, which can write to the vault.
 
 ## Threats and responses
 
-**Damage to the vault.** The system has no path that writes to the vault.
+**Damage to the vault.** Neither the app nor `wikiindex` has a path that
+writes to the vault. (Requests, below, are answered by Claude Code, which
+writes only under `wiki/`.)
 - The indexer reads vault files only and never follows links out of the vault.
 - It refuses output locations inside the vault.
 - Helper commands that create or edit notes work only on synthetic test
@@ -113,6 +122,42 @@ key kept on the Mac and never in this repository.
 - **On the Mac:** to compute delta packs, the state directory keeps copies of
   the last three published databases. They are as sensitive as the builder
   database and are replaced as new generations are published.
+
+**Requests from the app.** The app can ask Claude on the Mac about a note
+(#34); the answer is a note Claude writes under `wiki/`. What could go
+wrong, and the responses:
+- *Someone else sends requests.* Over HTTP, `wikiindex serve` takes
+  `POST /requests` only when started with `--token-file` (a secret of 16 or
+  more characters in a file only the owner can read), compares the bearer
+  token in constant time, and refuses everything else (401/405). The token
+  is kept in the device's Keychain. Over iCloud Drive, only devices of the
+  same Apple account can write the folder. Keep `tailscale serve` (never
+  `funnel`) in front of the server, as for the snapshots.
+- *Malformed or oversized requests.* Bodies over 512 KiB are refused before
+  being read; every request is decoded and validated (known kind, required
+  fields, text of at most 16,000 characters, note paths relative, without
+  `..` or hidden components) by the server and again by the worker, which
+  never acts on a file name other than `<uuid>.json`.
+- *Claude doing more than answering.* The worker runs a runner, not Claude;
+  `scripts/claude-request.py` starts `claude -p` in the vault with an
+  allow-list: reading, the Skill tool, the vault's own `scripts/`, `rg`,
+  the git status, diff, add and commit commands, and Write/Edit only on
+  `wiki/**`. Web fetch and search are disallowed (so vault text cannot be
+  sent out), other shell commands are denied, and the spend per request is
+  capped (`--max-budget-usd`). The prompt quotes the reader's text in a
+  fence, as data. The worker accepts an answer path only if it is an
+  existing `.md` file under `wiki/`, reached without symbolic links.
+- *Prompt injection from note text.* Claude reads vault notes, which may
+  contain clipped web text. With the allow-list above, the worst outcome is
+  a wrong or unwanted page under `wiki/` (the vault is a git repository, so
+  it can be reverted); nothing leaves the Mac and the primary layer
+  (`papers/`, `notes/`, …) cannot be edited.
+- *Exposure.* Requests carry the chosen paragraphs and the question. They
+  wait in `<PUBLISH>/inbox/` (as private as the snapshots) and are deleted
+  once handled; status files in `<PUBLISH>/requests/` carry no request
+  text and are deleted after 30 days. `--log` keeps a copy on the Mac.
+- *Resource use.* One request runs at a time, each for at most 30 minutes
+  (`--timeout`); runner output read back is capped at 1 MiB.
 
 **Resource exhaustion.** Everything the phone accepts from a transport has a
 size limit, including manifests, chunk lists, pack parts and images. An update

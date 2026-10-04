@@ -26,12 +26,31 @@ public protocol ArtifactSource: Sendable {
     /// Callers compare the generation themselves; nothing is guaranteed to
     /// have changed.
     func waitForManifest(after generation: Int64, interval: Duration) async throws -> Data
+
+    /// Whether `submitRequest` can work at all (false for the bundled demo).
+    var acceptsRequests: Bool { get }
+    /// Puts an encoded `HostRequest` in the Mac's queue. Idempotent: the
+    /// same id may be sent again after an uncertain failure.
+    func submitRequest(_ data: Data, id: UUID) async throws
+    /// Reads a request's status file, or throws `TransportError.notFound`
+    /// while the Mac has not picked the request up yet.
+    func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus
 }
 
 extension ArtifactSource {
     public func waitForManifest(after generation: Int64, interval: Duration) async throws -> Data {
         try await Task.sleep(for: interval)
         return try await fetchManifest()
+    }
+
+    public var acceptsRequests: Bool { false }
+
+    public func submitRequest(_ data: Data, id: UUID) async throws {
+        throw TransportError.unavailable("This source does not accept requests")
+    }
+
+    public func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus {
+        throw TransportError.notFound(HostRequestStatus.publishedPath(for: id))
     }
 }
 
@@ -63,6 +82,7 @@ enum PublishedPath {
             || relativePath.hasPrefix("assets/")
             || relativePath.hasPrefix("chunks/")
             || relativePath.hasPrefix("packs/")
+            || relativePath.hasPrefix("requests/")
         guard ok, !relativePath.split(separator: "/").contains(where: { $0.hasPrefix(".") }) else {
             throw TransportError.unsafePath(relativePath)
         }
@@ -114,11 +134,18 @@ func boundedCopy(from source: URL, to destination: URL, maximumBytes: Int64, nam
 public struct LocalFolderArtifactSource: ArtifactSource {
     public let root: URL
     public let securityScoped: Bool
+    public let acceptsRequests: Bool
 
-    public init(root: URL, securityScoped: Bool = false) {
+    /// Requests are written to `<root>/inbox/`, the only place the app ever
+    /// writes in the folder. Pass `acceptsRequests: false` for a folder no
+    /// Mac reads requests from (the bundled demo).
+    public init(root: URL, securityScoped: Bool = false, acceptsRequests: Bool = true) {
         self.root = root
         self.securityScoped = securityScoped
+        self.acceptsRequests = acceptsRequests
     }
+
+    public static let inboxFolder = "inbox"
 
     public var displayName: String { root.lastPathComponent }
     public var identifier: String { "folder:" + root.standardizedFileURL.path }
@@ -144,6 +171,43 @@ public struct LocalFolderArtifactSource: ArtifactSource {
                 try boundedCopy(from: url, to: destination, maximumBytes: maximumBytes, name: relativePath, isCancelled: isCancelled)
             }
         }
+    }
+
+    public func submitRequest(_ data: Data, id: UUID) async throws {
+        guard acceptsRequests else { throw TransportError.unavailable("This source does not accept requests") }
+        guard data.count <= HostRequest.maximumEncodedSize else { throw TransportError.tooLarge("request") }
+        let root = root
+        try await withAccess { _ in
+            let inbox = root.appendingPathComponent(Self.inboxFolder, isDirectory: true)
+            try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+            let file = inbox.appendingPathComponent(HostRequest.fileName(for: id))
+            var coordinationError: NSError?
+            var writeError: (any Error)?
+            NSFileCoordinator(filePresenter: nil).coordinate(writingItemAt: file, options: [.forReplacing], error: &coordinationError) { url in
+                // Atomic: the Mac never sees half a request.
+                do { try data.write(to: url, options: [.atomic]) } catch { writeError = error }
+            }
+            if let error = coordinationError ?? writeError {
+                let ns = error as NSError
+                if ns.domain == NSCocoaErrorDomain, ns.code == NSFileWriteNoPermissionError || ns.code == NSFileWriteVolumeReadOnlyError {
+                    throw TransportError.unavailable("This app may not write to the folder. Choose it again in Settings to allow requests.")
+                }
+                throw error
+            }
+        }
+    }
+
+    public func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus {
+        let path = HostRequestStatus.publishedPath(for: id)
+        let source = self
+        let data = try await withAccess { _ in
+            try source.coordinatedRead(path) { url in
+                let handle = try FileHandle(forReadingFrom: url)
+                defer { try? handle.close() }
+                return try handle.read(upToCount: HostRequestStatus.maximumEncodedSize + 1) ?? Data()
+            }
+        }
+        return try HostRequestStatus.decode(data)
     }
 
     /// Coordinated reads can block for a long time (e.g. while iCloud Drive
@@ -206,10 +270,50 @@ public struct LocalFolderArtifactSource: ArtifactSource {
 public struct HTTPArtifactSource: ArtifactSource {
     public let baseURL: URL
     let session: URLSession
+    /// Bearer token `wikiindex serve --token-file` expects for requests.
+    let requestToken: String?
 
-    public init(baseURL: URL, session: URLSession = HTTPArtifactSource.sharedSession) {
+    public init(baseURL: URL, requestToken: String? = nil, session: URLSession = HTTPArtifactSource.sharedSession) {
         self.baseURL = baseURL
+        self.requestToken = requestToken
         self.session = session
+    }
+
+    public var acceptsRequests: Bool { true }
+
+    public func submitRequest(_ data: Data, id: UUID) async throws {
+        guard data.count <= HostRequest.maximumEncodedSize else { throw TransportError.tooLarge("request") }
+        var request = URLRequest(url: url(for: "requests"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let requestToken, !requestToken.isEmpty {
+            request.setValue("Bearer " + requestToken, forHTTPHeaderField: "Authorization")
+        }
+        let (_, response) = try await session.upload(for: request, from: data)
+        if let http = response as? HTTPURLResponse {
+            switch http.statusCode {
+            case 200..<300: return
+            case 401, 403: throw TransportError.unavailable("The Mac refused the request: check the request token in Settings")
+            case 404, 405: throw TransportError.unavailable("The server does not accept requests (wikiindex serve --token-file)")
+            default: throw TransportError.http(http.statusCode)
+            }
+        }
+    }
+
+    public func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus {
+        let path = HostRequestStatus.publishedPath(for: id)
+        var request = URLRequest(url: url(for: path))
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 30
+        let (bytes, response) = try await session.bytes(for: request)
+        try Self.check(response, path)
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count > HostRequestStatus.maximumEncodedSize { throw TransportError.tooLarge(path) }
+        }
+        return try HostRequestStatus.decode(data)
     }
 
     public static let sharedSession: URLSession = {

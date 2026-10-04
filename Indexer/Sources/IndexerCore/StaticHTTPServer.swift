@@ -2,11 +2,16 @@
 //  StaticHTTPServer.swift
 //  IndexerCore
 //
-//  Minimal read-only HTTP/1.1 server for a publish directory, for LAN use
-//  and end-to-end tests. Serves only `manifest.json`, `generations/…`,
-//  `assets/…`, `chunks/…` and `packs/…`; rejects traversal. No
-//  authentication and no TLS: bind to 127.0.0.1 (default) or put it behind
+//  Minimal HTTP/1.1 server for a publish directory, for LAN use and
+//  end-to-end tests. Serves only `manifest.json`, `generations/…`,
+//  `assets/…`, `chunks/…`, `packs/…` and `requests/…` (request status);
+//  rejects traversal. No TLS: bind to 127.0.0.1 (default) or put it behind
 //  an HTTPS reverse proxy / VPN for real use (see THREAT_MODEL.md).
+//
+//  Its one way in: with an inbox and a token, `POST /requests` takes a
+//  HostRequest from the app (bearer token, at most 512 KiB, validated) and
+//  writes it to the inbox for `wikiindex requests`. Without them every
+//  POST is refused, as before.
 //
 //  Two things make updates fast over a high-latency link:
 //   - persistent connections: a client fetching many small files reuses one
@@ -26,6 +31,8 @@ import WikiShared
 
 public final class StaticHTTPServer: Sendable {
     public let root: URL
+    /// Where `POST /requests` puts requests; nil refuses every POST.
+    let requestInbox: RequestInbox?
     let listener: NWListener
     let queue = DispatchQueue(label: "wikiindex.http")
     let activeConnections = ConnectionCounter()
@@ -39,8 +46,9 @@ public final class StaticHTTPServer: Sendable {
     static let longPollInterval: DispatchTimeInterval = .milliseconds(200)
     public static let longPollHeader = "X-WikiViewer-Long-Poll"
 
-    public init(root: URL, port: UInt16, bindAddress: String = "127.0.0.1") throws {
+    public init(root: URL, port: UInt16, bindAddress: String = "127.0.0.1", requestInbox: RequestInbox? = nil) throws {
         self.root = root
+        self.requestInbox = requestInbox
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: NWEndpoint.Host(bindAddress), port: NWEndpoint.Port(rawValue: port) ?? .any)
         parameters.allowLocalEndpointReuse = true
@@ -52,6 +60,7 @@ public final class StaticHTTPServer: Sendable {
         let root = root
         let queue = queue
         let active = activeConnections
+        let inbox = requestInbox
         listener.newConnectionHandler = { connection in
             // Bounded resources: at most `maximumConnections` at once, and a
             // connection that does not send a request in time is closed.
@@ -71,7 +80,7 @@ public final class StaticHTTPServer: Sendable {
                 }
             }
             connection.start(queue: queue)
-            HTTPConnection(connection: connection, root: root, queue: queue).waitForRequest(buffer: Data())
+            HTTPConnection(connection: connection, root: root, queue: queue, inbox: inbox).waitForRequest(buffer: Data())
         }
         return try await withCheckedThrowingContinuation { continuation in
             let resumed = ResumeOnce()
@@ -110,7 +119,7 @@ public final class StaticHTTPServer: Sendable {
         guard let decoded = path.removingPercentEncoding, decoded.hasPrefix("/") else { return nil }
         let relative = String(decoded.dropFirst())
         guard VaultPath.isSafeRelative(relative) else { return nil }
-        let allowed = relative == "manifest.json" || ["generations/", "assets/", "chunks/", "packs/"].contains { relative.hasPrefix($0) }
+        let allowed = relative == "manifest.json" || ["generations/", "assets/", "chunks/", "packs/", "requests/"].contains { relative.hasPrefix($0) }
         guard allowed, !relative.split(separator: "/").contains(where: { $0.hasPrefix(".") }) else { return nil }
         let url = root.appendingPathComponent(relative)
         guard url.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path + "/") else { return nil }
@@ -140,15 +149,17 @@ final class HTTPConnection: Sendable {
     let connection: NWConnection
     let root: URL
     let queue: DispatchQueue
+    let inbox: RequestInbox?
     /// Number of the request being waited for, or nil while responding (a
     /// response, including a long poll, is exempt from the idle deadline).
     private let waitingFor = Mutex<Int?>(nil)
     private let served = Atomic<Int>(0)
 
-    init(connection: NWConnection, root: URL, queue: DispatchQueue) {
+    init(connection: NWConnection, root: URL, queue: DispatchQueue, inbox: RequestInbox? = nil) {
         self.connection = connection
         self.root = root
         self.queue = queue
+        self.inbox = inbox
     }
 
     func waitForRequest(buffer: Data) {
@@ -190,6 +201,10 @@ final class HTTPConnection: Sendable {
         let headers = lines.dropFirst().map { $0.lowercased() }
         // HTTP/1.1 is persistent unless the client says otherwise; 1.0 is not.
         let keepAlive = parts.count >= 3 && parts[2] == "HTTP/1.1" && !headers.contains { $0.hasPrefix("connection:") && $0.contains("close") }
+        if parts.count >= 2, parts[0] == "POST" {
+            receivePost(target: String(parts[1]), headerLines: lines.dropFirst().map(String.init), leftover: leftover, keepAlive: keepAlive)
+            return
+        }
         guard parts.count >= 2, parts[0] == "GET" || parts[0] == "HEAD" else {
             sendStatus(405, "Method Not Allowed", keepAlive: false)
             return
@@ -273,6 +288,81 @@ final class HTTPConnection: Sendable {
                 sendBody(handle, remaining: remaining - Int64(chunk.count), keepAlive: keepAlive, leftover: leftover)
             }
         })
+    }
+
+    // MARK: Requests
+
+    /// Reads a POST body (Content-Length only, no chunked encoding) and
+    /// hands it to the inbox. The connection is not reused after a refusal
+    /// whose body was not read.
+    private func receivePost(target: String, headerLines: [String], leftover: Data, keepAlive: Bool) {
+        guard let inbox else {
+            sendStatus(405, "Method Not Allowed", keepAlive: false)
+            return
+        }
+        let path = target.split(separator: "?").first.map(String.init) ?? target
+        guard path == "/requests" else {
+            sendStatus(404, "Not Found", keepAlive: false)
+            return
+        }
+        guard inbox.authorize(HTTPConnection.header("authorization", in: headerLines)) else {
+            sendStatus(401, "Unauthorized", keepAlive: false)
+            return
+        }
+        guard let length = HTTPConnection.header("content-length", in: headerLines).flatMap({ Int($0) }), length >= 0 else {
+            sendStatus(411, "Length Required", keepAlive: false)
+            return
+        }
+        guard length <= HostRequest.maximumEncodedSize else {
+            sendStatus(413, "Content Too Large", keepAlive: false)
+            return
+        }
+        // The body, like the headers, must arrive in time.
+        let finished = ResumeOnce()
+        queue.asyncAfter(deadline: .now() + StaticHTTPServer.requestDeadline) { [self] in
+            if finished.claim() { connection.cancel() }
+        }
+        readBody(length: length, buffer: leftover) { [self] body, rest in
+            guard finished.claim() else { return }
+            guard let body else {
+                connection.cancel()
+                return
+            }
+            switch inbox.accept(body) {
+            case .accepted: sendStatus(202, "Accepted", keepAlive: keepAlive, leftover: rest)
+            case .invalid: sendStatus(400, "Bad Request", keepAlive: keepAlive, leftover: rest)
+            case .failed: sendStatus(500, "Internal Server Error", keepAlive: false)
+            }
+        }
+    }
+
+    private func readBody(length: Int, buffer: Data, _ completion: @escaping @Sendable (Data?, Data) -> Void) {
+        if buffer.count >= length {
+            completion(Data(buffer.prefix(length)), Data(buffer.dropFirst(length)))
+            return
+        }
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [self] data, _, isComplete, error in
+            var buffer = buffer
+            if let data { buffer.append(data) }
+            if buffer.count >= length {
+                completion(Data(buffer.prefix(length)), Data(buffer.dropFirst(length)))
+            } else if error != nil || isComplete {
+                completion(nil, Data())
+            } else {
+                readBody(length: length, buffer: buffer, completion)
+            }
+        }
+    }
+
+    /// The value of a header (case-insensitive name, value as sent).
+    static func header(_ name: String, in lines: [String]) -> String? {
+        for line in lines {
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            if line[..<colon].trimmingCharacters(in: .whitespaces).lowercased() == name {
+                return line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return nil
     }
 
     private func sendStatus(_ code: Int, _ text: String, keepAlive: Bool, leftover: Data = Data()) {

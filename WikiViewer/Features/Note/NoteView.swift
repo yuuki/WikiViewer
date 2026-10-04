@@ -38,12 +38,24 @@ struct NoteView: View {
     /// Set once the note has first been shown: a note re-rendered after
     /// `releaseIfLarge` returns to where the reader was, not to `anchor`.
     @State private var arrived = false
+    /// Paragraphs chosen to ask Claude about, while choosing (nil otherwise).
+    @State private var askSelection: Set<Int>?
+    @State private var askDraft: AskDraft?
 
     var body: some View {
         // The find bar sits above the scroll view, not over it: a match
         // scrolled to the top would otherwise be under the bar.
         VStack(spacing: 0) {
             if find.isShown { NoteFindBar(find: find) }
+            if let askSelection {
+                AskSelectionBar(count: askSelection.count) {
+                    self.askSelection = nil
+                } onAsk: {
+                    askDraft = AskSelection.draft(path: path, title: model.detail?.title ?? VaultPath.basename(of: path),
+                                                  rendered: model.rendered, selected: askSelection)
+                    self.askSelection = nil
+                }
+            }
             content
         }
             .navigationTitle(model.detail?.title ?? VaultPath.basename(of: path))
@@ -83,6 +95,14 @@ struct NoteView: View {
                     }
                 }
                 #endif
+                if model.detail != nil {
+                    ToolbarItem(placement: .secondaryAction) {
+                        Button("Ask Claude…", systemImage: "sparkles") {
+                            find.isShown = false
+                            askSelection = []
+                        }
+                    }
+                }
                 if let detail = model.detail, let session = library.session {
                     NoteActionItems(detail: detail, session: session)
                 }
@@ -127,6 +147,7 @@ struct NoteView: View {
                 }
             }
             .assetPresentation(item: $viewingAsset)
+            .sheet(item: $askDraft) { AskClaudeSheet(draft: $0) }
             .environment(\.findHighlight, find.isShown ? find.query : "")
             .onChange(of: find.query) { findMatches() }
             .onChange(of: model.rendered?.blocks.count) { if find.isShown { findMatches() } }
@@ -149,6 +170,22 @@ struct NoteView: View {
 
     private func blockRow(_ block: RenderBlock) -> some View {
         BlockView(block: block)
+            .overlay {
+                // While choosing paragraphs, a tap chooses rather than
+                // following a link or selecting text.
+                if let selection = askSelection {
+                    let chosen = selection.contains(block.id)
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(chosen ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: chosen ? 2 : 1)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(chosen ? Color.accentColor.opacity(0.12) : Color.clear))
+                        .padding(-4)
+                        .contentShape(.rect)
+                        .onTapGesture {
+                            if chosen { askSelection?.remove(block.id) } else { askSelection?.insert(block.id) }
+                        }
+                        .accessibilityAddTraits(chosen ? [.isButton, .isSelected] : .isButton)
+                }
+            }
             .background {
                 if highlightedBlock == block.id || (find.isShown && find.currentBlock == block.id) {
                     RoundedRectangle(cornerRadius: 6)
@@ -224,6 +261,8 @@ struct NoteView: View {
                             blockRow(block)
                         }
                         if !Self.hasInspector {
+                            NoteRequestsSection(path: path)
+                                .padding(.top, 24)
                             BacklinksSection(model: model, session: session)
                                 .id("backlinks")
                                 .padding(.top, 24)

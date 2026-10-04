@@ -14,6 +14,7 @@ struct LibraryHomeSections: View {
     /// Today's daily note, if the vault has one (see `findTodaysNote`).
     let today: NoteSummary?
     @Environment(ReadingHistory.self) private var history
+    @Environment(Library.self) private var library
     /// The recent notes as listed. Reading a note moves it to the top of the
     /// history. On macOS, while only notes already listed are read again
     /// (going through the list with the arrow keys reads each one), the
@@ -80,6 +81,25 @@ struct LibraryHomeSections: View {
                 .onMove { history.movePins(from: $0, to: $1) }
             }
             .listRowSection("pins")
+        }
+        if !library.requests.visibleEntries.isEmpty {
+            Section {
+                RouteLink(Route.requests) {
+                    Label {
+                        HStack {
+                            Text("Requests to Claude")
+                            Spacer()
+                            let pending = library.requests.pendingCount
+                            if pending > 0 {
+                                Text("\(pending) pending").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: "sparkles")
+                    }
+                }
+            }
+            .listRowSection("requests")
         }
         if !listedRecents.isEmpty {
             Section {

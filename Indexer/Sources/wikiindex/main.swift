@@ -29,9 +29,20 @@ USAGE
   wikiindex bench-queries --db FILE [--iterations N]
       Latency of the viewer's bounded queries against a published database.
   wikiindex serve   --publish DIR [--port 8080] [--bind 127.0.0.1]
-      Minimal read-only static HTTP server for a publish directory (LAN/testing).
+                    [--token-file FILE [--inbox DIR]]
+      Minimal static HTTP server for a publish directory (LAN/testing).
       Keeps connections alive and answers GET /manifest.json?wait=N as soon
-      as a generation newer than N is published (long poll).
+      as a generation newer than N is published (long poll). With
+      --token-file (a secret of 16+ characters, chmod 600), also accepts
+      requests from the app (POST /requests with that bearer token) into
+      the inbox (default PUBLISH/inbox).
+  wikiindex requests --publish DIR --vault DIR [--inbox DIR] [--runner FILE]
+                    [--timeout SECONDS] [--log FILE] [--once]
+      Takes requests from the app out of the inbox (default PUBLISH/inbox),
+      one at a time, and runs the runner (e.g. scripts/claude-request.py)
+      in the vault for each; writes their progress to PUBLISH/requests/.
+      wikiindex never writes to the vault; what the runner may write is
+      the runner's to confine (see THREAT_MODEL.md).
 
 OPTIONS
   --image-max N        longest side of image derivatives (default 2048)
@@ -201,8 +212,29 @@ func run() async throws {
         print(report.markdown)
         print("JSON " + String(decoding: try JSONEncoder().encode(report), as: UTF8.self))
     case "serve":
-        let server = try StaticHTTPServer(root: try args.url("publish"), port: UInt16(args.int("port", 8080)), bindAddress: args.options["bind"] ?? "127.0.0.1")
+        let publish = try args.url("publish")
+        var inbox: RequestInbox?
+        if args.options["token-file"] != nil {
+            let directory = args.options["inbox"] != nil ? try args.url("inbox") : publish.appendingPathComponent("inbox")
+            inbox = try RequestInbox(directory: directory, token: try RequestInbox.token(fromFile: try args.url("token-file")))
+            Log.info("accepting requests into \(directory.path)")
+        }
+        let server = try StaticHTTPServer(root: publish, port: UInt16(args.int("port", 8080)), bindAddress: args.options["bind"] ?? "127.0.0.1", requestInbox: inbox)
         try await server.run()
+    case "requests":
+        let publish = try args.url("publish")
+        let inbox = args.options["inbox"] != nil ? try args.url("inbox") : publish.appendingPathComponent("inbox")
+        var config = RequestWorkerConfiguration(inbox: inbox, publishDirectory: publish, vault: try args.url("vault"))
+        if args.options["runner"] != nil { config.runner = try args.url("runner") }
+        if args.options["log"] != nil { config.log = try args.url("log") }
+        config.runnerTimeout = .seconds(args.double("timeout", 1800))
+        let worker = try RequestWorker(configuration: config)
+        if args.flags.contains("once") {
+            let handled = await worker.processPending()
+            Log.info("requests: handled \(handled)")
+        } else {
+            try await worker.run()
+        }
     default:
         print(usage)
     }
