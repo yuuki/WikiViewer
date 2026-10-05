@@ -97,6 +97,7 @@ struct RouteView: View {
         case .search: SearchView()
         case .tags: TagsView()
         case .recents: RecentNotesView()
+        case .requests: RequestsView()
         case .graph: GraphOverviewView()
         case .graphCluster(let id, let focus): ClusterGraphView(id: id, focus: focus)
         case .localGraph(let path): LocalGraphView(path: path)

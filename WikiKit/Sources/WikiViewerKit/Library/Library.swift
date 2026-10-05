@@ -56,9 +56,10 @@ public enum SourceConfiguration: Codable, Sendable, Equatable {
     /// Options for a folder bookmark. A macOS sandbox grants access to a
     /// chosen folder across launches only through a security-scoped
     /// bookmark; on iOS every bookmark of a picked folder carries the grant.
+    /// Read-write: requests to the Mac are written to the folder's inbox.
     public static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
         #if os(macOS)
-        [.withSecurityScope, .securityScopeAllowOnlyReadAccess]
+        [.withSecurityScope]
         #else
         []
         #endif
@@ -109,6 +110,8 @@ public final class Library {
     public let updater: ArtifactUpdater
     public let assetProvider: AssetProvider
     public let imageCache = ImageCache()
+    /// Requests to the Mac's Claude waiting on this device.
+    public let requests: RequestQueue
     private let defaults: UserDefaults
     private var updateTask: Task<Void, Never>?
     /// Identity of the source the in-flight update uses.
@@ -124,6 +127,7 @@ public final class Library {
         self.defaults = defaults
         updater = ArtifactUpdater(store: store)
         assetProvider = AssetProvider(storeRoot: store.assetsURL)
+        requests = RequestQueue(fileURL: store.root.appendingPathComponent("requests.json"))
         if let data = defaults.data(forKey: Self.sourceKey) {
             source = try? JSONDecoder().decode(SourceConfiguration.self, from: data)
         }
@@ -226,9 +230,9 @@ public final class Library {
         case nil:
             return nil
         case .bundledDemo:
-            return Self.bundledDemoURL.map { LocalFolderArtifactSource(root: $0) }
+            return Self.bundledDemoURL.map { LocalFolderArtifactSource(root: $0, acceptsRequests: false) }
         case .http(let url):
-            return HTTPArtifactSource(baseURL: url)
+            return HTTPArtifactSource(baseURL: url, requestToken: RequestToken.load())
         case .folder(let bookmark, let name):
             var stale = false
             guard let url = try? URL(resolvingBookmarkData: bookmark, options: SourceConfiguration.bookmarkResolutionOptions,
@@ -245,6 +249,30 @@ public final class Library {
         let granted = url.startAccessingSecurityScopedResource()
         defer { if granted { url.stopAccessingSecurityScopedResource() } }
         return try? url.bookmarkData(options: SourceConfiguration.bookmarkCreationOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
+    }
+
+    // MARK: Requests
+
+    /// Whether the source can take requests (not the bundled demo).
+    public var acceptsRequests: Bool { currentSource?.acceptsRequests ?? false }
+
+    /// Queues a request for the Mac and tries to send it at once; offline,
+    /// it is sent by a later sync.
+    public func submit(_ request: HostRequest) throws {
+        try requests.enqueue(request)
+        Task { await syncRequests() }
+    }
+
+    /// Sends waiting requests and reads the status of those in progress.
+    public func syncRequests() async {
+        await requests.sync(source: currentSource)
+    }
+
+    /// Replaces the token sent with requests over HTTP.
+    public func setRequestToken(_ token: String) {
+        RequestToken.save(token)
+        currentSource = makeSource()
+        Task { await syncRequests() }
     }
 
     // MARK: Updates
@@ -269,6 +297,9 @@ public final class Library {
         await checkForUpdates()
         var failures = isFailed ? 1 : 0
         while !Task.isCancelled {
+            // Requests ride along with the update cycle: every long poll or
+            // poll interval also sends and follows them.
+            await syncRequests()
             if failures > 0 {
                 guard (try? await Task.sleep(for: Self.retryDelay(afterFailures: failures))) != nil else { return }
             }

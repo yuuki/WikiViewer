@@ -103,6 +103,26 @@
         }
       }
     },
+    "%lld pending": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 件待ち"
+          }
+        }
+      }
+    },
+    "%lld selected": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 段落を選択中"
+          }
+        }
+      }
+    },
     "%lld.": {
       "shouldTranslate": false
     },
@@ -116,12 +136,112 @@
         }
       }
     },
+    "About": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対象"
+          }
+        }
+      }
+    },
+    "Answered": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "届いた"
+          }
+        }
+      }
+    },
+    "Any counterexamples?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反例はあるか"
+          }
+        }
+      }
+    },
+    "Arriving": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "到着待ち"
+          }
+        }
+      }
+    },
+    "Ask About Note…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノートについて聞く…"
+          }
+        }
+      }
+    },
+    "Ask Claude": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude に聞く"
+          }
+        }
+      }
+    },
+    "Ask Claude about a note from its More menu. Answers arrive as notes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノートのメニューから Claude に質問できます。回答はノートとして届きます。"
+          }
+        }
+      }
+    },
+    "Ask Claude…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude に聞く…"
+          }
+        }
+      }
+    },
+    "Ask…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聞く…"
+          }
+        }
+      }
+    },
     "Attachments": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "添付ファイル"
+          }
+        }
+      }
+    },
+    "Audio episode": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声の回"
           }
         }
       }
@@ -166,6 +286,16 @@
         }
       }
     },
+    "Cancel": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "キャンセル"
+          }
+        }
+      }
+    },
     "Center Here": {
       "localizations": {
         "ja": {
@@ -206,12 +336,42 @@
         }
       }
     },
+    "Claude on your Mac answers in a note under wiki/. It arrives with a later snapshot; Requests shows its progress. Offline, the request waits on this device.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac の Claude が wiki/ のノートで答えます。回答は後のスナップショットで届き、進み具合は「依頼」で見られます。オフラインのあいだ、依頼はこの端末で待ちます。"
+          }
+        }
+      }
+    },
+    "Claude on your Mac judges the claim against the wiki's sources and writes the verdict as a note under wiki/questions.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac の Claude が wiki のソースに照らして主張を判定し、判定を wiki/questions のノートとして書きます。"
+          }
+        }
+      }
+    },
     "Clear": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "消去"
+          }
+        }
+      }
+    },
+    "Clear Finished": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了した依頼を消去"
           }
         }
       }
@@ -302,6 +462,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mac が Vault を公開しているフォルダまたは URL に接続してください。"
+          }
+        }
+      }
+    },
+    "Connect your vault's folder or address to ask Claude on your Mac about notes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac の Claude にノートについて質問するには、vault のフォルダかアドレスに接続してください。"
           }
         }
       }
@@ -456,6 +626,16 @@
         }
       }
     },
+    "Details (optional)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "補足(任意)"
+          }
+        }
+      }
+    },
     "Diagnostics": {
       "localizations": {
         "ja": {
@@ -542,6 +722,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "展開"
+          }
+        }
+      }
+    },
+    "Failed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗"
           }
         }
       }
@@ -686,6 +876,16 @@
         }
       }
     },
+    "In Progress": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "処理中"
+          }
+        }
+      }
+    },
     "Include Nested Tags": {
       "localizations": {
         "ja": {
@@ -696,12 +896,32 @@
         }
       }
     },
+    "Is this true?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これは本当か"
+          }
+        }
+      }
+    },
     "Last update failed": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "前回のアップデートに失敗しました"
+          }
+        }
+      }
+    },
+    "Learning path: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "学習経路: %@"
           }
         }
       }
@@ -876,6 +1096,26 @@
         }
       }
     },
+    "My explanation": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分の説明"
+          }
+        }
+      }
+    },
+    "My own question": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自由に質問"
+          }
+        }
+      }
+    },
     "Name": {
       "localizations": {
         "ja": {
@@ -946,6 +1186,16 @@
         }
       }
     },
+    "No Requests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依頼はありません"
+          }
+        }
+      }
+    },
     "No Snapshot": {
       "localizations": {
         "ja": {
@@ -1012,6 +1262,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "スナップショットにありません"
+          }
+        }
+      }
+    },
+    "Not Sent": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信待ち"
           }
         }
       }
@@ -1169,6 +1429,56 @@
         }
       }
     },
+    "Question": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "質問"
+          }
+        }
+      }
+    },
+    "Questions about notes are written to the inbox folder inside the update folder, where wikiindex requests on the Mac picks them up. Answers arrive as notes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノートへの質問は更新元フォルダの中の inbox フォルダに書かれ、Mac の wikiindex requests が取り出します。回答はノートとして届きます。"
+          }
+        }
+      }
+    },
+    "Questions about notes go to the Mac through wikiindex serve, which needs this token (its --token-file). Answers arrive as notes.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノートへの質問は wikiindex serve を通って Mac に届きます。serve にはこのトークン(--token-file)が必要です。回答はノートとして届きます。"
+          }
+        }
+      }
+    },
+    "Queued": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "処理待ち"
+          }
+        }
+      }
+    },
+    "Reading history": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読書履歴"
+          }
+        }
+      }
+    },
     "Recent": {
       "localizations": {
         "ja": {
@@ -1209,6 +1519,46 @@
         }
       }
     },
+    "Remove the finished requests from this list? Their answers stay in the vault.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了した依頼を一覧から消しますか?回答は vault に残ります。"
+          }
+        }
+      }
+    },
+    "Request token": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依頼トークン"
+          }
+        }
+      }
+    },
+    "Requests": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依頼"
+          }
+        }
+      }
+    },
+    "Requests to Claude": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude への依頼"
+          }
+        }
+      }
+    },
     "Schema": {
       "localizations": {
         "ja": {
@@ -1239,12 +1589,32 @@
         }
       }
     },
+    "Section": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "節"
+          }
+        }
+      }
+    },
     "Selects this linked note": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "このリンク先ノートを選択します"
+          }
+        }
+      }
+    },
+    "Send": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信"
           }
         }
       }
@@ -1529,6 +1899,16 @@
         }
       }
     },
+    "Tap paragraphs to ask about, or ask about the whole note.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "質問したい段落をタップしてください。ノート全体について聞くこともできます。"
+          }
+        }
+      }
+    },
     "Terms under 3 characters only match titles, aliases and tags. Add a longer term to search note text.": {
       "localizations": {
         "ja": {
@@ -1545,6 +1925,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "クラスタはマップの横に一覧があります"
+          }
+        }
+      }
+    },
+    "The demo vault cannot take requests. Connect the folder or address your Mac publishes to.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デモ vault には依頼を送れません。Mac が公開しているフォルダかアドレスに接続してください。"
           }
         }
       }
@@ -1735,6 +2125,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "ビュー"
+          }
+        }
+      }
+    },
+    "What does this assume?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前提は何か"
           }
         }
       }

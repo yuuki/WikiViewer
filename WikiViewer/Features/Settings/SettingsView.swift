@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var folderError: String?
     @State private var showsURLError = false
     @AppStorage(ObsidianLink.vaultNameKey) private var obsidianVaultName = ""
+    @State private var requestToken = RequestToken.load() ?? ""
     #if os(macOS)
     @AppStorage(NoteTextScale.defaultsKey) private var noteTextScale = 1.0
     #endif
@@ -95,6 +96,23 @@ struct SettingsView: View {
             #endif
 
             Section {
+                if case .http = library.source {
+                    SecureField("Request token", text: $requestToken)
+                        .autocorrectionDisabled()
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+                        .onSubmit { library.setRequestToken(requestToken) }
+                        .onDisappear { library.setRequestToken(requestToken) }
+                }
+                NavigationLink("Requests") { RequestsView() }
+            } header: {
+                Text("Requests to Claude")
+            } footer: {
+                Text(requestsFooter)
+            }
+
+            Section {
                 TextField("Vault name", text: $obsidianVaultName)
                     #if os(iOS)
                     .textInputAutocapitalization(.never)
@@ -114,6 +132,14 @@ struct SettingsView: View {
         .onChange(of: httpURL) { showsURLError = false }
         .fileImporter(isPresented: $pickingFolder, allowedContentTypes: [.folder]) { result in
             chooseFolder(result)
+        }
+    }
+
+    private var requestsFooter: String {
+        switch library.source {
+        case .http: String(localized: "Questions about notes go to the Mac through wikiindex serve, which needs this token (its --token-file). Answers arrive as notes.")
+        case .folder: String(localized: "Questions about notes are written to the inbox folder inside the update folder, where wikiindex requests on the Mac picks them up. Answers arrive as notes.")
+        default: String(localized: "Connect your vault's folder or address to ask Claude on your Mac about notes.")
         }
     }
 

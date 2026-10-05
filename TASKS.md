@@ -84,6 +84,17 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   instead of the per-window foreground one. Worktree builds get their own
   bundle ID (`WV_BUNDLE_ID_SUFFIX`) and so their own container.
 
+- D22 Requests from the app (#34): a `HostRequest` (WikiShared) queued on
+  the device (`RequestQueue`, one JSON file next to the snapshots) and sent
+  to an inbox outside the vault: `POST /requests` to `wikiindex serve
+  --token-file` or a file in `<publish>/inbox/`. `wikiindex requests` runs
+  a runner per request (`scripts/claude-request.py`: `claude -p` in the
+  vault, Write/Edit only under `wiki/`, no web) and writes
+  `<publish>/requests/<id>.json`; the app polls it with the manifest. The
+  answer is a note, delivered by the next snapshot. The macOS app's folder
+  bookmark became read-write (`ENABLE_USER_SELECTED_FILES = readwrite`) so
+  it can write the inbox.
+
 ## Phase A — repository baseline
 - [x] Inspect repo, Xcode project, targets, git status
 - [x] Build untouched project for iOS Simulator (BUILD SUCCEEDED, Xcode 27.0)
@@ -237,6 +248,13 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
 - [ ] Handoff between two real devices (not yet tried)
 - [~] CI: build the macOS app (the job builds once the runner image has
       Xcode 27; until then it skips with a notice)
+
+## Phase P — reading companion (issues #34–#44)
+- [x] #34 Requests to Claude: queue, HTTP/folder inbox, worker, runner,
+      ask sheet with paragraph selection, Requests list, note section
+- [-] #34 A real Claude run was not verified in development (the CLI's
+      login had expired there); the runner was checked with a dry run and
+      the round trip with a stand-in runner
 
 ## Deferred (explicit)
 - [-] Manifest signing (Ed25519). Hash validation is mandatory and implemented;

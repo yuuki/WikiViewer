@@ -145,7 +145,7 @@ struct MacRootView: View {
         case .base(let path), .localGraph(let path): return VaultPath.basename(of: path)
         case .missing(let target): return target
         case .graph, .graphCluster: return String(localized: "Graph")
-        case .folder, .tag, .tags, .search, .recents: return nil
+        case .folder, .tag, .tags, .search, .recents, .requests: return nil
         }
     }
 
@@ -471,6 +471,7 @@ private struct ListColumn: View {
         case .folder(let path): return VaultPath.fileName(of: path)
         case .tag(let name): return "#" + name
         case .recents: return String(localized: "Recent")
+        case .requests: return String(localized: "Requests")
         default:
             switch tab {
             case .files: return String(localized: "Vault")

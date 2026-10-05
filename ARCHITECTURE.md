@@ -356,6 +356,31 @@ covers, typically leaving out index and log notes that link to everything.
 Cost: the graph is as fresh as the last publication, and the phone sees one
 cluster at a time rather than all notes at once.
 
+### Requests: the one way back, outside the vault
+
+A viewer that only reads cannot ask. With Claude writing much of the vault,
+the reader wants to ask *while* reading ("is this true?", "what does this
+assume?") and keep the answer as a note with its sources, not as a chat.
+The design keeps every earlier guarantee:
+
+- the app never writes to the vault: it queues a small JSON request on the
+  device and sends it to an inbox *outside* the vault — over HTTP to
+  `wikiindex serve` (token-checked), or as a file in the synced folder it
+  already reads (`<publish>/inbox/`);
+- `wikiindex requests` takes requests one at a time and hands each to a
+  *runner*, which starts Claude Code in the vault with tools confined to
+  `wiki/`; wikiindex itself still never writes to the vault;
+- the answer is an ordinary note, so it reaches the phone with the next
+  snapshot (delta pack), linked to the note it is about by the vault's own
+  skills (`wiki-ask-source`, `wiki-thesis`, `wiki-query`);
+- progress travels back the same way as snapshots: the worker writes
+  `<publish>/requests/<id>.json`, which the app polls along with the
+  manifest. Offline, requests wait on the device and are sent later.
+
+Cost: a second Mac process, and answers are as fast as Claude plus one
+publication. The vault's rule that `wiki/` is Claude's and the primary
+layer the human's is enforced by the runner's allow-list, not by WikiViewer.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the
@@ -373,7 +398,8 @@ install path is exercised on every fresh install.
 
 ## Guarantees (invariants)
 
-- The vault is never written to by any part of the system.
+- The vault is never written to by the app or the indexer. (Claude Code,
+  started by the request runner, writes only under `wiki/`.)
 - A published manifest never refers to an incomplete or unverified database.
 - A generation, once published or installed, is never modified.
 - The phone never opens a database that has not passed verification.

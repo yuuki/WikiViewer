@@ -428,7 +428,52 @@ can be attached to by a debugger. Apple Development signing allows that
 (`get-task-allow`) even in a Release build, so the script signs the app again
 without it.
 
-## 8. Troubleshooting
+## 8. Ask Claude from the app
+
+The app can send requests back to the Mac: a question about a note or some
+of its paragraphs (the note's **More → Ask Claude…**). Claude Code, running
+in the vault on the Mac, answers in a note under `wiki/`, which reaches the
+phone with the next snapshot. **Requests** (on the Files tab and in Settings)
+shows each one: not sent, queued, in progress, answered. Offline, requests
+wait on the device and are sent later.
+
+The app and `wikiindex` still never write to the vault. Requests wait in an
+inbox outside it (`<PUBLISH>/inbox/`), and only the runner,
+`scripts/claude-request.py`, starts Claude, with Write and Edit limited to
+`wiki/` and no web access (THREAT_MODEL.md, "Requests from the app").
+
+1. Log in to Claude Code once in the Mac's user session (`claude`, then
+   `/login`); the runner uses that login. Check with
+   `claude -p "hi" --output-format json`: an expired login shows up as
+   `"is_error": true`.
+2. Run the request worker next to `watch` (a second LaunchAgent with the
+   same shape as the indexer's, see README):
+
+   ```sh
+   $BIN requests --publish "<PUBLISH>" --vault "<VAULT>" \
+        --runner "$PWD/scripts/claude-request.py" --log "<STATE>/requests.jsonl"
+   ```
+
+   It checks the inbox every 5 seconds, handles one request at a time
+   (`--timeout`, default 30 minutes) and writes progress to
+   `<PUBLISH>/requests/`. `--once` handles what is waiting and exits.
+3. Over **iCloud Drive** nothing else is needed: the app writes requests
+   into the `inbox` folder of the folder it reads. On the Mac app, choose
+   the folder again in Settings once, so the app may write to it.
+4. Over **HTTPS**, give `serve` a token and enter the same token in the app
+   under **Settings → Requests to Claude**:
+
+   ```sh
+   openssl rand -base64 24 > "<STATE>/request-token" && chmod 600 "<STATE>/request-token"
+   $BIN serve --publish "<PUBLISH>" --port 8080 --bind 127.0.0.1 --token-file "<STATE>/request-token"
+   ```
+
+   Without `--token-file` the server refuses every request, as before.
+
+To see what Claude would be asked without running it, run the runner by
+hand on a request file with `WIKIVIEWER_DRY_RUN=1`.
+
+## 9. Troubleshooting
 
 `xcrun devicectl device process launch` reports the actual reason when
 Xcode says only "The app failed to launch".
@@ -443,6 +488,9 @@ Xcode says only "The app failed to launch".
 | Folder picker shows only `assets` | iCloud Drive has not finished syncing to the phone | Wait for the upload to finish (section 4A), then refresh in the Files app |
 | HTTP URL rejected or fails | App Transport Security blocks plain HTTP | Use HTTPS, e.g. with Tailscale (section 4B) |
 | *Check for Updates* says up to date, but the vault changed | Nothing was published | Run `build` again, or check the `watch` log |
+| A request stays *Queued* | `wikiindex requests` is not running | Start it (section 8) |
+| A request *Failed*: `claude exited with 1: Failed to authenticate` | The Claude Code login on the Mac expired | Run `claude` and `/login` in the Mac's user session |
+| A request *Failed*: refused, check the request token | The token in the app differs from `--token-file` | Enter the token again under Settings → Requests to Claude |
 
 ## Privacy notes
 
@@ -452,6 +500,9 @@ Xcode says only "The app failed to launch".
 - iCloud Drive stores the snapshot in your iCloud account.
 - `tailscale serve` exposes it only to devices in your tailnet. Check who else
   is in your tailnet before you serve it.
+- Requests to Claude (section 8) carry the paragraphs you chose and your
+  question. They wait in `<PUBLISH>/inbox/` until the Mac takes them, then
+  are deleted; `--log` keeps a copy on the Mac.
 - Hidden folders such as `.obsidian` and `.trash` are never indexed. Other
   folders are indexed. Move anything you do not want on the phone out of the
   vault.
