@@ -966,6 +966,16 @@
         }
       }
     },
+    "From --token-file": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "--token-file の値"
+          }
+        }
+      }
+    },
     "From: ": {
       "localizations": {
         "ja": {
@@ -1142,6 +1152,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "7 日間"
+          }
+        }
+      }
+    },
+    "Last Sent": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最後の送信"
           }
         }
       }
@@ -2029,6 +2049,16 @@
         }
       }
     },
+    "Reading History": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読書履歴"
+          }
+        }
+      }
+    },
     "Recent": {
       "localizations": {
         "ja": {
@@ -2219,6 +2249,16 @@
         }
       }
     },
+    "Send Now": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今すぐ送信"
+          }
+        }
+      }
+    },
     "Set the vault name in Settings": {
       "localizations": {
         "ja": {
@@ -2245,6 +2285,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "リンクを共有"
+          }
+        }
+      }
+    },
+    "Share Reading History with Mac": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "読書履歴を Mac と共有"
           }
         }
       }
@@ -2869,6 +2919,16 @@
         }
       }
     },
+    "Waiting to Send": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "送信待ち"
+          }
+        }
+      }
+    },
     "What Changed": {
       "localizations": {
         "ja": {
@@ -2895,6 +2955,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "前提は何か"
+          }
+        }
+      }
+    },
+    "When on, the notes you read (path, title, when, how long and how far) and your pinned notes are sent to your Mac about once an hour, through the same queue as requests. The Mac keeps them outside the vault for 180 days, for Claude to prioritize curation and recommendations. Turning it off deletes what has not been sent.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オンにすると、読んだノート(パス、題、日時、時間、どこまで読んだか)とピン留めが、依頼と同じキューで 1 時間に 1 回ほど Mac に送られます。Mac は vault の外に 180 日間保存し、Claude が選別や推薦の優先度づけに使います。オフにすると未送信の分は消えます。"
           }
         }
       }

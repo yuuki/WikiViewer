@@ -37,12 +37,15 @@ USAGE
       requests from the app (POST /requests with that bearer token) into
       the inbox (default PUBLISH/inbox).
   wikiindex requests --publish DIR --vault DIR [--inbox DIR] [--runner FILE]
-                    [--timeout SECONDS] [--log FILE] [--once]
+                    [--timeout SECONDS] [--log FILE] [--signals DIR]
+                    [--signal-days N] [--once]
       Takes requests from the app out of the inbox (default PUBLISH/inbox),
       one at a time, and runs the runner (e.g. scripts/claude-request.py)
       in the vault for each; writes their progress to PUBLISH/requests/.
       wikiindex never writes to the vault; what the runner may write is
-      the runner's to confine (see THREAT_MODEL.md).
+      the runner's to confine (see THREAT_MODEL.md). With --signals, the
+      reading history devices send is kept there (outside the vault) for
+      --signal-days (default 180), summarized in summary.json.
 
 OPTIONS
   --image-max N        longest side of image derivatives (default 2048)
@@ -235,6 +238,9 @@ func run() async throws {
         var config = RequestWorkerConfiguration(inbox: inbox, publishDirectory: publish, vault: try args.url("vault"))
         if args.options["runner"] != nil { config.runner = try args.url("runner") }
         if args.options["log"] != nil { config.log = try args.url("log") }
+        if args.options["signals"] != nil {
+            config.signals = try SignalStore(directory: try args.url("signals"), retention: args.double("signal-days", 180) * 86_400)
+        }
         config.runnerTimeout = .seconds(args.double("timeout", 1800))
         let worker = try RequestWorker(configuration: config)
         if args.flags.contains("once") {

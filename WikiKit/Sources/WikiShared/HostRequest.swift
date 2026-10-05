@@ -66,10 +66,13 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
     /// Free text: the question, the subject of a path, or the explanation.
     public var text: String?
     public var signals: [ReadingSignal]?
+    /// The notes pinned on the device when the signals were sent (the whole
+    /// list, so an unpinned note drops out).
+    public var pins: [String]?
 
     public init(id: UUID = UUID(), kind: Kind, createdAt: Date = Date(), device: String? = nil,
                 notePath: String? = nil, noteTitle: String? = nil, heading: String? = nil, excerpt: String? = nil,
-                question: Question? = nil, text: String? = nil, signals: [ReadingSignal]? = nil) {
+                question: Question? = nil, text: String? = nil, signals: [ReadingSignal]? = nil, pins: [String]? = nil) {
         version = Self.currentVersion
         self.id = id
         self.kind = kind
@@ -83,6 +86,7 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
         self.question = question
         self.text = text
         self.signals = signals
+        self.pins = pins
     }
 
     // MARK: Limits
@@ -141,6 +145,8 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
                 guard VaultPath.isSafeRelative(signal.path) else { throw .unsafePath(signal.path) }
                 if signal.title.count > 1_000 { throw .tooLarge("signals") }
             }
+            guard (pins?.count ?? 0) <= 1_000 else { throw .tooLarge("pins") }
+            for pin in pins ?? [] where !VaultPath.isSafeRelative(pin) { throw .unsafePath(pin) }
         }
     }
 

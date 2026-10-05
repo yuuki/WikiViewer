@@ -42,6 +42,8 @@ struct NoteView: View {
     @State private var askSelection: Set<Int>?
     @State private var askDraft: AskDraft?
     @State private var requestingPath = false
+    /// When the note came on screen, for the reading history (#42).
+    @State private var openedAt: Date?
 
     var body: some View {
         // The find bar sits above the scroll view, not over it: a match
@@ -162,11 +164,18 @@ struct NoteView: View {
             .userActivity(NoteActivity.type, element: model.detail) { detail, activity in
                 NoteActivity.describe(activity, path: detail.path, title: detail.title)
             }
-            .onAppear(perform: publishNote)
+            .onAppear {
+                publishNote()
+                openedAt = .now
+            }
             .onChange(of: model.detail?.id) { publishNote() }
             // Notes deeper in the navigation stack keep their rendered blocks
             // only if they are small; large ones are re-rendered on return.
             .onDisappear {
+                if let openedAt, let detail = model.detail {
+                    history.recordReading(path: path, title: detail.title, openedAt: openedAt, seconds: Int(Date.now.timeIntervalSince(openedAt)))
+                }
+                openedAt = nil
                 // The scroll view made on return starts at the top; `position`
                 // must change for it to scroll back to the saved block.
                 if model.releaseIfLarge() { position = nil }

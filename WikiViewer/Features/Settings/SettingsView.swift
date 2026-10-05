@@ -97,7 +97,11 @@ struct SettingsView: View {
 
             Section {
                 if case .http = library.source {
-                    SecureField("Request token", text: $requestToken)
+                    LabeledContent("Request token") {
+                        SecureField("Request token", text: $requestToken, prompt: Text("From --token-file"))
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                    }
                         .autocorrectionDisabled()
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
@@ -111,6 +115,8 @@ struct SettingsView: View {
             } footer: {
                 Text(requestsFooter)
             }
+
+            ReadingHistorySettings()
 
             Section {
                 TextField("Vault name", text: $obsidianVaultName)
