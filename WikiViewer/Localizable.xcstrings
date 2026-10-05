@@ -316,6 +316,16 @@
         }
       }
     },
+    "Builds On": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前提"
+          }
+        }
+      }
+    },
     "Can't Start": {
       "localizations": {
         "ja": {
@@ -816,6 +826,16 @@
         }
       }
     },
+    "Evidence": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "根拠"
+          }
+        }
+      }
+    },
     "Expanded": {
       "localizations": {
         "ja": {
@@ -972,6 +992,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "画像ファイル"
+          }
+        }
+      }
+    },
+    "In Conflict": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対立"
           }
         }
       }
@@ -1466,6 +1496,16 @@
         }
       }
     },
+    "No related notes for this note.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このノートには隣のノートがありません。"
+          }
+        }
+      }
+    },
     "No Requests": {
       "localizations": {
         "ja": {
@@ -1949,6 +1989,16 @@
         }
       }
     },
+    "Related": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隣"
+          }
+        }
+      }
+    },
     "Remove": {
       "localizations": {
         "ja": {
@@ -2005,6 +2055,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude への依頼"
+          }
+        }
+      }
+    },
+    "Same Topic": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じ主題"
           }
         }
       }

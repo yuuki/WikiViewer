@@ -87,6 +87,10 @@ OPTIONS
   --graph-resolution R clustering resolution: higher gives more, smaller
                        clusters (default 2.5)
   --no-graph           do not build the link graph
+  --extras DIR         host-made data the app shows next to the notes,
+                       outside the vault: related.jsonl (role-labelled
+                       neighbours, scripts/export-related.py); watch
+                       publishes when it changes
   --log-note PATH      the vault's operation log, whose new entries the app
                        shows as what changed (default wiki/log.md)
   --force              publish even if nothing changed
@@ -172,6 +176,7 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     guard config.graph.resolution > 0 else { throw CLIError("--graph-resolution must be a positive number") }
     config.graph.enabled = !args.flags.contains("no-graph")
     if let logNote = args.options["log-note"] { config.changeLog.logNote = logNote }
+    if args.options["extras"] != nil { config.extrasDirectory = try args.url("extras") }
     return config
 }
 

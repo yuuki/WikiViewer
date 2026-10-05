@@ -177,6 +177,21 @@ The app follows the source while it is open. When it is closed, iOS may also
 refresh it in the background if **Settings → General → Background App
 Refresh** is on; iOS decides how often.
 
+### Related notes by role
+
+The app can show, beside each wiki page, what it builds on, its evidence,
+what contradicts it and its peers — the vault's `wiki-related`. Export
+them to a folder outside the vault and pass it to the indexer:
+
+```sh
+python3 scripts/export-related.py --vault "<VAULT>" --out "<STATE>/extras/related.jsonl"
+$BIN watch ... --extras "<STATE>/extras"
+```
+
+Run the export after the vault's graph is rebuilt (for example nightly);
+`watch` publishes the change. Without the file, notes show no related
+section.
+
 ### What changed
 
 Each publication also records which notes it added, changed and removed,

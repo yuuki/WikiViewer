@@ -379,6 +379,29 @@ public actor Indexer {
         }
     }
 
+    /// Imports the extras into their tables. A failure keeps the previous
+    /// rows and never blocks a publication.
+    private func refreshExtras() {
+        guard let directory = configuration.extrasDirectory else { return }
+        do {
+            let summary = try builder.writer.write { db in try Extras.importAll(db, from: directory) }
+            Log.debug(summary.description)
+        } catch {
+            Log.warning("extras: \(error); publishing the previous ones")
+        }
+    }
+
+    /// True (and marks the builder dirty) if the extras changed since they
+    /// were last imported, so `watch` publishes them.
+    public func checkExtras() -> Bool {
+        guard let directory = configuration.extrasDirectory else { return false }
+        let signature = Extras.signature(of: directory)
+        guard (try? builder.state(Extras.signatureKey)) != signature else { return false }
+        try? builder.setState(Extras.signatureKey, signature)
+        markDirty()
+        return true
+    }
+
     public func publish(force: Bool = false, failpoint: PublishFailpoint? = nil) throws -> PublishResult? {
         guard force || hasUnpublishedChanges || publisher.currentManifest() == nil else { return nil }
         // Bases depend on every note, so they are evaluated once per
@@ -391,6 +414,7 @@ public actor Indexer {
         let baseStats = try builder.writer.write { db in try BaseBuilder.rebuild(db) }
         if baseStats.bases > 0 { Log.info("bases: \(baseStats)") }
         refreshGraph()
+        refreshExtras()
         let result = try publisher.publish(builder: builder, failpoint: failpoint)
         hasUnpublishedChanges = false
         try builder.setState("dirty", "0")

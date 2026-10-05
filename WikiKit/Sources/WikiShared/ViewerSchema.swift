@@ -3,9 +3,10 @@
 //  WikiShared
 //
 
-/// SQLite schema of the published viewer database (schema version 4:
-/// version 1 plus the Obsidian Bases tables (2), the link graph (3) and
-/// the record of what changed between generations (4).
+/// SQLite schema of the published viewer database (schema version 5:
+/// version 1 plus the Obsidian Bases tables (2), the link graph (3), the
+/// record of what changed between generations (4) and the host's extras:
+/// role-labelled neighbours (5).
 ///
 /// The builder database uses exactly these tables plus builder-only tables
 /// (see `builderOnlyTables`), which are emptied in every published snapshot.
@@ -45,6 +46,7 @@ public enum ViewerSchema {
         "bases", "base_cells", "base_rows", "base_groups",
         "graph_clusters", "graph_cluster_links", "graph_nodes", "graph_types",
         "generation_log", "change_log", "log_entries",
+        "related",
     ]
 
     public static let builderOnlyTables = ["builder_state", "asset_derivatives", "pending_changes"]
@@ -376,6 +378,21 @@ public enum ViewerSchema {
         )
         """,
         "CREATE INDEX log_entries_generation ON log_entries(generation, id)",
+        // A note's neighbours by role (version 5), from the vault's
+        // wiki-related (`<extras>/related.jsonl`, see Extras.swift): role is
+        // its name (definition, evidence, contradiction, cluster, …), rank
+        // the order within the role, why its one-line reason. At most
+        // Extras.maximumRelatedPerNote rows per note.
+        """
+        CREATE TABLE related(
+          note_id INTEGER NOT NULL,
+          role TEXT NOT NULL,
+          rank INTEGER NOT NULL,
+          target_note_id INTEGER NOT NULL,
+          why TEXT,
+          PRIMARY KEY(note_id, role, rank)
+        ) WITHOUT ROWID
+        """,
         // Builder-only tables. Present in snapshots but emptied.
         """
         CREATE TABLE builder_state(

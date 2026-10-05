@@ -112,6 +112,7 @@ public struct LearningPath: Sendable, Equatable {
         if let markdown = try? Regex(#"\[([^\]]*)\]\([^)]*\)"#) {
             text = text.replacing(markdown) { String($0.output[1].substring ?? "") }
         }
-        return text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "__", with: "")
+        // Not "__": source names use it ("@2026__PVLDB__Title").
+        return text.replacingOccurrences(of: "**", with: "")
     }
 }
