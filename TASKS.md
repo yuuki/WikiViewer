@@ -274,6 +274,13 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       graph page), schema 5 `related` table (≤ 12 per note),
       `RelatedRepository`, Related under the note (iOS) and an inspector
       pane (macOS)
+- [x] #39 Graph as a lens on questions: `<state>/graph-clusters.json`,
+      `scripts/export-graph-lens.py` (open questions from concepts,
+      optional Claude summaries of changed clusters, gaps from wiki-gap
+      reports), schema 6 `graph_cluster_notes` / `graph_gaps`, summary and
+      questions on the cluster card, dashed gap links and a gap sheet
+- [-] #39 Tapping a dashed gap link itself (gaps open from the cluster
+      card and the Gaps button instead)
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

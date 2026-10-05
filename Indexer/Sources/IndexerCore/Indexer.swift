@@ -374,6 +374,7 @@ public actor Indexer {
         do {
             let summary = try GraphBuilder.refresh(builder: builder, configuration: configuration.graph)
             if summary.unchanged { Log.debug(summary.description) } else { Log.info(summary.description) }
+            try Extras.exportClusters(builder: builder, to: configuration.stateDirectory.appendingPathComponent(Extras.clusterExportFile))
         } catch {
             Log.warning("graph: \(error); publishing the previous graph")
         }

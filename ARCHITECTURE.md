@@ -442,6 +442,17 @@ indexer imports each file before a publication into a bounded table
 wiki-related for every wiki page (about 18,000 in 85 s) without writing
 into the vault. A missing file simply empties its table.
 
+The same way, the graph becomes a lens on questions (schema 6). The
+indexer exports its clusters (id, label, most linked notes) to
+`<state>/graph-clusters.json`; `scripts/export-graph-lens.py` collects
+each cluster's open questions from its concept pages' `## 未解決の問い`
+and, optionally, asks Claude (read-only tools) for a short summary of new
+or changed clusters only, and turns the vault's wiki-gap reports into gap
+candidates. Summaries are stored outside the vault, keyed by the
+indexer's cluster ids — the vault's own rule keeps cluster ids out of wiki
+pages — and marked stale when the cluster's members move on. Gaps are
+resolved to notes and clusters on the host and drawn as dashed links.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the

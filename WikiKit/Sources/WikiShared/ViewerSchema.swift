@@ -3,10 +3,10 @@
 //  WikiShared
 //
 
-/// SQLite schema of the published viewer database (schema version 5:
+/// SQLite schema of the published viewer database (schema version 6:
 /// version 1 plus the Obsidian Bases tables (2), the link graph (3), the
 /// record of what changed between generations (4) and the host's extras:
-/// role-labelled neighbours (5).
+/// role-labelled neighbours (5), cluster summaries and gaps (6).
 ///
 /// The builder database uses exactly these tables plus builder-only tables
 /// (see `builderOnlyTables`), which are emptied in every published snapshot.
@@ -46,7 +46,7 @@ public enum ViewerSchema {
         "bases", "base_cells", "base_rows", "base_groups",
         "graph_clusters", "graph_cluster_links", "graph_nodes", "graph_types",
         "generation_log", "change_log", "log_entries",
-        "related",
+        "related", "graph_cluster_notes", "graph_gaps",
     ]
 
     public static let builderOnlyTables = ["builder_state", "asset_derivatives", "pending_changes"]
@@ -393,6 +393,39 @@ public enum ViewerSchema {
           PRIMARY KEY(note_id, role, rank)
         ) WITHOUT ROWID
         """,
+        // What a cluster is about and what is still open in it (version 6,
+        // `<extras>/cluster-notes.json`): summary may be NULL (no summary
+        // made yet); questions is a JSON array of strings; stale is 1 when
+        // the cluster's members changed since the summary was written.
+        """
+        CREATE TABLE graph_cluster_notes(
+          cluster_id INTEGER PRIMARY KEY,
+          summary TEXT,
+          questions TEXT NOT NULL,
+          generated_at TEXT,
+          stale INTEGER NOT NULL
+        )
+        """,
+        // Gap candidates between two notes (version 6, `<extras>/gaps.json`
+        // from the vault's wiki-gap reports), with the clusters the notes
+        // are in (NULL outside the graph). recommendations: JSON array of
+        // strings (bridging literature); verdict: the report's judgement.
+        """
+        CREATE TABLE graph_gaps(
+          id INTEGER PRIMARY KEY,
+          note_a INTEGER,
+          note_b INTEGER,
+          cluster_a INTEGER,
+          cluster_b INTEGER,
+          title TEXT NOT NULL,
+          detail TEXT NOT NULL,
+          recommendations TEXT NOT NULL,
+          verdict TEXT,
+          report_note_id INTEGER
+        )
+        """,
+        "CREATE INDEX graph_gaps_cluster_a ON graph_gaps(cluster_a)",
+        "CREATE INDEX graph_gaps_cluster_b ON graph_gaps(cluster_b)",
         // Builder-only tables. Present in snapshots but emptied.
         """
         CREATE TABLE builder_state(

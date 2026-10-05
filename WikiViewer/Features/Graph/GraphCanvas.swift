@@ -55,6 +55,8 @@ struct GraphScene {
         var width: CGFloat = 0.6
         /// Hidden unless one end is selected (e.g. the overview's minor links).
         var onlyWhenSelected = false
+        /// A gap between the two ends rather than a link: dashed (#39).
+        var dashed = false
     }
 
     var nodes: [Node]
@@ -485,6 +487,7 @@ struct GraphCanvas: View {
         var normal = Path()
         var accent = Path()
         var accentWidth: CGFloat = 1.2
+        var gaps: [(path: Path, selected: Bool, faded: Bool)] = []
         for edge in scene.edges {
             guard let ia = scene.index[edge.a], let ib = scene.index[edge.b] else { continue }
             let touchesSelection = selection != nil && (edge.a == selection || edge.b == selection)
@@ -495,6 +498,15 @@ struct GraphCanvas: View {
                                              scene.nodes[ia].style == .bubble ? screenRadius(scene.nodes[ia], cam) : 0,
                                              scene.nodes[ib].style == .bubble ? screenRadius(scene.nodes[ib], cam) : 0) else { continue }
             guard viewRect.contains(a) || viewRect.contains(b) || CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y)).intersects(viewRect) else { continue }
+            if edge.dashed {
+                // Drawn after the links: a gap often joins two clusters
+                // that are also linked.
+                var p = Path()
+                p.move(to: a)
+                p.addLine(to: b)
+                gaps.append((p, touchesSelection, selection != nil && !touchesSelection))
+                continue
+            }
             if touchesSelection {
                 accent.move(to: a)
                 accent.addLine(to: b)
@@ -515,6 +527,10 @@ struct GraphCanvas: View {
         context.stroke(normal, with: .color(edgeColor), lineWidth: 0.6)
         let selectedColor = selection.flatMap { scene.index[$0] }.map { scene.nodes[$0].color } ?? .accentColor
         context.stroke(accent, with: .color(selectedColor.opacity(0.85)), lineWidth: accentWidth)
+        for gap in gaps {
+            context.stroke(gap.path, with: .color(Color.orange.opacity(gap.faded ? 0.3 : 0.9)),
+                           style: StrokeStyle(lineWidth: gap.selected ? 2.5 : 2, dash: [6, 4]))
+        }
 
         // Nodes.
         let background = Color.platformBackground

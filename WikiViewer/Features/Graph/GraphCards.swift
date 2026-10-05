@@ -205,10 +205,13 @@ struct NodeCard: View {
 /// A selected cluster on the overview.
 struct ClusterCard: View {
     let cluster: GraphCluster
+    var onShowGaps: ([GraphGap]) -> Void = { _ in }
     let onOpen: () -> Void
     let onClose: () -> Void
     @Environment(Library.self) private var library
     @State private var members: [GraphNode]?
+    @State private var note: ClusterNote?
+    @State private var gaps: [GraphGap] = []
 
     var body: some View {
         GraphCard(onClose: onClose) {
@@ -226,12 +229,15 @@ struct ClusterCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
+            ClusterLensSection(note: note, gaps: gaps) { onShowGaps(gaps) }
             Button("Open Cluster", systemImage: "arrow.right.circle", action: onOpen)
                 .buttonStyle(.glassProminent)
                 .controlSize(.small)
         }
         .task(id: cluster.id) {
             members = try? await library.session?.graph.members(of: cluster.id, limit: 5)
+            note = try? await library.session?.graph.clusterNote(id: cluster.id)
+            gaps = (try? await library.session?.graph.gaps(touching: cluster.id)) ?? []
         }
     }
 }

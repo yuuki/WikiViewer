@@ -296,12 +296,32 @@
         }
       }
     },
+    "Between": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "両側"
+          }
+        }
+      }
+    },
     "Bridge needed": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "橋渡し文献が要る"
+          }
+        }
+      }
+    },
+    "Bridging Literature": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "橋渡し文献"
           }
         }
       }
@@ -956,6 +976,36 @@
         }
       }
     },
+    "Gap": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ギャップ"
+          }
+        }
+      }
+    },
+    "Gaps": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ギャップ"
+          }
+        }
+      }
+    },
+    "Gaps: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ギャップ: %lld"
+          }
+        }
+      }
+    },
     "Generation": {
       "localizations": {
         "ja": {
@@ -1142,6 +1192,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "学習経路…"
+          }
+        }
+      }
+    },
+    "Less": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閉じる"
           }
         }
       }
@@ -1466,6 +1526,16 @@
         }
       }
     },
+    "No Gaps": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ギャップはありません"
+          }
+        }
+      }
+    },
     "No Graph": {
       "localizations": {
         "ja": {
@@ -1699,12 +1769,32 @@
         }
       }
     },
+    "Open Gap Report": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ギャップレポートを開く"
+          }
+        }
+      }
+    },
     "Open Note": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "ノートを開く"
+          }
+        }
+      }
+    },
+    "Open Questions": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未解決の問い"
           }
         }
       }
@@ -2509,6 +2599,16 @@
         }
       }
     },
+    "The vault's gap reports (wiki-gap) list none for this snapshot.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このスナップショットでは、vault のギャップレポート(wiki-gap)に候補がありません。"
+          }
+        }
+      }
+    },
     "The vault's name as shown in Obsidian. Used by Edit in Obsidian and shared links.": {
       "localizations": {
         "ja": {
@@ -2851,6 +2951,26 @@
     },
     "https://host/publish": {
       "shouldTranslate": false
+    },
+    "Why It Is a Gap": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ギャップである理由"
+          }
+        }
+      }
+    },
+    "Written before the cluster changed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラスタが変わる前に書かれた要約"
+          }
+        }
+      }
     },
     "Written by Claude": {
       "localizations": {
