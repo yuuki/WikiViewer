@@ -480,18 +480,41 @@ struct PropertiesView: View {
     let links: [OutgoingLink]
 
     var body: some View {
-        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 4) {
+        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 10) {
             ForEach(Array(properties.enumerated()), id: \.offset) { _, property in
                 GridRow {
                     Text(property.key)
                         .noteFont(.noteDetail)
                         .foregroundStyle(.secondary)
-                    Text(NoteRenderer.propertyText(property.value, noteID: noteID, links: links))
-                        .noteFont(.noteDetail)
-                        .textSelection(.enabled)
+                    value(property.value)
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A list with several items shows one bulleted item per line, so a long
+    /// item that wraps is not mistaken for several.
+    @ViewBuilder
+    private func value(_ value: PropertyValue) -> some View {
+        if case .list(let items) = value, items.count > 1 {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("•").foregroundStyle(.secondary)
+                        text(item)
+                    }
+                }
+            }
+        } else {
+            text(value)
+        }
+    }
+
+    private func text(_ value: PropertyValue) -> some View {
+        Text(NoteRenderer.propertyText(value, noteID: noteID, links: links))
+            .noteFont(.noteDetail)
+            .textSelection(.enabled)
     }
 }
 
