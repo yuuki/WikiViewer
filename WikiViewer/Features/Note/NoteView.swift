@@ -262,8 +262,12 @@ struct NoteView: View {
                         let titleBlock = Self.startsWithTitleHeading(rendered, title: detail.title) ? rendered.blocks.first : nil
                         if let titleBlock { blockRow(titleBlock) }
                         NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil,
-                                   showsProperties: !Self.hasInspector)
+                                   showsProperties: !Self.hasInspector, provenance: model.provenance)
                             .id("header")
+                        if let thesis = model.provenance?.thesis {
+                            ThesisCard(thesis: thesis, headings: rendered.headings.map { ($0.blockID, $0.text) }) { scroll(to: $0) }
+                                .id("thesis")
+                        }
                         if let learningPath = model.learningPath {
                             LearningPathSection(pathNote: detail.path, path: learningPath, notes: model.pathNotes)
                                 .id("path")
@@ -338,6 +342,8 @@ final class NoteModel {
     private(set) var backlinks: [Backlink] = []
     private(set) var backlinkTotal = 0
     private(set) var backlinksHaveMore = false
+    /// Who wrote the note and what it rests on (#37).
+    private(set) var provenance: NoteProvenance?
     /// The steps of a learning path note (#35), with their notes.
     private(set) var learningPath: LearningPath?
     private(set) var pathNotes: [Int64: NoteSummary] = [:]
@@ -367,6 +373,7 @@ final class NoteModel {
             tags = try await session.tags.tags(of: id)
             self.links = links
             embeddedAssets = try await session.assets.assets(ids: links.filter(\.isEmbed).compactMap(\.targetAssetID))
+            provenance = NoteProvenance.make(path: detail.path, properties: detail.properties, links: links)
             if LearningPath.isPath(properties: detail.properties), let path = LearningPath.parse(body: detail.body, links: links) {
                 var notes: [Int64: NoteSummary] = [:]
                 for noteID in Set(path.steps.compactMap(\.noteID)) {
@@ -445,6 +452,7 @@ struct NoteHeader: View {
     let links: [OutgoingLink]
     let showsTitle: Bool
     var showsProperties = true
+    var provenance: NoteProvenance?
     @State private var showProperties = false
 
     var body: some View {
@@ -457,6 +465,9 @@ struct NoteHeader: View {
             FolderBreadcrumb(folder: VaultPath.folder(of: detail.path))
             if !tags.isEmpty {
                 TagLine(tags: tags.map(\.name))
+            }
+            if let provenance {
+                ProvenanceLine(provenance: provenance, modified: detail.modified)
             }
             if showsProperties, !detail.properties.isEmpty {
                 DisclosureGroup(isExpanded: $showProperties) {
@@ -478,7 +489,7 @@ struct NoteHeader: View {
     }
 
     private var hasMetadata: Bool {
-        !VaultPath.folder(of: detail.path).isEmpty || !tags.isEmpty || (showsProperties && !detail.properties.isEmpty)
+        !VaultPath.folder(of: detail.path).isEmpty || !tags.isEmpty || provenance != nil || (showsProperties && !detail.properties.isEmpty)
     }
 }
 

@@ -413,6 +413,22 @@ Who made a change is approximated by who wrote the note: an explicit
 anything else the reader. The indexer reads only the vault, so an edit
 the reader made to a wiki page in Obsidian still counts as Claude's.
 
+### Provenance from the note itself
+
+With notes by the reader and by Claude side by side, a note shows who
+wrote it, how far it has been checked, how fresh it is and what it rests
+on, so the reader knows how much to trust it. The indexer reads only the
+vault, so all of it comes from the note: the author by the rule in
+`Provenance` (explicit `author_kind`, a wiki `address`, the `wiki/`
+folder); checked when the wiki tooling says so (`judged` on a thesis,
+`recompiled` on a concept, or `verified`/`reviewed`), otherwise
+"unverified" for Claude's notes; fresh by `updated` or the file time;
+resting on its `sources`. A source page's originals live under `.raw/`,
+a hidden folder that is never published, so the app names them and links
+the original online (`url`, `doi`, `arxiv_id`) instead; `publish: false`
+marks an original not to share. A thesis page (wiki-thesis) gets its
+verdict, confidence and the way to its evidence table at the top.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the
@@ -463,7 +479,9 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
   text matches (titles and aliases are always checked in full).
 - Backlinks and tag lists are ordered by recency, not by title.
 - Remote images in notes are shown as links and not fetched (privacy, memory).
-- PDF, audio and video have no preview yet.
+- PDF, audio and video have no preview yet, and the originals a source
+  page cites (`.raw/`) are not published: the app shows their names and
+  their addresses online, not the page a claim comes from.
 - Math is typeset by SwiftMath, which covers common LaTeX math but not all
   of MathJax; a formula it cannot parse is shown as its source.
 - "What changed" attributes a change to the note's author, not to whoever
