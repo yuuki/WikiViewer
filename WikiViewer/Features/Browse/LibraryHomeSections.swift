@@ -101,6 +101,7 @@ struct LibraryHomeSections: View {
             }
             .listRowSection("requests")
         }
+        LearningPathsHomeSection()
         if !listedRecents.isEmpty {
             Section {
                 ForEach(listedRecents, id: \.[row: "recents"]) { entry in

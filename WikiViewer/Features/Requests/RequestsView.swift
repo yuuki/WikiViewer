@@ -15,6 +15,7 @@ import WikiViewerKit
 struct RequestsView: View {
     @Environment(Library.self) private var library
     @State private var confirmClear = false
+    @State private var requestingPath = false
 
     var body: some View {
         let entries = library.requests.visibleEntries
@@ -42,17 +43,23 @@ struct RequestsView: View {
         }
         .navigationTitle("Requests")
         .toolbar {
-            Button("Refresh", systemImage: "arrow.clockwise") {
-                Task { await library.syncRequests() }
-            }
-            .disabled(library.requests.isSyncing)
-            if entries.contains(where: { $0.phase == .done || $0.phase == .failed }) {
-                Button("Clear Finished") { confirmClear = true }
+            Button("New Learning Path…", systemImage: "map") { requestingPath = true }
+                .disabled(!library.acceptsRequests)
+            Menu {
+                Button("Refresh", systemImage: "arrow.clockwise") {
+                    Task { await library.syncRequests() }
+                }
+                .disabled(library.requests.isSyncing)
+                Button("Clear Finished", systemImage: "checkmark.circle.badge.xmark") { confirmClear = true }
+                    .disabled(!entries.contains(where: { $0.phase == .done || $0.phase == .failed }))
+            } label: {
+                Label("More", systemImage: "ellipsis")
             }
         }
         .confirmationDialog("Remove the finished requests from this list? Their answers stay in the vault.", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Clear Finished", role: .destructive) { library.requests.removeFinished() }
         }
+        .sheet(isPresented: $requestingPath) { PathRequestSheet() }
         .task { await library.syncRequests() }
         .refreshable { await library.syncRequests() }
     }

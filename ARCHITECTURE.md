@@ -377,6 +377,14 @@ The design keeps every earlier guarantee:
   `<publish>/requests/<id>.json`, which the app polls along with the
   manifest. Offline, requests wait on the device and are sent later.
 
+The same queue carries other kinds of request. A *learning path* (#35)
+asks Claude to order the notes the vault has on a subject; the answer is a
+note with `type: path` whose top-level numbered list is the path (a step's
+note is the first resolved link on its line; a step without one marks
+missing material). The app shows it as steps and keeps the reader's
+progress on the device: which steps were read is the reader's, not the
+vault's.
+
 Cost: a second Mac process, and answers are as fast as Claude plus one
 publication. The vault's rule that `wiki/` is Claude's and the primary
 layer the human's is enforced by the runner's allow-list, not by WikiViewer.

@@ -24,6 +24,8 @@ final class ReadingHistory {
     /// Notes whose position is remembered.
     static let maxPositions = 300
     static let maxRecents = 50
+    /// Notes whose last reading is remembered (learning paths, recall).
+    static let maxReadDates = 5_000
     static let defaultsKey = "WikiViewer.readingHistory"
 
     private struct Stored: Codable {
@@ -33,6 +35,11 @@ final class ReadingHistory {
         /// Most recently opened first.
         var recents: [HistoryEntry] = []
         var pins: [HistoryEntry] = []
+        /// When each note was last opened.
+        var readDates: [String: Date] = [:]
+        /// Steps of a learning path the reader marked done (true) or not
+        /// done (false) by hand, by path note and step note.
+        var pathChecks: [String: [String: Bool]] = [:]
 
         init() {}
 
@@ -43,6 +50,8 @@ final class ReadingHistory {
             positionOrder = try c.decodeIfPresent([String].self, forKey: .positionOrder) ?? []
             recents = try c.decodeIfPresent([HistoryEntry].self, forKey: .recents) ?? []
             pins = try c.decodeIfPresent([HistoryEntry].self, forKey: .pins) ?? []
+            readDates = try c.decodeIfPresent([String: Date].self, forKey: .readDates) ?? [:]
+            pathChecks = try c.decodeIfPresent([String: [String: Bool]].self, forKey: .pathChecks) ?? [:]
         }
     }
 
@@ -50,6 +59,8 @@ final class ReadingHistory {
     @ObservationIgnored private var stored: Stored
     private(set) var recents: [HistoryEntry] = []
     private(set) var pins: [HistoryEntry] = []
+    /// Bumped when read dates or path checks change, for views to observe.
+    private(set) var readRevision = 0
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var saveTask: Task<Void, Never>?
 
@@ -71,6 +82,15 @@ final class ReadingHistory {
         list.insert(HistoryEntry(path: path, title: title), at: 0)
         stored.recents = Array(list.prefix(Self.maxRecents))
         recents = stored.recents
+        stored.readDates[path] = Date()
+        if stored.readDates.count > Self.maxReadDates {
+            // Forget the notes read longest ago.
+            let excess = stored.readDates.count - Self.maxReadDates
+            for (old, _) in stored.readDates.sorted(by: { $0.value < $1.value }).prefix(excess) {
+                stored.readDates[old] = nil
+            }
+        }
+        readRevision += 1
         // Keep a pinned note's title current too.
         if let i = stored.pins.firstIndex(where: { $0.path == path }), stored.pins[i].title != title {
             stored.pins[i].title = title
@@ -108,6 +128,23 @@ final class ReadingHistory {
     func movePins(from source: IndexSet, to destination: Int) {
         stored.pins.move(fromOffsets: source, toOffset: destination)
         pins = stored.pins
+        scheduleSave()
+    }
+
+    /// When the note was last opened, if remembered.
+    func lastRead(_ path: String) -> Date? {
+        stored.readDates[path]
+    }
+
+    /// Whether a step of a learning path is done: as marked by hand, else
+    /// whether its note was read.
+    func isStepDone(path: String, step: String) -> Bool {
+        stored.pathChecks[path]?[step] ?? (stored.readDates[step] != nil)
+    }
+
+    func setStepDone(_ done: Bool, path: String, step: String) {
+        stored.pathChecks[path, default: [:]][step] = done
+        readRevision += 1
         scheduleSave()
     }
 

@@ -41,6 +41,7 @@ struct NoteView: View {
     /// Paragraphs chosen to ask Claude about, while choosing (nil otherwise).
     @State private var askSelection: Set<Int>?
     @State private var askDraft: AskDraft?
+    @State private var requestingPath = false
 
     var body: some View {
         // The find bar sits above the scroll view, not over it: a match
@@ -102,6 +103,9 @@ struct NoteView: View {
                             askSelection = []
                         }
                     }
+                    ToolbarItem(placement: .secondaryAction) {
+                        Button("Learning Path…", systemImage: "map") { requestingPath = true }
+                    }
                 }
                 if let detail = model.detail, let session = library.session {
                     NoteActionItems(detail: detail, session: session)
@@ -148,6 +152,9 @@ struct NoteView: View {
             }
             .assetPresentation(item: $viewingAsset)
             .sheet(item: $askDraft) { AskClaudeSheet(draft: $0) }
+            .sheet(isPresented: $requestingPath) {
+                PathRequestSheet(notePath: path, noteTitle: model.detail?.title)
+            }
             .environment(\.findHighlight, find.isShown ? find.query : "")
             .onChange(of: find.query) { findMatches() }
             .onChange(of: model.rendered?.blocks.count) { if find.isShown { findMatches() } }
@@ -257,6 +264,10 @@ struct NoteView: View {
                         NoteHeader(detail: detail, tags: model.tags, links: model.links, showsTitle: titleBlock == nil,
                                    showsProperties: !Self.hasInspector)
                             .id("header")
+                        if let learningPath = model.learningPath {
+                            LearningPathSection(pathNote: detail.path, path: learningPath, notes: model.pathNotes)
+                                .id("path")
+                        }
                         ForEach(rendered.blocks.dropFirst(titleBlock == nil ? 0 : 1)) { block in
                             blockRow(block)
                         }
@@ -327,6 +338,9 @@ final class NoteModel {
     private(set) var backlinks: [Backlink] = []
     private(set) var backlinkTotal = 0
     private(set) var backlinksHaveMore = false
+    /// The steps of a learning path note (#35), with their notes.
+    private(set) var learningPath: LearningPath?
+    private(set) var pathNotes: [Int64: NoteSummary] = [:]
     /// Embedded assets, so image embeds know their size before they load.
     private(set) var embeddedAssets: [Int64: AssetInfo] = [:]
     private var loadedKey: String?
@@ -353,6 +367,17 @@ final class NoteModel {
             tags = try await session.tags.tags(of: id)
             self.links = links
             embeddedAssets = try await session.assets.assets(ids: links.filter(\.isEmbed).compactMap(\.targetAssetID))
+            if LearningPath.isPath(properties: detail.properties), let path = LearningPath.parse(body: detail.body, links: links) {
+                var notes: [Int64: NoteSummary] = [:]
+                for noteID in Set(path.steps.compactMap(\.noteID)) {
+                    notes[noteID] = try await session.notes.summary(id: noteID)
+                }
+                learningPath = path
+                pathNotes = notes
+            } else {
+                learningPath = nil
+                pathNotes = [:]
+            }
             let page = try await session.links.backlinks(to: id, limit: Self.backlinkPage)
             backlinkTotal = try await session.links.backlinkCount(to: id, cap: Self.backlinkCountCap)
             backlinks = page.items
