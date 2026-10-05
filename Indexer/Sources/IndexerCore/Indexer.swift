@@ -383,6 +383,11 @@ public actor Indexer {
         guard force || hasUnpublishedChanges || publisher.currentManifest() == nil else { return nil }
         // Bases depend on every note, so they are evaluated once per
         // publication rather than per changed file.
+        // What this generation changed, recorded under its number.
+        let generation = try publisher.nextGeneration(builder: builder)
+        let changeConfiguration = configuration.changeLog
+        let changes = try builder.writer.write { db in try ChangeLog.record(db, generation: generation, configuration: changeConfiguration) }
+        Log.debug(changes.description)
         let baseStats = try builder.writer.write { db in try BaseBuilder.rebuild(db) }
         if baseStats.bases > 0 { Log.info("bases: \(baseStats)") }
         refreshGraph()

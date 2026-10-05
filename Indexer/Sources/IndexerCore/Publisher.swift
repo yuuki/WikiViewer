@@ -426,7 +426,7 @@ public final class Publisher: Sendable {
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
         // Overwrite part of page 2 (a b-tree page) with garbage.
-        try handle.seek(toOffset: 4096 + 8)
+        try handle.seek(toOffset: UInt64(ViewerSchema.pageSize) + 8)
         handle.write(Data(repeating: 0xFF, count: 2048))
     }
 

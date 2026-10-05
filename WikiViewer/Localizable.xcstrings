@@ -476,6 +476,26 @@
         }
       }
     },
+    "Concepts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "書き換わった concept"
+          }
+        }
+      }
+    },
+    "Concepts: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "concept: %lld"
+          }
+        }
+      }
+    },
     "Connect Your Vault": {
       "localizations": {
         "ja": {
@@ -936,12 +956,42 @@
         }
       }
     },
+    "Ingested": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取り込まれた source"
+          }
+        }
+      }
+    },
     "Is this true?": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "これは本当か"
+          }
+        }
+      }
+    },
+    "Last 24 Hours": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "24 時間"
+          }
+        }
+      }
+    },
+    "Last 7 Days": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 日間"
           }
         }
       }
@@ -1136,6 +1186,16 @@
         }
       }
     },
+    "Mark as Read": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既読にする"
+          }
+        }
+      }
+    },
     "Memory footprint": {
       "localizations": {
         "ja": {
@@ -1266,12 +1326,32 @@
         }
       }
     },
+    "New": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新規"
+          }
+        }
+      }
+    },
     "New Learning Path…": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "新しい学習経路…"
+          }
+        }
+      }
+    },
+    "New Sources": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい source"
           }
         }
       }
@@ -1426,8 +1506,38 @@
         }
       }
     },
+    "Nothing changed in the vault in this period.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この期間に vault は変わっていません。"
+          }
+        }
+      }
+    },
+    "Nothing New": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい変更はありません"
+          }
+        }
+      }
+    },
     "Obsidian": {
       "shouldTranslate": false
+    },
+    "Only the most recent changes are listed.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直近の変更だけを表示しています。"
+          }
+        }
+      }
     },
     "Open": {
       "localizations": {
@@ -1495,6 +1605,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "アップデートの設定を開きます"
+          }
+        }
+      }
+    },
+    "Other Log Entries": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他の操作"
+          }
+        }
+      }
+    },
+    "Other Wiki Pages": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他の wiki ページ"
+          }
+        }
+      }
+    },
+    "Other wiki pages: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他の wiki ページ: %lld"
           }
         }
       }
@@ -1589,6 +1729,16 @@
         }
       }
     },
+    "Range": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "期間"
+          }
+        }
+      }
+    },
     "Read Next": {
       "localizations": {
         "ja": {
@@ -1615,6 +1765,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "最近"
+          }
+        }
+      }
+    },
+    "Recent Changes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最近の変更"
           }
         }
       }
@@ -1655,6 +1815,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "完了した依頼を一覧から消しますか?回答は vault に残ります。"
+          }
+        }
+      }
+    },
+    "Removed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "削除"
           }
         }
       }
@@ -1879,6 +2049,26 @@
         }
       }
     },
+    "Since Last Visit": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前回から"
+          }
+        }
+      }
+    },
+    "Since Your Last Visit": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "前回開いてから"
+          }
+        }
+      }
+    },
     "Snapshot": {
       "localizations": {
         "ja": {
@@ -1945,6 +2135,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新元"
+          }
+        }
+      }
+    },
+    "Sources ingested: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取り込まれた source: %lld"
           }
         }
       }
@@ -2179,6 +2379,16 @@
         }
       }
     },
+    "Updated": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更新"
+          }
+        }
+      }
+    },
     "Updated to %lld at %@": {
       "localizations": {
         "ja": {
@@ -2259,12 +2469,42 @@
         }
       }
     },
+    "Verdicts": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閉じた命題"
+          }
+        }
+      }
+    },
+    "Verdicts: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命題の判定: %lld"
+          }
+        }
+      }
+    },
     "View": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
             "value": "ビュー"
+          }
+        }
+      }
+    },
+    "What Changed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "朝刊"
           }
         }
       }
@@ -2341,6 +2581,36 @@
     },
     "https://host/publish": {
       "shouldTranslate": false
+    },
+    "Your Notes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "あなたが編集したノート"
+          }
+        }
+      }
+    },
+    "Your notes: %lld": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "あなたのノート: %lld"
+          }
+        }
+      }
+    },
+    "· %@: %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "· %1$@: %2$@"
+          }
+        }
+      }
     },
     "“%@” does not exist in the vault snapshot. Obsidian would create it when the link is clicked; this viewer is read-only.": {
       "localizations": {

@@ -37,6 +37,8 @@ public struct IndexerConfiguration: Sendable {
     public var excludeFileCheckInterval: Duration = .seconds(1)
     /// Scope and naming of the link graph (see GraphBuilder.swift).
     public var graph = GraphConfiguration()
+    /// What changed between generations (see ChangeLog.swift).
+    public var changeLog = ChangeLogConfiguration()
     /// Maximum note size that is indexed; larger files are skipped with a warning.
     public var maximumNoteBytes: Int = 8 * 1024 * 1024
     /// Maximum asset size that is hashed / processed.

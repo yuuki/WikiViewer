@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/wikiviewer-demo.XXXXXX")"
 OUT=WikiKit/Sources/WikiViewerKit/Resources/DemoArtifact
 swift run --package-path Indexer -c release wikiindex build \
-  --vault Fixtures/vault --state "$WORK/state" --publish "$WORK/publish" --force
+  --vault Fixtures/vault --state "$WORK/state" --publish "$WORK/publish" --force --graph-resolution 1
 swift run --package-path Indexer -c release wikiindex verify --publish "$WORK/publish"
 mkdir -p "$OUT"
 cp "$WORK/publish/manifest.json" "$OUT/"

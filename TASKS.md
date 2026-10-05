@@ -256,6 +256,13 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       `wiki/paths/` shown as steps (numbered list, first resolved link per
       step, steps without one are gaps), progress on the device
       (read dates + manual checks in ReadingHistory), home section
+- [x] #36 Morning paper: schema 4 (`generation_log`, `change_log`,
+      `log_entries`, builder-only `pending_changes`), `ChangeLog` in the
+      indexer (baseline on a builder's first publication, 30-day retention),
+      `ChangeRepository`, per-device baseline (`DigestState`), home row and
+      digest screen. The demo snapshot is now built with
+      `--graph-resolution 1` (at 2.5 Leiden splits the 11-note fixture into
+      clusters below the minimum size)
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

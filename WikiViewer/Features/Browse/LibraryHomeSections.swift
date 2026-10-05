@@ -13,6 +13,7 @@ import WikiViewerKit
 struct LibraryHomeSections: View {
     /// Today's daily note, if the vault has one (see `findTodaysNote`).
     let today: NoteSummary?
+    let feed: HomeFeed
     @Environment(ReadingHistory.self) private var history
     @Environment(Library.self) private var library
     /// The recent notes as listed. Reading a note moves it to the top of the
@@ -52,6 +53,7 @@ struct LibraryHomeSections: View {
 
     @ViewBuilder
     private var sections: some View {
+        DigestHomeSection(digest: feed.digest)
         if Self.showsShortcuts, let today {
             Section {
                 RouteLink(Route.note(path: today.path, anchor: nil)) {
@@ -101,7 +103,7 @@ struct LibraryHomeSections: View {
             }
             .listRowSection("requests")
         }
-        LearningPathsHomeSection()
+        LearningPathsHomeSection(paths: feed.paths, hasMore: feed.morePaths)
         if !listedRecents.isEmpty {
             Section {
                 ForEach(listedRecents, id: \.[row: "recents"]) { entry in
@@ -135,6 +137,29 @@ struct LibraryHomeSections: View {
     /// The note named after today's date (indexed basename lookup).
     static func findTodaysNote(in session: LibrarySession) async -> NoteSummary? {
         (try? await session.notes.notes(basename: dayString(.now), limit: 5))?.first
+    }
+}
+
+/// What the home list shows from the snapshot, loaded by the root folder
+/// view (sections without rows never run their own tasks).
+@MainActor
+@Observable
+final class HomeFeed {
+    private(set) var digest: ChangeDigest?
+    private(set) var paths: [NoteSummary] = []
+    private(set) var morePaths = false
+
+    func load(session: LibrarySession, digestState: DigestState) async {
+        let start = await digestState.start(in: session)
+        digest = try? await session.changes.digest(after: start)
+        if let folder = try? await session.folders.folderID(path: LearningPathsHomeSection.folder),
+           let page = try? await session.folders.notes(in: folder, order: .modifiedNewest, limit: LearningPathsHomeSection.limit) {
+            paths = page.items
+            morePaths = page.hasMore
+        } else {
+            paths = []
+            morePaths = false
+        }
     }
 }
 

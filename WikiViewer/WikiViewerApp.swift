@@ -15,6 +15,7 @@ import BackgroundTasks
 struct WikiViewerApp: App {
     @State private var startup = LibraryStartup()
     @State private var history = ReadingHistory()
+    @State private var digest = DigestState()
     #if os(macOS)
     @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
     #endif
@@ -70,6 +71,7 @@ extension WikiViewerApp {
             WindowRoot(request: request)
         }
         .environment(history)
+        .environment(digest)
         #if os(macOS)
         .onAppear { DockMenu.history = history }
         #endif

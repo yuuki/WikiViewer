@@ -26,6 +26,7 @@ public final class LibrarySession: Sendable, Identifiable {
     public let assets: AssetRepository
     public let graph: GraphRepository
     public let bases: BaseRepository
+    public let changes: ChangeRepository
     public let search: any SearchEngine
 
     public var id: String { installed?.name ?? database.url.path }
@@ -41,6 +42,7 @@ public final class LibrarySession: Sendable, Identifiable {
         assets = AssetRepository(database: database)
         graph = GraphRepository(database: database)
         bases = BaseRepository(database: database)
+        changes = ChangeRepository(database: database)
         search = TrigramSearchEngine(database: database)
     }
 }

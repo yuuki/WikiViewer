@@ -87,6 +87,8 @@ OPTIONS
   --graph-resolution R clustering resolution: higher gives more, smaller
                        clusters (default 2.5)
   --no-graph           do not build the link graph
+  --log-note PATH      the vault's operation log, whose new entries the app
+                       shows as what changed (default wiki/log.md)
   --force              publish even if nothing changed
   --verbose            debug logging
 
@@ -169,6 +171,7 @@ func makeConfiguration(_ args: Arguments) throws -> IndexerConfiguration {
     config.graph.resolution = args.double("graph-resolution", config.graph.resolution)
     guard config.graph.resolution > 0 else { throw CLIError("--graph-resolution must be a positive number") }
     config.graph.enabled = !args.flags.contains("no-graph")
+    if let logNote = args.options["log-note"] { config.changeLog.logNote = logNote }
     return config
 }
 
