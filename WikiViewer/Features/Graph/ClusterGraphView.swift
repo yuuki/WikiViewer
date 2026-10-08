@@ -79,11 +79,23 @@ struct ClusterGraphView: View {
         return graph.nodes.filter { $0.type.map { !hidden.contains($0) } ?? true || $0.id == selection }
     }
 
+    /// The note the cluster is named after heads the list.
+    private func centerFirst(_ nodes: [GraphNode], _ graph: ClusterGraph) -> [GraphNode] {
+        guard let i = nodes.firstIndex(where: { $0.id == graph.centerID }) else { return nodes }
+        var result = nodes
+        result.insert(result.remove(at: i), at: 0)
+        return result
+    }
+
     private func scene(_ graph: ClusterGraph) -> GraphScene {
         let mode = effectiveColorMode
+        // The note the cluster is named after is drawn like a local graph's
+        // centre: larger, ringed, and always named first.
         let nodes = visible(graph).map { n in
-            GraphScene.Node(id: n.id, position: CGPoint(x: n.x, y: -n.y), radius: n.screenRadius,
-                            color: GraphPalette.color(for: n, mode: mode), label: n.title, priority: n.labelPriority)
+            let isCenter = n.id == graph.centerID
+            return GraphScene.Node(id: n.id, position: CGPoint(x: n.x, y: -n.y), radius: isCenter ? 11 : n.screenRadius,
+                                   color: GraphPalette.color(for: n, mode: mode), label: n.title,
+                                   priority: isCenter ? .infinity : n.labelPriority, style: isCenter ? .center : .dot)
         }
         let ids = Set(nodes.map(\.id))
         let edges = graph.edges.filter { ids.contains($0.a) && ids.contains($0.b) }.map { GraphScene.Edge(a: $0.a, b: $0.b) }
@@ -133,12 +145,15 @@ struct ClusterGraphView: View {
     private func memberList(_ graph: ClusterGraph) -> some View {
         List {
             Section {
-                ForEach(visible(graph), id: \.[row: "nodes"]) { node in
+                ForEach(centerFirst(visible(graph), graph), id: \.[row: "nodes"]) { node in
                     RouteLink(Route.note(path: node.path, anchor: nil)) {
                         HStack(spacing: 10) {
                             Circle().fill(GraphPalette.color(for: node, mode: effectiveColorMode)).frame(width: 10, height: 10)
+                                .overlay {
+                                    if node.id == graph.centerID { Circle().stroke(.primary.opacity(0.8), lineWidth: 1.5).padding(-3) }
+                                }
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(node.title).lineLimit(2)
+                                Text(node.title).lineLimit(2).fontWeight(node.id == graph.centerID ? .semibold : nil)
                                 if let kind = node.kindDescription {
                                     Text(kind).font(.caption).foregroundStyle(.secondary)
                                 }
