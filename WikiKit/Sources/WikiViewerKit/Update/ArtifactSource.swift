@@ -35,6 +35,9 @@ public protocol ArtifactSource: Sendable {
     /// Reads a request's status file, or throws `TransportError.notFound`
     /// while the Mac has not picked the request up yet.
     func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus
+    /// Reads the skills the Mac offers (`requests/skills.json`), or throws
+    /// `TransportError.notFound` when it offers none.
+    func fetchSkillCatalog() async throws -> SkillCatalog
 }
 
 extension ArtifactSource {
@@ -51,6 +54,10 @@ extension ArtifactSource {
 
     public func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus {
         throw TransportError.notFound(HostRequestStatus.publishedPath(for: id))
+    }
+
+    public func fetchSkillCatalog() async throws -> SkillCatalog {
+        throw TransportError.notFound(SkillCatalog.publishedPath)
     }
 }
 
@@ -198,16 +205,25 @@ public struct LocalFolderArtifactSource: ArtifactSource {
     }
 
     public func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus {
-        let path = HostRequestStatus.publishedPath(for: id)
+        try HostRequestStatus.decode(try await readSmallFile(HostRequestStatus.publishedPath(for: id), maximumBytes: HostRequestStatus.maximumEncodedSize))
+    }
+
+    public func fetchSkillCatalog() async throws -> SkillCatalog {
+        guard acceptsRequests else { throw TransportError.notFound(SkillCatalog.publishedPath) }
+        return try SkillCatalog.decode(try await readSmallFile(SkillCatalog.publishedPath, maximumBytes: SkillCatalog.maximumEncodedSize))
+    }
+
+    /// Reads at most `maximumBytes + 1` bytes of a published file; the
+    /// decoder rejects anything longer.
+    func readSmallFile(_ path: String, maximumBytes: Int) async throws -> Data {
         let source = self
-        let data = try await withAccess { _ in
+        return try await withAccess { _ in
             try source.coordinatedRead(path) { url in
                 let handle = try FileHandle(forReadingFrom: url)
                 defer { try? handle.close() }
-                return try handle.read(upToCount: HostRequestStatus.maximumEncodedSize + 1) ?? Data()
+                return try handle.read(upToCount: maximumBytes + 1) ?? Data()
             }
         }
-        return try HostRequestStatus.decode(data)
     }
 
     /// Coordinated reads can block for a long time (e.g. while iCloud Drive
@@ -302,7 +318,14 @@ public struct HTTPArtifactSource: ArtifactSource {
     }
 
     public func fetchRequestStatus(id: UUID) async throws -> HostRequestStatus {
-        let path = HostRequestStatus.publishedPath(for: id)
+        try HostRequestStatus.decode(try await fetchSmallFile(HostRequestStatus.publishedPath(for: id), maximumBytes: HostRequestStatus.maximumEncodedSize))
+    }
+
+    public func fetchSkillCatalog() async throws -> SkillCatalog {
+        try SkillCatalog.decode(try await fetchSmallFile(SkillCatalog.publishedPath, maximumBytes: SkillCatalog.maximumEncodedSize))
+    }
+
+    func fetchSmallFile(_ path: String, maximumBytes: Int) async throws -> Data {
         var request = URLRequest(url: url(for: path))
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.timeoutInterval = 30
@@ -311,9 +334,9 @@ public struct HTTPArtifactSource: ArtifactSource {
         var data = Data()
         for try await byte in bytes {
             data.append(byte)
-            if data.count > HostRequestStatus.maximumEncodedSize { throw TransportError.tooLarge(path) }
+            if data.count > maximumBytes { throw TransportError.tooLarge(path) }
         }
-        return try HostRequestStatus.decode(data)
+        return data
     }
 
     public static let sharedSession: URLSession = {

@@ -38,7 +38,8 @@ USAGE
       the inbox (default PUBLISH/inbox).
   wikiindex requests --publish DIR --vault DIR [--inbox DIR] [--runner FILE]
                     [--timeout SECONDS] [--log FILE] [--signals DIR]
-                    [--signal-days N] [--once]
+                    [--signal-days N] [--skills A,B | --exclude-skills A,B]
+                    [--no-skills] [--web-skills P,Q | --no-web-skills] [--once]
       Takes requests from the app out of the inbox (default PUBLISH/inbox),
       one at a time, and runs the runner (e.g. scripts/claude-request.py)
       in the vault for each; writes their progress to PUBLISH/requests/.
@@ -46,6 +47,14 @@ USAGE
       the runner's to confine (see THREAT_MODEL.md). With --signals, the
       reading history devices send is kept there (outside the vault) for
       --signal-days (default 180), summarized in summary.json.
+      The vault's agent skills (.claude/skills/*/SKILL.md) are offered to
+      the app as PUBLISH/requests/skills.json, all of them or only those
+      --skills names, less --exclude-skills, when there is a runner;
+      --no-skills offers none. Skills run without the web unless their
+      SKILL.md allows WebFetch/WebSearch or their name matches --web-skills
+      (shell patterns; default wiki-ingest*,autoresearch,create-*-note,
+      paper-curation,hn-curation,defuddle); --no-web-skills allows none.
+      Questions and learning paths never use the web.
 
 OPTIONS
   --image-max N        longest side of image derivatives (default 2048)
@@ -242,8 +251,18 @@ func run() async throws {
             config.signals = try SignalStore(directory: try args.url("signals"), retention: args.double("signal-days", 180) * 86_400)
         }
         config.runnerTimeout = .seconds(args.double("timeout", 1800))
+        // Skills are offered only where a runner can run them.
+        if config.runner != nil, !args.flags.contains("no-skills") {
+            config.skills = SkillScanner(vault: config.vault,
+                                         allowed: args.options["skills"].map { Set($0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }) },
+                                         denied: Set((args.options["exclude-skills"] ?? "").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }),
+                                         webPatterns: args.options["web-skills"].map { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
+                                             ?? SkillScanner.defaultWebPatterns)
+            config.skills?.allowsWeb = !args.flags.contains("no-web-skills")
+        }
         let worker = try RequestWorker(configuration: config)
         if args.flags.contains("once") {
+            worker.publishSkills()
             let handled = await worker.processPending()
             Log.info("requests: handled \(handled)")
         } else {

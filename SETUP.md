@@ -476,6 +476,23 @@ wait on the device and are sent later.
 notes on a subject in reading order; the path arrives under `wiki/paths/`
 and shows as steps with what you have read.
 
+**Run Skill…** (in a note's menu, or in Requests) runs one of the vault's
+own agent skills on the Mac, optionally on the note or some of its
+paragraphs, with a line of input. The app lists the skills the request
+worker offers: every folder with a `SKILL.md` under `<VAULT>/.claude/skills`
+and `<VAULT>/.agents/skills`. Symbolic links between the two (or to another
+folder) are resolved, and a skill reached twice is listed once; for one
+name with different copies, `.claude/skills` wins. Skills marked
+`disable-model-invocation: true` or `user-invocable: false` are left out.
+Choose with `--skills a,b` (only these) or `--exclude-skills a,b`, or offer
+none with `--no-skills`. A skill writes only under `wiki/`, like a
+question. Questions and learning paths never use the web; a skill may when
+its `SKILL.md` allows WebFetch or WebSearch (`allowed-tools`) or its name
+matches `--web-skills` (shell patterns, default
+`wiki-ingest*,autoresearch,create-*-note,paper-curation,hn-curation,defuddle`).
+The app marks those skills with a globe. `--no-web-skills` keeps every
+skill off the web.
+
 The app and `wikiindex` still never write to the vault. Requests wait in an
 inbox outside it (`<PUBLISH>/inbox/`), and only the runner,
 `scripts/claude-request.py`, starts Claude, with Write and Edit limited to
@@ -495,7 +512,9 @@ inbox outside it (`<PUBLISH>/inbox/`), and only the runner,
 
    It checks the inbox every 5 seconds, handles one request at a time
    (`--timeout`, default 30 minutes) and writes progress to
-   `<PUBLISH>/requests/`. `--once` handles what is waiting and exits.
+   `<PUBLISH>/requests/`, with the skills it offers in
+   `<PUBLISH>/requests/skills.json`. `--once` handles what is waiting and
+   exits.
 3. Over **iCloud Drive** nothing else is needed: the app writes requests
    into the `inbox` folder of the folder it reads. On the Mac app, choose
    the folder again in Settings once, so the app may write to it.

@@ -216,12 +216,12 @@
         }
       }
     },
-    "Ask Claude about a note from its More menu. Answers arrive as notes.": {
+    "Ask Claude about a note or run a vault skill from its More menu. Answers arrive as notes.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ノートのメニューから Claude に質問できます。回答はノートとして届きます。"
+            "value": "ノートのその他メニューから Claude に質問したり、vault のスキルを実行したりできます。回答はノートとして届きます。"
           }
         }
       }
@@ -406,6 +406,16 @@
         }
       }
     },
+    "Choose Skill…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキルを選ぶ…"
+          }
+        }
+      }
+    },
     "Claude on your Mac answers in a note under wiki/. It arrives with a later snapshot; Requests shows its progress. Offline, the request waits on this device.": {
       "localizations": {
         "ja": {
@@ -432,6 +442,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mac の Claude が、この主題について vault にあるノートを前提の順に並べ、橋渡しの文献が欠けている箇所を示します。経路は wiki/paths のノートとして届きます。"
+          }
+        }
+      }
+    },
+    "Claude on your Mac runs the skill in the vault, writing only under wiki/. Only skills marked with a globe may use the web. A note it writes arrives with a later snapshot; Requests shows its progress.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac の Claude が vault でスキルを実行します。書き込みは wiki/ 配下のみです。Web を使えるのは地球儀の付いたスキルだけです。書かれたノートは後のスナップショットで届き、進み具合はリクエストに表示されます。"
           }
         }
       }
@@ -886,6 +906,16 @@
         }
       }
     },
+    "Filter": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "絞り込み"
+          }
+        }
+      }
+    },
     "Filter tags": {
       "localizations": {
         "ja": {
@@ -1102,6 +1132,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "取り込まれた source"
+          }
+        }
+      }
+    },
+    "Input": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "入力"
           }
         }
       }
@@ -1606,6 +1646,26 @@
         }
       }
     },
+    "No skill matches “%@”.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」に一致するスキルはありません。"
+          }
+        }
+      }
+    },
+    "No skills are offered here.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ここではスキルを使えません。"
+          }
+        }
+      }
+    },
     "No Snapshot": {
       "localizations": {
         "ja": {
@@ -2059,6 +2119,16 @@
         }
       }
     },
+    "Reading the skills your Mac offers…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac が提供するスキルを読み込み中…"
+          }
+        }
+      }
+    },
     "Recent": {
       "localizations": {
         "ja": {
@@ -2175,6 +2245,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "Claude への依頼"
+          }
+        }
+      }
+    },
+    "Run": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実行"
+          }
+        }
+      }
+    },
+    "Run Skill": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキルを実行"
+          }
+        }
+      }
+    },
+    "Run Skill…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキルを実行…"
+          }
+        }
+      }
+    },
+    "Runs %@, which may fetch from the web.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を実行します。このスキルは Web から取得することがあります。"
+          }
+        }
+      }
+    },
+    "Runs %@.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を実行します。"
           }
         }
       }
@@ -2419,6 +2539,16 @@
         }
       }
     },
+    "Skill": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキル"
+          }
+        }
+      }
+    },
     "Snapshot": {
       "localizations": {
         "ja": {
@@ -2609,6 +2739,16 @@
         }
       }
     },
+    "Tap paragraphs to run a skill on, or use the whole note.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキルに渡す段落をタップするか、ノート全体を使います。"
+          }
+        }
+      }
+    },
     "Terms under 3 characters only match titles, aliases and tags. Add a longer term to search note text.": {
       "localizations": {
         "ja": {
@@ -2705,6 +2845,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "今日のノート"
+          }
+        }
+      }
+    },
+    "Try Again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試行"
           }
         }
       }
@@ -2839,6 +2989,16 @@
         }
       }
     },
+    "Uses the web": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web を使う"
+          }
+        }
+      }
+    },
     "Vault": {
       "localizations": {
         "ja": {
@@ -2959,6 +3119,16 @@
         }
       }
     },
+    "What to pass the skill (optional)": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "スキルに渡す内容（省略可）"
+          }
+        }
+      }
+    },
     "When on, the notes you read (path, title, when, how long and how far) and your pinned notes are sent to your Mac about once an hour, through the same queue as requests. The Mac keeps them outside the vault for 180 days, for Claude to prioritize curation and recommendations. Turning it off deletes what has not been sent.": {
       "localizations": {
         "ja": {
@@ -3022,6 +3192,16 @@
     "https://host/publish": {
       "shouldTranslate": false
     },
+    "Whole Note…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノート全体…"
+          }
+        }
+      }
+    },
     "Why It Is a Gap": {
       "localizations": {
         "ja": {
@@ -3058,6 +3238,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "あなたが書いた"
+          }
+        }
+      }
+    },
+    "Your Mac offers no skills. Run wikiindex requests with a runner in the vault that has .claude/skills.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac はスキルを提供していません。.claude/skills か .agents/skills のある vault で、ランナー付きの wikiindex requests を動かしてください。"
           }
         }
       }
