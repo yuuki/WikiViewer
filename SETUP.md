@@ -540,6 +540,7 @@ Xcode says only "The app failed to launch".
 | `invalid code signature, inadequate entitlements or its profile has not been explicitly trusted` | The developer certificate is not trusted on the device | **Settings → General → VPN & Device Management → Trust** |
 | Folder picker shows only `assets` | iCloud Drive has not finished syncing to the phone | Wait for the upload to finish (section 4A), then refresh in the Files app |
 | HTTP URL rejected or fails | App Transport Security blocks plain HTTP | Use HTTPS, e.g. with Tailscale (section 4B) |
+| Over HTTPS: `The network connection was lost` (-1005) or `HTTP 503` | `<PUBLISH>` is in iCloud Drive and macOS evicted files to save space (`ls -lO` shows `dataless`); an old `serve` running as a LaunchAgent cannot read them | Update `wikiindex` and restart `serve`; keep the folder downloaded (Finder → **Keep Downloaded**) or free disk space |
 | *Check for Updates* says up to date, but the vault changed | Nothing was published | Run `build` again, or check the `watch` log |
 | A request stays *Queued* | `wikiindex requests` is not running | Start it (section 8) |
 | A request *Failed*: `claude exited with 1: Failed to authenticate` | The Claude Code login on the Mac expired | Run `claude` and `/login` in the Mac's user session |
