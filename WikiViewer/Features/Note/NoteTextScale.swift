@@ -4,7 +4,8 @@
 //
 //  The size of note text. iOS follows Dynamic Type; macOS has none (a
 //  `dynamicTypeSize` is ignored there), so the reader picks a scale with
-//  ⌘+ / ⌘- / ⌘0 and note text is drawn at the text style's size times it.
+//  ⌘+ / ⌘- / ⌘0 or a trackpad pinch, and note text is drawn at the text
+//  style's size times it.
 //
 
 import SwiftUI
@@ -26,6 +27,15 @@ enum NoteTextScale {
         let index = steps.firstIndex { $0 >= current - 0.001 } ?? 1
         let next = steps[min(max(index + direction, 0), steps.count - 1)]
         UserDefaults.standard.set(next, forKey: defaultsKey)
+    }
+
+    /// The step nearest to `scale`, measured by ratio.
+    static func nearestStep(to scale: Double) -> Double {
+        steps.min { abs(log($0 / scale)) < abs(log($1 / scale)) }!
+    }
+
+    static func set(_ scale: Double) {
+        UserDefaults.standard.set(nearestStep(to: scale), forKey: defaultsKey)
     }
 
     static func reset() {
@@ -117,6 +127,52 @@ extension View {
         modifier(NoteFont(style: style, design: design, weight: weight))
     }
 }
+
+#if os(macOS)
+extension View {
+    /// A trackpad pinch over the note changes the note text size, a step
+    /// at a time (each step reflows the note).
+    func pinchToScaleNoteText() -> some View {
+        modifier(PinchToScaleNoteText())
+    }
+}
+
+private struct PinchToScaleNoteText: ViewModifier {
+    /// The scale when the pinch began.
+    @State private var start: Double?
+
+    func body(content: Content) -> some View {
+        content.simultaneousGesture(
+            MagnifyGesture()
+                .onChanged { value in
+                    let start = self.start ?? NoteTextScale.current
+                    self.start = start
+                    let next = NoteTextScale.nearestStep(to: start * value.magnification)
+                    if abs(next - NoteTextScale.current) > 0.001 { NoteTextScale.set(next) }
+                }
+                .onEnded { _ in start = nil }
+        )
+    }
+}
+
+/// ⌘+ wherever the keyboard types "+": the Bigger menu item can match only
+/// one key, and "+" is shifted ("=" on US keyboards, ";" on JIS ones).
+enum NoteTextScaleKeys {
+    private static var monitor: Any?
+
+    static func install() {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let modifiers = event.modifierFlags.intersection([.command, .control, .option])
+            guard modifiers == .command,
+                  event.charactersIgnoringModifiers == "+" || event.characters(byApplyingModifiers: .shift) == "+"
+            else { return event }
+            NoteTextScale.step(1)
+            return nil
+        }
+    }
+}
+#endif
 
 private struct NoteFont: ViewModifier {
     let style: Font.TextStyle
