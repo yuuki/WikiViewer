@@ -296,10 +296,14 @@ public final class Library {
     /// `wikiindex serve`, otherwise by polling the manifest — and updates.
     /// A failed update (e.g. an iCloud Drive folder that is only partly
     /// synced) is retried with exponential backoff instead of waiting for the
-    /// next launch.
-    public func watchForUpdates() async {
+    /// next launch. With `.adaptive` pacing the source is followed only
+    /// after activity and otherwise checked every few minutes (UpdatePacing).
+    public func watchForUpdates(pacing: UpdatePacing = .continuous) async {
         await checkForUpdates()
         var failures = isFailed ? 1 : 0
+        // Opening the app counts as activity.
+        var lastActivity = ContinuousClock.now
+        var lastCheck = ContinuousClock.now
         while !Task.isCancelled {
             // Requests ride along with the update cycle: every long poll or
             // poll interval also sends and follows them.
@@ -311,13 +315,20 @@ public final class Library {
                 guard (try? await Task.sleep(for: Self.folderPollInterval)) != nil else { return }
                 continue
             }
-            let current = await store.currentGeneration()?.generation ?? 0
             do {
-                let data = try await source.waitForManifest(after: current, interval: Self.pollInterval(for: source))
+                let follow = try await waitForTurn(pacing, lastActivity: lastActivity, lastCheck: lastCheck)
+                // Read after the wait: a manual check may have updated meanwhile.
+                let current = await store.currentGeneration()?.generation ?? 0
+                let data = follow
+                    ? try await source.waitForManifest(after: current, interval: Self.pollInterval(for: source))
+                    : try await source.fetchManifest()
                 try Task.checkCancellation()
+                lastCheck = .now
                 // Only a different generation is worth an update (it may be
                 // lower after the publisher was reset or the source changed).
-                if failures > 0 || (try? ArtifactManifest.decode(data).generation) != current {
+                let changed = (try? ArtifactManifest.decode(data).generation) != current
+                if changed { lastActivity = .now }
+                if failures > 0 || changed {
                     await runUpdate()
                 }
                 failures = isFailed ? failures + 1 : 0
@@ -325,7 +336,30 @@ public final class Library {
                 return
             } catch {
                 if Task.isCancelled { return }
+                lastCheck = .now
                 failures += 1
+            }
+        }
+    }
+
+    /// Waits until `pacing` says to check the source again; true to follow
+    /// it (long poll), false to fetch the manifest once. Works the step out
+    /// again every few seconds, so a queued request or the end of Low Power
+    /// Mode takes effect without waiting out a long interval.
+    private func waitForTurn(_ pacing: UpdatePacing, lastActivity: ContinuousClock.Instant,
+                             lastCheck: ContinuousClock.Instant) async throws -> Bool {
+        guard case .adaptive(let conditions) = pacing else { return true }
+        while true {
+            let now = ContinuousClock.now
+            switch UpdateSchedule.step(sinceActivity: now - lastActivity, waitingForMac: requests.isAwaitingHost(),
+                                       conditions: conditions()) {
+            case .follow:
+                return true
+            case .poll(let interval):
+                let due = lastCheck + interval
+                if now >= due { return false }
+                // The tolerance lets the system coalesce this timer with others.
+                try await Task.sleep(for: min(due - now, UpdateSchedule.recheckInterval), tolerance: .seconds(5))
             }
         }
     }

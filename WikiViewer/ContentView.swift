@@ -66,12 +66,13 @@ struct ContentView: View {
             }
             #if os(iOS)
             // While the app is in the foreground, keep the snapshot current:
-            // check on activation, then follow the source (long poll or polling).
-            // Leaving the foreground cancels the task. (On macOS the
+            // check on activation, then follow the source (long poll or polling)
+            // while there is activity, and check every few minutes otherwise, to
+            // spare the battery. Leaving the foreground cancels the task. (On macOS the
             // UpdateCoordinator follows the source for the whole app.)
             .task(id: WatchKey(active: scenePhase == .active, source: library.source)) {
                 guard scenePhase == .active, library.source != nil else { return }
-                await library.watchForUpdates()
+                await library.watchForUpdates(pacing: .adaptiveToDevice)
             }
             #endif
     }

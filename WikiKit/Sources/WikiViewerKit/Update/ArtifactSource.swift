@@ -324,8 +324,9 @@ public struct HTTPArtifactSource: ArtifactSource {
         return URLSession(configuration: configuration)
     }()
 
-    /// How long the server may hold a long-poll request.
-    static let longPollSeconds = 25
+    /// How long the server may hold a long-poll request: its maximum, since
+    /// every new request wakes the phone's radio.
+    static let longPollSeconds = 55
 
     public var displayName: String { baseURL.host() ?? baseURL.absoluteString }
     public var identifier: String { "http:" + baseURL.absoluteString }
