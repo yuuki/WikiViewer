@@ -260,7 +260,19 @@ writes to `.obsidian/` kept resetting. Now:
   small deltas make feasible within the time iOS allows.
 
 Cost: more publications (each a few hundred KiB with packs) and a request
-held open while the app is in the foreground. iCloud Drive's own propagation
+held open while the app is in the foreground.
+
+On the iPhone that request is paced, because each one wakes the radio — which
+then stays in a high-power state for seconds — and, over Tailscale, its
+network extension; how often matters more than how many bytes. A long poll
+is held for 55 s, the server's maximum. Edits come in bursts, so the app
+follows the source only for 5 minutes after it opens or a new generation
+arrives (2 over cellular), and while a request sent in the last 30 minutes
+waits for the Mac; otherwise it fetches the manifest every 2 minutes, every
+5 after half an hour without a publication, and every 15 in Low Power Mode
+or Low Data Mode. An edit made on the Mac while the phone sits idle thus
+shows up within a few minutes, and the ones after it at once. The Mac app
+follows the source all the time. iCloud Drive's own propagation
 delay remains outside the app's control; HTTP over a private network is the
 low-latency transport.
 

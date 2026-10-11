@@ -60,6 +60,7 @@ public final class RequestQueue {
     static let maximumEntries = 200
     /// A sent request whose status never appears is given up after this.
     static let statusTimeout: TimeInterval = 14 * 24 * 3600
+    static let awaitingHostWindow: TimeInterval = 30 * 60
 
     private let fileURL: URL?
 
@@ -77,6 +78,14 @@ public final class RequestQueue {
 
     /// Visible requests still waiting for an answer.
     public var pendingCount: Int { visibleEntries.filter(\.isActive).count }
+    /// Whether a request sent within `awaitingHostWindow` still waits for
+    /// the Mac's answer, which is then expected soon.
+    func isAwaitingHost(now: Date = Date()) -> Bool {
+        entries.contains { entry in
+            guard entry.isActive, let sentAt = entry.sentAt else { return false }
+            return now.timeIntervalSince(sentAt) < Self.awaitingHostWindow
+        }
+    }
 
     public func entry(id: UUID) -> Entry? { entries.first { $0.id == id } }
 

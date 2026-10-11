@@ -273,9 +273,14 @@ In the app, enter `https://<HOST>.<TAILNET>.ts.net` under **Settings →
 Update Source** and tap **Use**.
 
 While the app is open it keeps a request to `wikiindex serve` waiting
-(`manifest.json?wait=N`, up to 25 s at a time); the server answers as soon as a
+(`manifest.json?wait=N`, up to 55 s at a time); the server answers as soon as a
 new generation is published, so the app starts downloading within about a
-second. `tailscale serve` passes these requests through unchanged.
+second. `tailscale serve` passes these requests through unchanged. On the
+iPhone this lasts 5 minutes after the app opens or an update arrives (2 over
+cellular, longer while a request waits for the Mac); then the app checks every
+2–5 minutes, and every 15 in Low Power Mode or Low Data Mode, so that neither
+the app nor Tailscale keeps waking the radio. Pull the latest at any time with
+*Check for Updates*.
 
 `tailscale serve` only proxies. It stops working when `wikiindex serve` stops.
 To stop exposing the snapshot:

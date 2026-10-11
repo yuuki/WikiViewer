@@ -84,6 +84,9 @@ background iOS may refresh it too.
   URL in Settings. `wikiindex serve` keeps connections alive and answers the
   app's long poll as soon as a generation is published, so an open app
   updates within a second or two; a plain static server is polled every 20 s.
+  To spare the iPhone's battery, it follows the source this closely only for
+  a few minutes after it opens or an update arrives, and otherwise checks
+  every 2–5 minutes (every 15 in Low Power Mode or Low Data Mode).
   Plain HTTP to LAN hosts is not enabled in the app (App Transport Security).
 
 `watch` publishes a small edit (up to 5 files) 3 s after the vault goes

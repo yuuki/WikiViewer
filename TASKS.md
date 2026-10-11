@@ -59,6 +59,10 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
   retries; BGAppRefreshTask for closed-app refresh (Info.plist merged from
   `Config/WikiViewer-Info.plist`: `fetch` background mode + task id — no
   entitlement). One shared URLSession with per-task size-limit delegates.
+  On iOS the following is paced (`UpdatePacing`): long polls of 55 s for
+  5 min after activation or a new generation (2 min on cellular) or while a
+  request awaits the Mac, otherwise a manifest fetch every 2–5 min (15 min in
+  Low Power / Low Data Mode). The Mac app follows continuously.
 - D18 Host: FSEvents for never-indexed paths (`.obsidian/`, excluded folders)
   do not count as activity; ≤ 5-file edits publish after 3 s of quiet,
   bursts/reconciliations after 20 s. `wikiindex serve` keeps connections alive.
