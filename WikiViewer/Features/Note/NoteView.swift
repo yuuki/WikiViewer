@@ -306,6 +306,9 @@ struct NoteView: View {
                 // Only blocks have Int ids: with the header or backlinks at
                 // the top the position is nil.
                 .scrollPosition(id: $position, anchor: .top)
+                #if os(macOS)
+                .pinchToScaleNoteText()
+                #endif
                 .onAppear {
                     guard let target = initialPosition else { return }
                     initialPosition = nil
