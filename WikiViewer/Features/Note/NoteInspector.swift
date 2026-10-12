@@ -77,14 +77,14 @@ struct NoteInspector: View {
                 VStack(alignment: .leading, spacing: 16) {
                     InfoSection("Properties") {
                         if detail.properties.isEmpty {
-                            Text("None").foregroundStyle(.secondary).font(.footnote)
+                            Text("None").foregroundStyle(.secondary).chromeFont(.footnote)
                         } else {
                             PropertiesView(properties: detail.properties, noteID: detail.id, links: model.links)
                         }
                     }
                     InfoSection("Tags") {
                         if model.tags.isEmpty {
-                            Text("None").foregroundStyle(.secondary).font(.footnote)
+                            Text("None").foregroundStyle(.secondary).chromeFont(.footnote)
                         } else {
                             TagLine(tags: model.tags.map(\.name))
                         }
@@ -104,7 +104,7 @@ struct NoteInspector: View {
                                 Text(ByteCountFormatter.string(fromByteCount: detail.size, countStyle: .file))
                             }
                         }
-                        .font(.footnote)
+                        .chromeFont(.footnote)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -125,7 +125,7 @@ private struct InfoSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
+            Text(title).chromeFont(.headline)
             content
         }
     }

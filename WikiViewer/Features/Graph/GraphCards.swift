@@ -92,7 +92,7 @@ struct GraphCard<Content: View>: View {
         .overlay(alignment: .topTrailing) {
             Button("Close", systemImage: "xmark", action: onClose)
                 .labelStyle(.iconOnly)
-                .font(.footnote.weight(.semibold))
+                .chromeFont(.footnote, weight: .semibold)
                 .foregroundStyle(.secondary)
                 .frame(width: 44, height: 44)
                 .contentShape(.rect)
@@ -136,8 +136,8 @@ struct NodeCard: View {
             HStack(alignment: .top, spacing: 10) {
                 Circle().fill(color).frame(width: 12, height: 12).padding(.top, 5)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(node.title).font(.headline).lineLimit(2)
-                    Text(details).font(.caption).foregroundStyle(.secondary)
+                    Text(node.title).chromeFont(.headline).lineLimit(2)
+                    Text(details).chromeFont(.caption).foregroundStyle(.secondary)
                 }
                 .padding(.trailing, 28)
             }
@@ -180,7 +180,7 @@ struct NodeCard: View {
                         Image(systemName: "arrow.up.right").imageScale(.small).foregroundStyle(.secondary)
                     }
                 }
-                .font(.caption)
+                .chromeFont(.caption)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(.fill.tertiary, in: Capsule())
@@ -218,14 +218,14 @@ struct ClusterCard: View {
             HStack(alignment: .top, spacing: 10) {
                 Circle().fill(GraphPalette.cluster(cluster.id)).frame(width: 12, height: 12).padding(.top, 5)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(cluster.label).font(.headline).lineLimit(2)
-                    Text("\(cluster.size) notes").font(.caption).foregroundStyle(.secondary)
+                    Text(cluster.label).chromeFont(.headline).lineLimit(2)
+                    Text("\(cluster.size) notes").chromeFont(.caption).foregroundStyle(.secondary)
                 }
                 .padding(.trailing, 28)
             }
             if let members {
                 Text(members.map(\.title).joined(separator: " · "))
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }

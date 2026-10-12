@@ -101,12 +101,12 @@ struct ProvenanceLine: View {
             }
             if !provenance.originals.isEmpty {
                 Text("Originals under .raw/ stay on the Mac; they are not in the snapshot.")
-                    .font(.caption)
+                    .chromeFont(.caption)
                     .foregroundStyle(.tertiary)
             }
             if provenance.originalIsPrivate {
                 Label("Not for sharing (publish: false)", systemImage: "lock")
-                    .font(.caption)
+                    .chromeFont(.caption)
                     .foregroundStyle(.secondary)
             }
             ForEach(provenance.originalURLs, id: \.self) { url in
@@ -139,10 +139,10 @@ struct ThesisCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Label("Verdict", systemImage: "scalemass").font(.headline)
+                Label("Verdict", systemImage: "scalemass").chromeFont(.headline)
                 Spacer()
                 Text(verdictTitle)
-                    .font(.subheadline.weight(.semibold))
+                    .chromeFont(.subheadline, weight: .semibold)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .foregroundStyle(.white)
@@ -159,12 +159,12 @@ struct ThesisCard: View {
                     Text("Judged \(judged)")
                 }
             }
-            .font(.footnote)
+            .chromeFont(.footnote)
             .foregroundStyle(.secondary)
             if !thesis.origins.isEmpty {
                 ForEach(thesis.origins) { origin in
                     if let id = origin.noteID {
-                        Text(originText(origin.label, WikiLinkAction.note(id: id, heading: nil, blockID: nil).url)).font(.footnote)
+                        Text(originText(origin.label, WikiLinkAction.note(id: id, heading: nil, blockID: nil).url)).chromeFont(.footnote)
                     }
                 }
             }

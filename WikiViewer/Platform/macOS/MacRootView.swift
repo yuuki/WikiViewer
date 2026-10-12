@@ -78,6 +78,7 @@ struct MacRootView: View {
                     } onClose: {
                         app.showingQuickOpen = false
                     }
+                    .chromeBodyFont()
                     .padding(.top, 80)
                 }
             }
@@ -130,6 +131,7 @@ struct MacRootView: View {
 
     private var documentColumn: some View {
         DocumentColumn(navigation: documents)
+            .chromeBodyFont()
             .environment(\.noteTextScale, noteTextScale * NoteTextScale.readingSize)
             .environment(documents)
             .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
@@ -381,7 +383,7 @@ private struct UpdateStatusFooter: View {
             text().lineLimit(1)
             Spacer(minLength: 0)
         }
-        .font(.caption)
+        .chromeFont(.caption)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -522,6 +524,7 @@ private extension View {
         environment(navigation)
             .environment(\.openRoute, openRoute)
             .environment(\.listSelection, selection)
+            .chromeBodyFont()
     }
 }
 #endif

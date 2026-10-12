@@ -40,7 +40,7 @@ struct AskClaudeSheet: View {
                     }
                     if let excerpt = draft.excerpt {
                         Text(excerpt)
-                            .font(.footnote)
+                            .chromeFont(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(8)
                     }
@@ -132,7 +132,7 @@ struct AskSelectionBar: View {
         HStack(spacing: 12) {
             Image(systemName: "sparkles").foregroundStyle(.tint)
             Text(count == 0 ? "Tap paragraphs to ask about, or ask about the whole note." : "\(count) selected")
-                .font(.subheadline)
+                .chromeFont(.subheadline)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button("Cancel", action: onCancel)
             Button(count == 0 ? "Ask About Note…" : "Ask…", action: onAsk)

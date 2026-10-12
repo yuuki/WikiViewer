@@ -39,7 +39,7 @@ struct SearchView: View {
                 // Stays with the results: a two-character Japanese word that
                 // is only in note text would otherwise look like a miss.
                 Label("Terms under 3 characters only match titles, aliases and tags. Add a longer term to search note text.", systemImage: "info.circle")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
                     .listRowSeparator(.hidden)
             }
@@ -173,10 +173,10 @@ struct SearchHitRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(hit.note.title).font(.body.weight(.medium))
+            Text(hit.note.title).chromeFont(.body, weight: .medium)
             if let snippet = hit.snippet {
                 Text(Self.highlighted(snippet))
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
             }
@@ -190,7 +190,7 @@ struct SearchHitRow: View {
                 default: EmptyView()
                 }
             }
-            .font(.caption)
+            .chromeFont(.caption)
             .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)

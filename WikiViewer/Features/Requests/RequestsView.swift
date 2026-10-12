@@ -100,25 +100,25 @@ struct RequestRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text(entry.request.summary)
-                    .font(.body.weight(.medium))
+                    .chromeFont(.body, weight: .medium)
                     .lineLimit(2)
                 Spacer(minLength: 8)
                 RequestPhaseLabel(entry: entry, answerArrived: answerArrived)
             }
             if let title = entry.request.noteTitle ?? entry.request.notePath.map(VaultPath.basename(of:)) {
                 Text("\(Image(systemName: "doc.text")) \(title)")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             if let message = entry.status?.message ?? entry.lastError {
                 Text(message)
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(entry.phase == .failed || (entry.phase == .waiting && entry.lastError != nil) ? .red : .secondary)
                     .lineLimit(3)
             }
             Text(entry.request.createdAt, format: .relative(presentation: .named))
-                .font(.caption)
+                .chromeFont(.caption)
                 .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,7 +133,7 @@ struct RequestPhaseLabel: View {
     var body: some View {
         Label(title, systemImage: systemImage)
             .labelStyle(.titleAndIcon)
-            .font(.caption.weight(.medium))
+            .chromeFont(.caption, weight: .medium)
             .foregroundStyle(color)
             .fixedSize()
     }
@@ -178,11 +178,11 @@ struct NoteRequestsSection: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Requests to Claude")
-                        .font(.headline)
+                        .chromeFont(.headline)
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
                     RouteLink("Show All", route: Route.requests)
-                        .font(.subheadline)
+                        .chromeFont(.subheadline)
                         .fixedSize()
                 }
                 ForEach(entries) { entry in

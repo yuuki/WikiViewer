@@ -43,11 +43,11 @@ struct QuickOpenPanel: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.title3)
+                    .chromeFont(.title3)
                     .foregroundStyle(.secondary)
                 TextField("Open a note", text: $query)
                     .textFieldStyle(.plain)
-                    .font(.title3)
+                    .chromeFont(.title3)
                     .focused($fieldFocused)
                     .onSubmit { open(in: .automatic) }
             }
@@ -59,7 +59,7 @@ struct QuickOpenPanel: View {
                         LazyVStack(spacing: 0) {
                             if query.trimmingCharacters(in: .whitespaces).isEmpty {
                                 Text("Recent")
-                                    .font(.caption.weight(.semibold))
+                                    .chromeFont(.caption, weight: .semibold)
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 12)
@@ -148,7 +148,7 @@ struct QuickOpenPanel: View {
                 Text(item.title).lineLimit(1)
                 if !item.detail.isEmpty {
                     Text(item.detail)
-                        .font(.caption)
+                        .chromeFont(.caption)
                         .foregroundStyle(highlighted ? Self.selectedText.opacity(0.8) : .secondary)
                         .lineLimit(1)
                 }

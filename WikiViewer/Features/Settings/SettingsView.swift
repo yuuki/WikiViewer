@@ -44,7 +44,7 @@ struct SettingsView: View {
 
             Section {
                 Button("Choose Folder…", systemImage: "folder") { pickingFolder = true }
-                if let folderError { Text(folderError).font(.footnote).foregroundStyle(.red) }
+                if let folderError { Text(folderError).chromeFont(.footnote).foregroundStyle(.red) }
                 // A label, so the field lines up with Choose Folder above it.
                 Label {
                     HStack {
@@ -68,7 +68,7 @@ struct SettingsView: View {
                 // is not yet wrong.
                 if showsURLError {
                     Text("Enter an address starting with https:// (or http://) and a host name.")
-                        .font(.footnote)
+                        .chromeFont(.footnote)
                         .foregroundStyle(.red)
                 }
             } header: {
@@ -160,7 +160,7 @@ struct SettingsView: View {
         case .failed(let message):
             VStack(alignment: .leading) {
                 Text("Last update failed").foregroundStyle(.red)
-                Text(message).font(.footnote).foregroundStyle(.secondary)
+                Text(message).chromeFont(.footnote).foregroundStyle(.secondary)
             }
         }
     }

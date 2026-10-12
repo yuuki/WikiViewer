@@ -159,7 +159,7 @@ struct NotePreviewCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.title3.bold())
+            Text(title).chromeFont(.title3, weight: .bold)
             if let blocks {
                 ForEach(blocks.prefix(Self.maxBlocks)) { BlockView(block: $0) }
             } else {

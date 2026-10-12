@@ -109,7 +109,7 @@ struct DigestHomeSection: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(state.range == .lastVisit && state.baseline != nil ? "Since Your Last Visit" : "Recent Changes")
                             Text(DigestSummary.line(digest))
-                                .font(.caption)
+                                .chromeFont(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
                         }
@@ -211,7 +211,7 @@ struct DigestView: View {
         if digest.truncated {
             Section {
                 Text("Only the most recent changes are listed.")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
@@ -252,7 +252,7 @@ struct ChangeRow: View {
                         Text("· \(reason.operation): \(reason.title)").lineLimit(1)
                     }
                 }
-                .font(.caption)
+                .chromeFont(.caption)
                 .foregroundStyle(.secondary)
             }
         } icon: {
@@ -277,14 +277,14 @@ struct LogEntryRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(entry.title).font(.body.weight(.medium))
+                Text(entry.title).chromeFont(.body, weight: .medium)
                 Spacer(minLength: 8)
-                Text(entry.date).font(.caption).foregroundStyle(.secondary)
+                Text(entry.date).chromeFont(.caption).foregroundStyle(.secondary)
             }
-            Text(entry.operation).font(.caption).foregroundStyle(.secondary)
+            Text(entry.operation).chromeFont(.caption).foregroundStyle(.secondary)
             if let insight = Self.field("Key insight", in: entry.body) ?? Self.field("Summary", in: entry.body) {
                 Text(LearningPath.readable(insight))
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .lineLimit(expanded ? nil : 3)
                     .onTapGesture { expanded.toggle() }
             }
@@ -294,7 +294,7 @@ struct LogEntryRow: View {
                         ForEach(entry.pages.prefix(12), id: \.path) { page in
                             RouteLink(Route.note(path: page.path, anchor: nil)) {
                                 Text(page.label)
-                                    .font(.caption)
+                                    .chromeFont(.caption)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
                                     .background(.tint.opacity(0.12), in: .capsule)

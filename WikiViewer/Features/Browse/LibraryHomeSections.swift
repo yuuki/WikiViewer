@@ -60,7 +60,7 @@ struct LibraryHomeSections: View {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Today's Note")
-                            Text(today.path).font(.caption).foregroundStyle(.secondary)
+                            Text(today.path).chromeFont(.caption).foregroundStyle(.secondary)
                         }
                     } icon: {
                         Image(systemName: "calendar")
@@ -93,7 +93,7 @@ struct LibraryHomeSections: View {
                             Spacer()
                             let pending = library.requests.pendingCount
                             if pending > 0 {
-                                Text("\(pending) pending").font(.caption).foregroundStyle(.secondary)
+                                Text("\(pending) pending").chromeFont(.caption).foregroundStyle(.secondary)
                             }
                         }
                     } icon: {
@@ -121,7 +121,7 @@ struct LibraryHomeSections: View {
                     Spacer()
                     if history.recents.count > Self.recentLimit {
                         RouteLink("Show All", route: Route.recents)
-                            .font(.subheadline)
+                            .chromeFont(.subheadline)
                             .textCase(nil)
                     }
                 }
@@ -176,7 +176,7 @@ struct HistoryRow: View {
                     Text(entry.title).lineLimit(2)
                     let folder = (entry.path as NSString).deletingLastPathComponent
                     if !folder.isEmpty {
-                        Text(folder).font(.caption).foregroundStyle(.secondary)
+                        Text(folder).chromeFont(.caption).foregroundStyle(.secondary)
                     }
                 }
             } icon: {

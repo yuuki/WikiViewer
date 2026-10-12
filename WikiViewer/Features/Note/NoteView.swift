@@ -619,11 +619,11 @@ struct BacklinksSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Linked Mentions (\(model.backlinkTotalLabel))")
-                .font(.headline)
+                .chromeFont(.headline)
                 .accessibilityAddTraits(.isHeader)
             if model.backlinks.isEmpty {
                 Text("No other notes link here.")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
             }
             ForEach(model.backlinks) { backlink in
@@ -653,22 +653,22 @@ struct BacklinkRow: View {
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(backlink.note.title)
-                        .font(.body.weight(.medium))
+                        .chromeFont(.body, weight: .medium)
                     if let context, !context.isEmpty {
                         Text(context)
-                            .font(.footnote)
+                            .chromeFont(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
                     if !backlink.note.folderPath.isEmpty {
                         Text("\(Image(systemName: "folder")) \(backlink.note.folderPath)")
-                            .font(.caption)
+                            .chromeFont(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
+                    .chromeFont(.footnote, weight: .semibold)
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
@@ -711,7 +711,7 @@ struct MissingNoteView: View {
         List {
             Section {
                 Text("“\(target)” does not exist in the vault snapshot. Obsidian would create it when the link is clicked; this viewer is read-only.")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
             }
             Section("Linked from") {
