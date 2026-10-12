@@ -16,6 +16,7 @@ struct RequestsView: View {
     @Environment(Library.self) private var library
     @State private var confirmClear = false
     @State private var requestingPath = false
+    @State private var runningSkill = false
 
     var body: some View {
         let entries = library.requests.visibleEntries
@@ -38,12 +39,14 @@ struct RequestsView: View {
         .overlay {
             if entries.isEmpty {
                 ContentUnavailableView("No Requests", systemImage: "sparkles",
-                                       description: Text("Ask Claude about a note from its More menu. Answers arrive as notes."))
+                                       description: Text("Ask Claude about a note or run a vault skill from its More menu. Answers arrive as notes."))
             }
         }
         .navigationTitle("Requests")
         .toolbar {
             Button("New Learning Path…", systemImage: "map") { requestingPath = true }
+                .disabled(!library.acceptsRequests)
+            Button("Run Skill…", systemImage: "wand.and.sparkles") { runningSkill = true }
                 .disabled(!library.acceptsRequests)
             Menu {
                 Button("Refresh", systemImage: "arrow.clockwise") {
@@ -60,6 +63,7 @@ struct RequestsView: View {
             Button("Clear Finished", role: .destructive) { library.requests.removeFinished() }
         }
         .sheet(isPresented: $requestingPath) { PathRequestSheet() }
+        .sheet(isPresented: $runningSkill) { SkillRequestSheet() }
         .task { await library.syncRequests() }
         .refreshable { await library.syncRequests() }
     }
@@ -209,6 +213,10 @@ extension HostRequest {
         case .path: return String(localized: "Learning path: \(text ?? "")")
         case .explain: return String(localized: "My explanation")
         case .podcast: return String(localized: "Audio episode")
+        case .skill:
+            let name = "/" + (skill ?? "")
+            guard let text, !text.isEmpty else { return name }
+            return name + " " + text
         case .signals: return String(localized: "Reading history")
         }
     }

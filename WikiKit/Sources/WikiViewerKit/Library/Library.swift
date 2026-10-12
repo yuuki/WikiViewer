@@ -116,6 +116,8 @@ public final class Library {
     public let imageCache = ImageCache()
     /// Requests to the Mac's Claude waiting on this device.
     public let requests: RequestQueue
+    /// The vault skills the Mac offers, as last read from the source.
+    public private(set) var skills = SkillCatalogState()
     private let defaults: UserDefaults
     private var updateTask: Task<Void, Never>?
     /// Identity of the source the in-flight update uses.
@@ -270,6 +272,31 @@ public final class Library {
     /// Sends waiting requests and reads the status of those in progress.
     public func syncRequests() async {
         await requests.sync(source: currentSource)
+    }
+
+    /// Reads the skills the Mac offers. A failure keeps the catalog last read
+    /// from the same source, so a briefly unreachable Mac still shows them.
+    public func loadSkills() async {
+        guard let source = currentSource, source.acceptsRequests else {
+            skills = SkillCatalogState()
+            return
+        }
+        if skills.sourceID != source.identifier { skills = SkillCatalogState(sourceID: source.identifier) }
+        skills.isLoading = true
+        defer { if skills.sourceID == source.identifier { skills.isLoading = false } }
+        do {
+            let catalog = try await source.fetchSkillCatalog()
+            guard skills.sourceID == source.identifier else { return }
+            skills.catalog = catalog
+            skills.error = nil
+        } catch TransportError.notFound(_) {
+            guard skills.sourceID == source.identifier else { return }
+            skills.catalog = SkillCatalog(skills: [])
+            skills.error = nil
+        } catch {
+            guard skills.sourceID == source.identifier else { return }
+            skills.error = String(describing: error)
+        }
     }
 
     /// Replaces the token sent with requests over HTTP.
@@ -491,5 +518,20 @@ public final class Library {
         } catch {
             state = .failed(String(describing: error))
         }
+    }
+}
+
+/// The skill catalog as the app knows it.
+public struct SkillCatalogState: Equatable, Sendable {
+    /// The source it was read from.
+    public var sourceID: String?
+    /// Nil until read once.
+    public var catalog: SkillCatalog?
+    public var isLoading = false
+    /// Why the last read failed.
+    public var error: String?
+
+    public init(sourceID: String? = nil) {
+        self.sourceID = sourceID
     }
 }

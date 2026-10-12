@@ -291,6 +291,18 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       summary.json); `scripts/reading-signals.py` (top, unconceptualized)
 - [-] #42 Wiring the vault's hn-curation / wiki-survey-recommend skills to
       summary.json is a vault change (outside this repository)
+- [x] Running vault skills from the app: `skill` requests naming a skill
+      from the catalog `wikiindex requests` publishes as
+      `requests/skills.json` (`SkillScanner`: `.claude/skills` and
+      `.agents/skills`, links resolved, each SKILL.md once, `.claude` first;
+      `--skills`, `--exclude-skills`, `--no-skills`), checked again before
+      running; the runner invokes it with the Skill tool, or has Claude read
+      the SKILL.md when it is only in `.agents/skills`. Run Skill sheet
+      (filterable list, optional note and paragraphs, input) from a note and
+      from Requests, on iOS and macOS. Skills may use the web only when
+      their SKILL.md allows WebFetch/WebSearch or their name matches
+      `--web-skills` (default ingest/research/note-from-URL skills;
+      `--no-web-skills`); questions and paths never do
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

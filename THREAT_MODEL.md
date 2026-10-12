@@ -148,6 +148,28 @@ wrong, and the responses:
   capped (`--max-budget-usd`). The prompt quotes the reader's text in a
   fence, as data. The worker accepts an answer path only if it is an
   existing `.md` file under `wiki/`, reached without symbolic links.
+- *Running a skill.* A `skill` request names one of the vault's agent
+  skills; the name must be a plain folder name (lower-case letters,
+  digits, `-`, `_`, `.`). The worker runs it only if the skill is in the
+  catalog it offers at that moment (`.claude/skills` and `.agents/skills`,
+  less what `--skills` / `--exclude-skills` / `--no-skills` leave out), so
+  a device cannot invoke anything the Mac does not list. The runner keeps
+  the same allow-list as for questions (writes only under `wiki/`), except
+  that a skill the Mac lets use the web gets WebFetch and WebSearch: one
+  whose `SKILL.md` allows them, or whose name matches `--web-skills`
+  (default: the ingest, research and note-from-URL skills). That is decided
+  on the Mac from the catalog, never by the request; questions and learning
+  paths never get the web, and `--no-web-skills` turns it off for every
+  skill. For such a skill the exfiltration guard above does not hold:
+  injected text in a note or a fetched page could make Claude put vault
+  text in a URL or search. The prompt tells Claude to fetch only what the
+  skill and the reader's input call for and not to follow instructions in
+  notes or pages, which lowers but does not remove that risk; keep
+  `--web-skills` to skills that need the web. The published catalog
+  (`<PUBLISH>/requests/skills.json`) holds only names, descriptions and
+  argument hints from each `SKILL.md`'s frontmatter, never paths. Skill
+  folders may be symbolic links (resolved, unlike notes), since the vault's
+  own agent configuration links them.
 - *Prompt injection from note text.* Claude reads vault notes, which may
   contain clipped web text. With the allow-list above, the worst outcome is
   a wrong or unwanted page under `wiki/` (the vault is a git repository, so

@@ -40,7 +40,10 @@ struct NoteView: View {
     @State private var arrived = false
     /// Paragraphs chosen to ask Claude about, while choosing (nil otherwise).
     @State private var askSelection: Set<Int>?
+    /// What the chosen paragraphs are for: a question or a skill.
+    @State private var selectionPurpose: AskSelectionBar.Purpose = .ask
     @State private var askDraft: AskDraft?
+    @State private var skillDraft: AskDraft?
     @State private var requestingPath = false
     /// When the note came on screen, for the reading history (#42).
     @State private var openedAt: Date?
@@ -51,11 +54,15 @@ struct NoteView: View {
         VStack(spacing: 0) {
             if find.isShown { NoteFindBar(find: find) }
             if let askSelection {
-                AskSelectionBar(count: askSelection.count) {
+                AskSelectionBar(count: askSelection.count, purpose: selectionPurpose) {
                     self.askSelection = nil
                 } onAsk: {
-                    askDraft = AskSelection.draft(path: path, title: model.detail?.title ?? VaultPath.basename(of: path),
-                                                  rendered: model.rendered, selected: askSelection)
+                    let draft = AskSelection.draft(path: path, title: model.detail?.title ?? VaultPath.basename(of: path),
+                                                   rendered: model.rendered, selected: askSelection)
+                    switch selectionPurpose {
+                    case .ask: askDraft = draft
+                    case .skill: skillDraft = draft
+                    }
                     self.askSelection = nil
                 }
             }
@@ -102,6 +109,14 @@ struct NoteView: View {
                     ToolbarItem(placement: .secondaryAction) {
                         Button("Ask Claude…", systemImage: "sparkles") {
                             find.isShown = false
+                            selectionPurpose = .ask
+                            askSelection = []
+                        }
+                    }
+                    ToolbarItem(placement: .secondaryAction) {
+                        Button("Run Skill…", systemImage: "wand.and.sparkles") {
+                            find.isShown = false
+                            selectionPurpose = .skill
                             askSelection = []
                         }
                     }
@@ -154,6 +169,7 @@ struct NoteView: View {
             }
             .assetPresentation(item: $viewingAsset)
             .sheet(item: $askDraft) { AskClaudeSheet(draft: $0) }
+            .sheet(item: $skillDraft) { SkillRequestSheet(draft: $0) }
             .sheet(isPresented: $requestingPath) {
                 PathRequestSheet(notePath: path, noteTitle: model.detail?.title)
             }

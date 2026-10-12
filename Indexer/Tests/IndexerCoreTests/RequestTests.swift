@@ -235,4 +235,148 @@ import WikiViewerKit
         let demo = LocalFolderArtifactSource(root: publish, acceptsRequests: false)
         await #expect(throws: TransportError.self) { try await demo.submitRequest(try request.encoded(), id: request.id) }
     }
+
+    // MARK: Skills
+
+    func writeSkill(_ env: Env, _ folder: String, _ frontmatter: String) throws {
+        try env.write(".claude/skills/\(folder)/SKILL.md", "---\n\(frontmatter)\n---\n\n# Body\n")
+    }
+
+    @Test func scannerReadsTheVaultsSkills() throws {
+        let env = try Env(copyFixture: true)
+        try writeSkill(env, "wiki-gap", "name: wiki-gap\ndescription: >\n  Finds gaps\n  between clusters.\nargument-hint: \"[topic]\"")
+        try writeSkill(env, "hidden", "name: hidden\ndescription: x\ndisable-model-invocation: true")
+        try writeSkill(env, "internal", "name: internal\ndescription: x\nuser-invocable: false")
+        try writeSkill(env, "Bad Name", "name: bad\ndescription: x")
+        try writeSkill(env, "no-frontmatter", "")
+        try env.write(".claude/skills/stray.md", "---\nname: stray\ndescription: x\n---\n")
+        let catalog = SkillScanner(vault: env.vault).scan()
+        #expect(catalog.skills == [SkillCatalog.Skill(name: "wiki-gap", description: "Finds gaps between clusters.", argumentHint: "[topic]")])
+        try writeSkill(env, "wiki-query", "name: wiki-query\ndescription: Answers questions.")
+        #expect(SkillScanner(vault: env.vault).scan().skills.map(\.name) == ["wiki-gap", "wiki-query"])
+        #expect(SkillScanner(vault: env.vault, allowed: ["wiki-query"]).scan().skills.map(\.name) == ["wiki-query"])
+        #expect(SkillScanner(vault: env.vault, denied: ["wiki-query"]).scan().skills.map(\.name) == ["wiki-gap"])
+    }
+
+    @Test func scannerReadsAgentsSkillsAndResolvesLinksOnce() throws {
+        let env = try Env(copyFixture: true)
+        let fm = FileManager.default
+        func link(_ path: String, to target: String) throws {
+            let url = env.vault.appendingPathComponent(path)
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fm.createSymbolicLink(atPath: url.path, withDestinationPath: target)
+        }
+        // In .claude, linked from .agents.
+        try writeSkill(env, "wiki-gap", "name: wiki-gap\ndescription: Claude's.")
+        try link(".agents/skills/wiki-gap", to: "../../.claude/skills/wiki-gap")
+        // In .agents, linked from .claude.
+        try env.write(".agents/skills/defuddle/SKILL.md", "---\nname: defuddle\ndescription: Shared.\n---\n")
+        try link(".claude/skills/defuddle", to: "../../.agents/skills/defuddle")
+        // Only in .agents.
+        try env.write(".agents/skills/reading-inbox/SKILL.md", "---\nname: reading-inbox\ndescription: Agents only.\n---\n")
+        // Different copies under one name: .claude wins.
+        try writeSkill(env, "wiki-ingest", "name: wiki-ingest\ndescription: Claude copy.")
+        try env.write(".agents/skills/wiki-ingest/SKILL.md", "---\nname: wiki-ingest\ndescription: Agents copy.\n---\n")
+        // Elsewhere in the vault through a link, and the same file under a second name.
+        try env.write(".gemini/skills/create-tech-note/SKILL.md", "---\nname: create-tech-note\ndescription: Gemini's.\n---\n")
+        try link(".agents/skills/create-tech-note", to: "../../.gemini/skills/create-tech-note")
+        try link(".agents/skills/tech-note-alias", to: "../../.gemini/skills/create-tech-note")
+        // A broken link.
+        try link(".claude/skills/gone", to: "../../.agents/skills/missing")
+
+        let entries = SkillScanner(vault: env.vault).entries()
+        #expect(entries.map(\.skill.name) == ["create-tech-note", "defuddle", "reading-inbox", "wiki-gap", "wiki-ingest"])
+        let byName = Dictionary(uniqueKeysWithValues: entries.map { ($0.skill.name, $0) })
+        #expect(byName["wiki-gap"]?.isClaudeSkill == true)
+        #expect(byName["defuddle"]?.isClaudeSkill == true)
+        #expect(byName["defuddle"]?.file.path.hasSuffix(".agents/skills/defuddle/SKILL.md") == true)
+        #expect(byName["reading-inbox"]?.isClaudeSkill == false)
+        #expect(byName["wiki-ingest"]?.skill.description == "Claude copy.")
+        #expect(byName["create-tech-note"]?.file.path.hasSuffix(".gemini/skills/create-tech-note/SKILL.md") == true)
+    }
+
+    @Test func onlyDeclaredOrListedSkillsUseTheWeb() throws {
+        let env = try Env(copyFixture: true)
+        try writeSkill(env, "wiki-ingest-paper", "name: wiki-ingest-paper\ndescription: Ingests.")
+        try writeSkill(env, "autoresearch", "name: autoresearch\ndescription: x\nallowed-tools: Read Write WebFetch WebSearch")
+        try writeSkill(env, "listed-tools", "name: listed-tools\ndescription: x\nallowed-tools:\n  - Read\n  - WebSearch")
+        try writeSkill(env, "comma-tools", "name: comma-tools\ndescription: x\nallowed-tools: Read, Grep, Glob")
+        try writeSkill(env, "wiki-query", "name: wiki-query\ndescription: x")
+        func web(_ scanner: SkillScanner) -> [String] { scanner.scan().skills.filter { $0.usesWeb == true }.map(\.name) }
+        #expect(web(SkillScanner(vault: env.vault)) == ["autoresearch", "listed-tools", "wiki-ingest-paper"])
+        #expect(web(SkillScanner(vault: env.vault, webPatterns: ["wiki-q*"])) == ["autoresearch", "listed-tools", "wiki-query"])
+        var none = SkillScanner(vault: env.vault)
+        none.allowsWeb = false
+        #expect(web(none).isEmpty)
+    }
+
+    @Test func skillNamesAreChecked() throws {
+        #expect(SkillCatalog.isValidName("wiki-ingest-paper"))
+        #expect(SkillCatalog.isValidName("v2.tool_x"))
+        for bad in ["", "-x", ".x", "../x", "A", "x y", "x/y", "x;rm", String(repeating: "a", count: 65)] {
+            #expect(!SkillCatalog.isValidName(bad), "\(bad)")
+        }
+        #expect(throws: HostRequest.ValidationError.missing("skill")) { try HostRequest(kind: .skill).validate() }
+        #expect(throws: HostRequest.ValidationError.unsafeSkill("../x")) { try HostRequest(kind: .skill, skill: "../x").validate() }
+        try HostRequest(kind: .skill, skill: "wiki-gap").validate()
+    }
+
+    @Test func workerPublishesTheCatalogAndRunsOnlyListedSkills() async throws {
+        let env = try Env(copyFixture: true)
+        try writeSkill(env, "wiki-gap", "name: wiki-gap\ndescription: Finds gaps.")
+        var config = RequestWorkerConfiguration(inbox: env.tmp.sub("publish/inbox"), publishDirectory: env.tmp.sub("publish"), vault: env.vault)
+        config.runner = try runner(in: env.tmp.url, printing: #"{"answer_path": null, "message": "ran"}"#)
+        config.skills = SkillScanner(vault: env.vault)
+        let worker = try RequestWorker(configuration: config)
+        worker.publishSkills()
+        let source = LocalFolderArtifactSource(root: env.tmp.sub("publish"))
+        #expect(try await source.fetchSkillCatalog().skills.map(\.name) == ["wiki-gap"])
+
+        let listed = HostRequest(kind: .skill, notePath: "Home.md", text: "focus", skill: "wiki-gap")
+        let unlisted = HostRequest(kind: .skill, skill: "wiki-ingest")
+        try await source.submitRequest(try listed.encoded(), id: listed.id)
+        try await source.submitRequest(try unlisted.encoded(), id: unlisted.id)
+        #expect(await worker.processPending() == 2)
+        #expect(try await source.fetchRequestStatus(id: listed.id).state == .done)
+        #expect(try await source.fetchRequestStatus(id: listed.id).message == "ran")
+
+        // The runner is told where the skill is and whether Claude Code knows it.
+        try env.write(".agents/skills/reading-inbox/SKILL.md", "---\nname: reading-inbox\ndescription: Agents only.\n---\n")
+        let echo = env.tmp.sub("echo-runner.sh")
+        try Data(#"""
+            #!/bin/sh
+            echo "{\"answer_path\": null, \"message\": \"$WIKIVIEWER_SKILL_INVOCABLE $WIKIVIEWER_SKILL_WEB $WIKIVIEWER_SKILL_FILE\"}"
+            """#.utf8).write(to: echo)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: echo.path)
+        var located = config
+        located.runner = echo
+        let locating = try RequestWorker(configuration: located)
+        let agentsOnly = HostRequest(kind: .skill, skill: "reading-inbox")
+        try await source.submitRequest(try agentsOnly.encoded(), id: agentsOnly.id)
+        #expect(await locating.processPending() == 1)
+        let message = try #require(try await source.fetchRequestStatus(id: agentsOnly.id).message)
+        #expect(message.hasPrefix("0 0 /"))
+        #expect(message.hasSuffix(".agents/skills/reading-inbox/SKILL.md"))
+
+        // An ingest skill, which needs the web, is told it may use it.
+        try writeSkill(env, "wiki-ingest", "name: wiki-ingest\ndescription: Ingests a source.")
+        let ingest = HostRequest(kind: .skill, text: "https://example.org/paper", skill: "wiki-ingest")
+        try await source.submitRequest(try ingest.encoded(), id: ingest.id)
+        #expect(await locating.processPending() == 1)
+        #expect(try await source.fetchRequestStatus(id: ingest.id).message?.hasPrefix("1 1 /") == true)
+        let refused = try await source.fetchRequestStatus(id: unlisted.id)
+        #expect(refused.state == .failed)
+        #expect(refused.message?.contains("wiki-ingest") == true)
+
+        // Without skills, the catalog goes away and every skill is refused.
+        var none = config
+        none.skills = nil
+        let plain = try RequestWorker(configuration: none)
+        plain.publishSkills()
+        await #expect(throws: TransportError.self) { try await source.fetchSkillCatalog() }
+        let again = HostRequest(kind: .skill, skill: "wiki-gap")
+        try await source.submitRequest(try again.encoded(), id: again.id)
+        #expect(await plain.processPending() == 1)
+        #expect(try await source.fetchRequestStatus(id: again.id).state == .failed)
+    }
 }

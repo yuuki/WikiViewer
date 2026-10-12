@@ -124,22 +124,45 @@ enum AskSelection {
 
 /// Shown over a note while paragraphs are being chosen.
 struct AskSelectionBar: View {
+    /// What the paragraphs are chosen for.
+    enum Purpose {
+        case ask
+        /// Running one of the vault's skills on them (SkillRequestSheet).
+        case skill
+    }
+
     let count: Int
+    var purpose: Purpose = .ask
     let onCancel: () -> Void
     let onAsk: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "sparkles").foregroundStyle(.tint)
-            Text(count == 0 ? "Tap paragraphs to ask about, or ask about the whole note." : "\(count) selected")
+            Image(systemName: purpose == .ask ? "sparkles" : "wand.and.sparkles").foregroundStyle(.tint)
+            Text(prompt)
                 .font(.subheadline)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button("Cancel", action: onCancel)
-            Button(count == 0 ? "Ask About Note…" : "Ask…", action: onAsk)
+            Button(actionTitle, action: onAsk)
                 .buttonStyle(.borderedProminent)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+}
+
+extension AskSelectionBar {
+    private var prompt: LocalizedStringKey {
+        if count > 0 { return "\(count) selected" }
+        return purpose == .ask ? "Tap paragraphs to ask about, or ask about the whole note."
+            : "Tap paragraphs to run a skill on, or use the whole note."
+    }
+
+    private var actionTitle: LocalizedStringKey {
+        switch purpose {
+        case .ask: count == 0 ? "Ask About Note…" : "Ask…"
+        case .skill: count == 0 ? "Whole Note…" : "Choose Skill…"
+        }
     }
 }

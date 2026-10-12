@@ -397,6 +397,18 @@ missing material). The app shows it as steps and keeps the reader's
 progress on the device: which steps were read is the reader's, not the
 vault's.
 
+The reader can also run one of the vault's own agent skills (Run Skill).
+The app cannot see the vault's `.claude/skills` or `.agents/skills`, so the
+request worker publishes what it offers as `<publish>/requests/skills.json`
+(name, description, argument hint) next to the status files, and the app
+reads it through the same transport. A `skill` request names one entry;
+the worker checks it against the catalog again before running, and passes
+the runner where the skill is, since a skill only in `.agents/skills` is
+not one Claude Code loads by name, and whether it may use the web. Asking
+stays off the web, so vault text cannot leave the Mac through a question;
+skills that only work on the web (ingesting a URL, research) get it when
+the Mac says so, which the catalog shows the reader.
+
 Cost: a second Mac process, and answers are as fast as Claude plus one
 publication. The vault's rule that `wiki/` is Claude's and the primary
 layer the human's is enforced by the runner's allow-list, not by WikiViewer.
