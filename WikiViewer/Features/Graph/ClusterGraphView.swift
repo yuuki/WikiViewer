@@ -155,11 +155,11 @@ struct ClusterGraphView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(node.title).lineLimit(2).fontWeight(node.id == graph.centerID ? .semibold : nil)
                                 if let kind = node.kindDescription {
-                                    Text(kind).font(.caption).foregroundStyle(.secondary)
+                                    Text(kind).chromeFont(.caption).foregroundStyle(.secondary)
                                 }
                             }
                             Spacer()
-                            Text("\(node.weight)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            Text("\(node.weight)").chromeFont(.caption).foregroundStyle(.secondary).monospacedDigit()
                                 .accessibilityLabel(Text("\(node.weight) backlinks"))
                         }
                     }
@@ -176,7 +176,7 @@ struct ClusterGraphView: View {
                                 Circle().fill(GraphPalette.cluster(item.cluster.id)).frame(width: 10, height: 10)
                                 Text(item.cluster.label).lineLimit(1)
                                 Spacer()
-                                Text("\(item.weight) links").font(.caption).foregroundStyle(.secondary)
+                                Text("\(item.weight) links").chromeFont(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -212,14 +212,14 @@ private struct NeighbourClusters: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                Text("Linked:").font(.caption).foregroundStyle(.secondary)
+                Text("Linked:").chromeFont(.caption).foregroundStyle(.secondary)
                 ForEach(neighbours, id: \.cluster.id) { item in
                     RouteLink(Route.graphCluster(id: item.cluster.id, focus: nil)) {
                         HStack(spacing: 4) {
                             Circle().fill(GraphPalette.cluster(item.cluster.id)).frame(width: 7, height: 7)
                             Text(item.cluster.label).lineLimit(1)
                         }
-                        .font(.caption)
+                        .chromeFont(.caption)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 6)
                     }

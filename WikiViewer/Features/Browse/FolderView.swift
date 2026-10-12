@@ -73,7 +73,7 @@ struct FolderView: View {
                                 Text(note.title).lineLimit(2)
                                 if order == .modifiedNewest, let modified = note.modified {
                                     Text(modified, format: .relative(presentation: .named))
-                                        .font(.caption)
+                                        .chromeFont(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                             }
@@ -202,11 +202,12 @@ struct AttachmentListRow: View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(asset.name)
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+                Text(detail).chromeFont(.caption).foregroundStyle(.secondary)
             }
         } icon: {
             Image(systemName: AttachmentRow.symbol(for: asset.kind))
         }
+        .listRowFont()
     }
 
     private var detail: String {
@@ -230,7 +231,7 @@ struct FolderRow: View {
                 Text(folder.name)
                 if let contents {
                     contents
-                        .font(.caption)
+                        .chromeFont(.caption)
                         .foregroundStyle(.secondary)
                 }
             }

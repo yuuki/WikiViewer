@@ -146,8 +146,9 @@ struct GraphOverviewView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(hit.note.title).foregroundStyle(.primary)
-                    Text(hit.note.folderPath.isEmpty ? "/" : hit.note.folderPath).font(.caption).foregroundStyle(.secondary)
+                    Text(hit.note.folderPath.isEmpty ? "/" : hit.note.folderPath).chromeFont(.caption).foregroundStyle(.secondary)
                 }
+                .listRowFont()
             }
         }
         .overlay {
@@ -239,13 +240,13 @@ private struct ClusterRow: View {
             Circle().fill(GraphPalette.cluster(cluster.id)).frame(width: 12, height: 12).padding(.top, 4)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(cluster.label).font(.body.weight(.semibold)).lineLimit(1)
+                    Text(cluster.label).chromeFont(.body, weight: .semibold).lineLimit(1)
                     Spacer()
-                    Text(cluster.size.formatted()).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    Text(cluster.size.formatted()).chromeFont(.caption).foregroundStyle(.secondary).monospacedDigit()
                 }
                 if let members {
                     Text(members.filter { $0.title != cluster.label }.prefix(3).map(\.title).joined(separator: " · "))
-                        .font(.caption)
+                        .chromeFont(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
