@@ -145,7 +145,9 @@ wrong, and the responses:
   the git status, diff, add and commit commands, and Write/Edit only on
   `wiki/**`. Web fetch and search are disallowed (so vault text cannot be
   sent out), other shell commands are denied, and the spend per request is
-  capped (`--max-budget-usd`). The prompt quotes the reader's text in a
+  capped (`--max-budget-usd`). Claude runs on the Mac's subscription login:
+  the runner drops API-key and provider variables, so a request cannot
+  bill an API key. The prompt quotes the reader's text in a
   fence, as data. The worker accepts an answer path only if it is an
   existing `.md` file under `wiki/`, reached without symbolic links.
 - *Prompt injection from note text.* Claude reads vault notes, which may
