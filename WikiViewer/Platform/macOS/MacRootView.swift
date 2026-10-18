@@ -131,6 +131,7 @@ struct MacRootView: View {
 
     private var documentColumn: some View {
         DocumentColumn(navigation: documents)
+            .historySwipe(documents)
             .chromeBodyFont()
             .environment(\.noteTextScale, noteTextScale * NoteTextScale.readingSize)
             .environment(documents)

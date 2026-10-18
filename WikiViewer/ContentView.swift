@@ -115,6 +115,7 @@ struct TabRoot: View {
     let tab: AppTab
     let root: Route
     @State private var navigation = NavigationModel()
+    @State private var swipeProgress: CGFloat = 0
     @Environment(AppModel.self) private var app
     /// The tab's navigation stack, restored on the next launch.
     @SceneStorage private var savedPath: Data?
@@ -131,12 +132,16 @@ struct TabRoot: View {
             LibraryReady {
                 RouteView(route: root)
             }
+            #if os(iOS)
+            .historySwipeTracker(navigation, progress: $swipeProgress)
+            #endif
             .navigationDestination(for: Route.self) {
                 RouteView(route: $0)
                     .environment(navigation)
                     .environment(\.openRoute, openRoute)
             }
         }
+        .historySwipeIndicator(swipeProgress)
         .environment(navigation)
         .environment(\.openRoute, openRoute)
         .onAppear {
