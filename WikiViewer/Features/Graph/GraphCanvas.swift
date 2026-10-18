@@ -369,6 +369,7 @@ struct GraphCanvas: View {
     /// scroll pans, and zooms with ⌘ or ⌥ held (the pinch zooms too).
     private func watchScrolling() {
         guard scrollMonitor == nil else { return }
+        HistorySwipeClaims.count += 1
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
             guard let pointer, gestureBase == nil, size != .zero else { return event }
             if let animation {
@@ -391,8 +392,10 @@ struct GraphCanvas: View {
     }
 
     private func stopWatchingScrolling() {
-        if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
-        scrollMonitor = nil
+        guard let scrollMonitor else { return }
+        NSEvent.removeMonitor(scrollMonitor)
+        HistorySwipeClaims.count -= 1
+        self.scrollMonitor = nil
     }
     #endif
 
