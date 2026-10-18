@@ -41,6 +41,14 @@ ALLOWED_TOOLS = [
 ]
 DISALLOWED_TOOLS = ["WebFetch", "WebSearch", "NotebookEdit"]
 
+# Variables that make `claude -p` bill an API key or use another provider
+# instead of the subscription login. CLAUDE_CODE_OAUTH_TOKEN (from
+# `claude setup-token`) is a subscription login and is kept.
+API_BILLING_ENV = [
+    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+]
+
 RESULT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -147,6 +155,11 @@ vault に既にあるノート(wiki の concept / source / entity と、一次�
 PROMPTS = {"ask": ask_prompt, "path": path_prompt}
 
 
+def subscription_env():
+    """This process's environment without the API-billing variables."""
+    return {k: v for k, v in os.environ.items() if k not in API_BILLING_ENV}
+
+
 def run_claude(prompt):
     claude = os.environ.get("CLAUDE_BIN") or shutil.which("claude")
     if not claude:
@@ -166,7 +179,7 @@ def run_claude(prompt):
         print(prompt, file=sys.stderr)
         print(cmd[:2] + ["<prompt>"] + cmd[3:], file=sys.stderr)
         return {"answer_path": None, "message": "dry run"}
-    proc = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    proc = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, env=subscription_env())
     sys.stderr.write(proc.stderr[-4000:])
     if proc.returncode != 0:
         # With --output-format json the reason (e.g. an expired login) is
