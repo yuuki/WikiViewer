@@ -4,9 +4,10 @@
 //
 //  The size of the text around notes: lists, the inspector, cards and
 //  status lines. iOS follows Dynamic Type. On macOS it follows System
-//  Settings > Appearance > Sidebar icon size, as Finder and Mail do, and
-//  never goes below 11 pt: the system's footnote and caption are 10 pt,
-//  too small to read beside note text.
+//  Settings > Appearance > Sidebar icon size, as Finder and Mail do, times
+//  the reader's zoom (⌘+ / ⌘-, NoteTextScale), and never goes below 11 pt:
+//  the system's footnote and caption are 10 pt, too small to read beside
+//  note text.
 //
 
 import SwiftUI
@@ -20,6 +21,8 @@ final class ChromeTextScale {
 
     /// Text size relative to the system's: 1 on iOS.
     private(set) var scale: CGFloat = 1
+    /// The reader's zoom, for the sizes of columns and panels: 1 on iOS.
+    private(set) var zoom: CGFloat = 1
 
     #if os(macOS)
     private init() {
@@ -30,10 +33,17 @@ final class ChromeTextScale {
                                                object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { ChromeTextScale.shared.update() }
         }
+        // The zoom is changed from the menu, a pinch and Settings.
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+                                               object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { ChromeTextScale.shared.update() }
+        }
     }
 
     private func update() {
-        let next = Self.scale(sidebarSizeMode: UserDefaults.standard.integer(forKey: "NSTableViewDefaultSizeMode"))
+        let zoom = CGFloat(NoteTextScale.current)
+        let next = Self.scale(sidebarSizeMode: UserDefaults.standard.integer(forKey: "NSTableViewDefaultSizeMode")) * zoom
+        if zoom != self.zoom { self.zoom = zoom }
         if next != scale { scale = next }
     }
 
@@ -61,6 +71,14 @@ extension Font.TextStyle {
         #else
         self
         #endif
+    }
+}
+
+extension ChromeTextScale {
+    /// A column's, inspector's or panel's `length` at 100% zoom, at the
+    /// reader's zoom. Read in a view's body, so it is laid out again.
+    static func zoomed(_ length: CGFloat) -> CGFloat {
+        length * shared.zoom
     }
 }
 
