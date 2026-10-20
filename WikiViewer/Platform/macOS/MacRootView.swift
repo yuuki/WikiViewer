@@ -53,15 +53,15 @@ struct MacRootView: View {
                         openDocument(route, fromSelection: true)
                     }
                         .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
-                        .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
+                        .navigationSplitViewColumnWidth(min: ChromeTextScale.zoomed(160), ideal: ChromeTextScale.zoomed(190), max: ChromeTextScale.zoomed(280))
                 } content: {
                     ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
-                        .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 420)
+                        .navigationSplitViewColumnWidth(min: ChromeTextScale.zoomed(220), ideal: ChromeTextScale.zoomed(260), max: ChromeTextScale.zoomed(420))
                 } detail: {
                     // The note is what the window is for: the other columns
                     // give way before it gets too narrow to read.
                     documentColumn
-                        .navigationSplitViewColumnWidth(min: 380, ideal: 680)
+                        .navigationSplitViewColumnWidth(min: ChromeTextScale.zoomed(380), ideal: ChromeTextScale.zoomed(680))
                 }
             }
         }

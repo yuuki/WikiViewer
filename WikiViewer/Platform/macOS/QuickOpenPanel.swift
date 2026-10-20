@@ -82,7 +82,7 @@ struct QuickOpenPanel: View {
                         .padding(.vertical, 4)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { rowsHeight = $0 }
                     }
-                    .frame(height: min(rowsHeight, 360))
+                    .frame(height: min(rowsHeight, ChromeTextScale.zoomed(360)))
                     .onChange(of: highlighted) { proxy.scrollTo(highlighted) }
                 }
             } else if !query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -92,7 +92,7 @@ struct QuickOpenPanel: View {
                     .padding(16)
             }
         }
-        .frame(width: 560)
+        .frame(width: ChromeTextScale.zoomed(560))
         .background(.regularMaterial, in: .rect(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.separator))
         .shadow(radius: 24, y: 8)

@@ -68,7 +68,7 @@ private struct GraphCardModifier<Card: View>: ViewModifier {
                         }
                     }
                 }
-                .inspectorColumnWidth(min: 220, ideal: 280, max: 1000)
+                .inspectorColumnWidth(min: ChromeTextScale.zoomed(220), ideal: ChromeTextScale.zoomed(280), max: 1000)
             }
         #else
         content.safeAreaInset(edge: .bottom) { card() }
@@ -175,7 +175,7 @@ struct NodeCard: View {
             } label: {
                 HStack(spacing: 4) {
                     Circle().fill(GraphPalette.cluster(n.node.cluster)).frame(width: 7, height: 7)
-                    Text(n.node.title).lineLimit(1).frame(maxWidth: 170, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                    Text(n.node.title).lineLimit(1).frame(maxWidth: ChromeTextScale.zoomed(170), alignment: .leading).fixedSize(horizontal: false, vertical: true)
                     if n.node.cluster != node.cluster, n.node.cluster != nil {
                         Image(systemName: "arrow.up.right").imageScale(.small).foregroundStyle(.secondary)
                     }

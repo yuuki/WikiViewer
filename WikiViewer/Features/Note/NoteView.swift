@@ -133,7 +133,7 @@ struct NoteView: View {
                         Color.clear
                     }
                 }
-                .inspectorColumnWidth(min: 220, ideal: 280, max: 1000)
+                .inspectorColumnWidth(min: ChromeTextScale.zoomed(220), ideal: ChromeTextScale.zoomed(280), max: 1000)
             }
             #endif
             .task(id: library.session?.id) {

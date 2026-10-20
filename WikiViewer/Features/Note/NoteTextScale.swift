@@ -5,7 +5,9 @@
 //  The size of note text. iOS follows Dynamic Type; macOS has none (a
 //  `dynamicTypeSize` is ignored there), so the reader picks a scale with
 //  ⌘+ / ⌘- / ⌘0 or a trackpad pinch, and note text is drawn at the text
-//  style's size times it.
+//  style's size times it. The scale zooms the rest of the window too: the
+//  text around notes and the widths of columns and panels
+//  (ChromeTextScale).
 //
 
 import SwiftUI
