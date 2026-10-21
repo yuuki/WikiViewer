@@ -103,6 +103,22 @@ struct LibraryHomeSections: View {
             }
             .listRowSection("requests")
         }
+        if feed.recallDue > 0 {
+            Section {
+                RouteLink(Route.recall) {
+                    Label {
+                        HStack {
+                            Text("Recall")
+                            Spacer()
+                            Text("\(feed.recallDue) questions").font(.caption).foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "brain")
+                    }
+                }
+            }
+            .listRowSection("recall")
+        }
         LearningPathsHomeSection(paths: feed.paths, hasMore: feed.morePaths)
         if !listedRecents.isEmpty {
             Section {
@@ -148,8 +164,12 @@ final class HomeFeed {
     private(set) var digest: ChangeDigest?
     private(set) var paths: [NoteSummary] = []
     private(set) var morePaths = false
+    /// Recall questions due today (#40).
+    private(set) var recallDue = 0
 
-    func load(session: LibrarySession, digestState: DigestState) async {
+    func load(session: LibrarySession, digestState: DigestState, recall: RecallStore) async {
+        let items = (try? await session.recall.items()) ?? []
+        recallDue = recall.queue(items).count
         let start = await digestState.start(in: session)
         digest = try? await session.changes.digest(after: start)
         if let folder = try? await session.folders.folderID(path: LearningPathsHomeSection.folder),

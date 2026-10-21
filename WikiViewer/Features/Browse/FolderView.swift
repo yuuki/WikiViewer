@@ -19,6 +19,7 @@ struct FolderView: View {
     /// What the home sections show beyond history (root only).
     @State private var feed = HomeFeed()
     @Environment(DigestState.self) private var digestState
+    @Environment(RecallStore.self) private var recallStore
     @State private var viewingAsset: AssetInfo?
     /// Refreshed every minute so the snapshot's age stays right.
     @State private var now = Date.now
@@ -164,7 +165,7 @@ struct FolderView: View {
         }
         .task(id: DigestHomeSection.TaskKey(session: library.session?.id, baseline: digestState.baseline, range: digestState.range)) {
             guard path.isEmpty, let session = library.session else { return }
-            await feed.load(session: session, digestState: digestState)
+            await feed.load(session: session, digestState: digestState, recall: recallStore)
         }
     }
 }

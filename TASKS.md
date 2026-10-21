@@ -291,6 +291,10 @@ not the source of truth. Legend: `[x]` done, `[~]` in progress, `[ ]` todo,
       summary.json); `scripts/reading-signals.py` (top, unconceptualized)
 - [-] #42 Wiring the vault's hn-curation / wiki-survey-recommend skills to
       summary.json is a vault change (outside this repository)
+- [x] #40 Recall practice: `scripts/make-recall.py` (questions about
+      notes read 2–14 days ago, by Claude or `--mechanical`), schema 7
+      `recall_items`, `RecallCard`/`RecallQueue` (FSRS-style, daily limits,
+      discard), home row and recall screen with a jump to the section
 - [-] #34 A real Claude run was not verified in development (the CLI's
       login had expired there); the runner was checked with a dry run and
       the round trip with a stand-in runner

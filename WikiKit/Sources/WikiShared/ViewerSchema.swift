@@ -3,10 +3,11 @@
 //  WikiShared
 //
 
-/// SQLite schema of the published viewer database (schema version 6:
+/// SQLite schema of the published viewer database (schema version 7:
 /// version 1 plus the Obsidian Bases tables (2), the link graph (3), the
 /// record of what changed between generations (4) and the host's extras:
-/// role-labelled neighbours (5), cluster summaries and gaps (6).
+/// role-labelled neighbours (5), cluster summaries and gaps (6), recall
+/// questions (7).
 ///
 /// The builder database uses exactly these tables plus builder-only tables
 /// (see `builderOnlyTables`), which are emptied in every published snapshot.
@@ -46,7 +47,7 @@ public enum ViewerSchema {
         "bases", "base_cells", "base_rows", "base_groups",
         "graph_clusters", "graph_cluster_links", "graph_nodes", "graph_types",
         "generation_log", "change_log", "log_entries",
-        "related", "graph_cluster_notes", "graph_gaps",
+        "related", "graph_cluster_notes", "graph_gaps", "recall_items",
     ]
 
     public static let builderOnlyTables = ["builder_state", "asset_derivatives", "pending_changes"]
@@ -426,6 +427,22 @@ public enum ViewerSchema {
         """,
         "CREATE INDEX graph_gaps_cluster_a ON graph_gaps(cluster_a)",
         "CREATE INDEX graph_gaps_cluster_b ON graph_gaps(cluster_b)",
+        // Questions to recall what was read (version 7, `<extras>/recall.json`):
+        // id is stable across publications (the device keeps its schedule
+        // by it); heading the section the answer is in; created the day
+        // the question was made (YYYY-MM-DD). At most
+        // Extras.maximumRecallItems rows, newest kept.
+        """
+        CREATE TABLE recall_items(
+          id TEXT PRIMARY KEY NOT NULL,
+          note_id INTEGER NOT NULL,
+          heading TEXT,
+          question TEXT NOT NULL,
+          answer TEXT NOT NULL,
+          created TEXT NOT NULL
+        ) WITHOUT ROWID
+        """,
+        "CREATE INDEX recall_items_created ON recall_items(created, id)",
         // Builder-only tables. Present in snapshots but emptied.
         """
         CREATE TABLE builder_state(

@@ -465,6 +465,15 @@ indexer's cluster ids — the vault's own rule keeps cluster ids out of wiki
 pages — and marked stale when the cluster's members move on. Gaps are
 resolved to notes and clusters on the host and drawn as dashed links.
 
+Recall practice (schema 7) splits the same way. What to ask is made on
+the Mac: `scripts/make-recall.py` picks notes the reading history says
+were read a few days ago and has Claude (or, with `--mechanical`, the
+note's own sections) write questions with answers and the section they
+come from, kept by a stable id. When to ask is the device's: a small
+FSRS-style scheduler (stability and difficulty per question, moved by the
+reader's grade) and daily limits, stored on the device, since the
+reader's memory, not the vault, decides it.
+
 ### Swift for the indexer
 
 The brief preferred Rust for the host side. Swift was chosen because the
