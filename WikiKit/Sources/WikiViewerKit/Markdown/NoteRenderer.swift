@@ -56,6 +56,7 @@ extension RenderBlock {
         case .heading(_, let text), .paragraph(let text): String(text.characters)
         case .code(_, let code, _): code
         case .math(let latex): latex
+        case .mermaid(let chart, _): chart.plainText
         case .quote(let children): children.map(\.plainText).joined(separator: "\n")
         case .callout(_, let title, _, let children): ([String(title.characters)] + children.map(\.plainText)).joined(separator: "\n")
         case .listItem(_, _, let blocks): blocks.map(\.plainText).joined(separator: "\n")
@@ -89,6 +90,9 @@ public struct RenderBlock: Identifiable, Sendable {
         case embed(EmbedTarget)
         /// `$$…$$` display math, as LaTeX source.
         case math(String)
+        /// A ```` ```mermaid ```` flowchart, with its source (for copying,
+        /// and for when it cannot be drawn).
+        case mermaid(MermaidFlowchart, source: String)
         case html(String)
     }
 }
@@ -475,6 +479,10 @@ struct BlockBuilder {
             var text = code.code
             if text.hasSuffix("\n") { text.removeLast() }
             let language = code.language.flatMap { $0.isEmpty ? nil : $0 }
+            if language?.lowercased() == "mermaid", let chart = MermaidFlowchart(source: text),
+               chart.nodes.count <= MermaidLayout.maxNodes, chart.edges.count <= MermaidLayout.maxEdges {
+                return [RenderBlock(id: makeID(), kind: .mermaid(chart, source: text))]
+            }
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
             guard lines.count > Self.codeLinesPerBlock else {
                 return [RenderBlock(id: makeID(), kind: .code(language: language, code: text, continuation: false))]
