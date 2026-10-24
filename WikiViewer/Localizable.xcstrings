@@ -596,6 +596,16 @@
         }
       }
     },
+    "Copy Mermaid Source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mermaid のソースをコピー"
+          }
+        }
+      }
+    },
     "Copy Note Text": {
       "localizations": {
         "ja": {
@@ -932,6 +942,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "タイトル・別名・本文でノートを探せます。"
+          }
+        }
+      }
+    },
+    "Flowchart": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フローチャート"
           }
         }
       }

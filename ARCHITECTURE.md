@@ -301,7 +301,10 @@ native SwiftUI views; there is no web view. Obsidian-specific syntax
 elements using the shared scanner rather than by text substitution, so
 syntax inside code or comments is not misinterpreted. LaTeX math (`$…$`,
 `$$…$$`) is lifted out before Markdown parsing and typeset natively with
-SwiftMath. Very long lists, code
+SwiftMath. Mermaid flowcharts (```` ```mermaid ```` blocks starting with
+`flowchart` or `graph`) are parsed and laid out in Swift (a layered layout
+like Mermaid's own, with subgraphs laid out inside out) and drawn with a
+Canvas, so they need no JavaScript either. Very long lists, code
 blocks and tables are split so that even a huge note is laid out lazily.
 
 ### Obsidian Bases are evaluated on the host
@@ -501,7 +504,7 @@ embeds of images, notes and note sections; Markdown links to notes and
 attachments; YAML frontmatter (shown as properties; wikilinks in string
 values such as `up: "[[Home]]"` are links and count as backlinks), aliases,
 frontmatter and inline tags (including nested tags); headings and callouts; unresolved links;
-inline and display LaTeX math; Obsidian Bases (`.base` files: filters,
+inline and display LaTeX math; Mermaid flowcharts; Obsidian Bases (`.base` files: filters,
 formulas, property display names, sorting, grouping and several views).
 The reference is Obsidian's public documentation; no Obsidian code is used.
 
@@ -520,6 +523,12 @@ The reference is Obsidian's public documentation; no Obsidian code is used.
   their addresses online, not the page a claim comes from.
 - Math is typeset by SwiftMath, which covers common LaTeX math but not all
   of MathJax; a formula it cannot parse is shown as its source.
+- Of Mermaid, only flowcharts are drawn (node shapes, edge styles and
+  labels, subgraphs and their directions); other diagram types are shown as
+  source, and styling (`style`, `classDef`, `linkStyle`) and `click` are
+  ignored. Flowcharts of more than 400 nodes stay source too. The
+  layout is close to Mermaid's but not identical. A label is plain text:
+  Markdown and HTML in it are not rendered (`<br>` breaks the line).
 - "What changed" attributes a change to the note's author, not to whoever
   edited it last, and keeps 30 days.
 - Bases: views are shown as lists (table, cards and list views alike, one row

@@ -68,6 +68,8 @@ struct BlockView: View {
             EmbedView(target: target)
         case .math(let latex):
             MathBlockView(latex: latex)
+        case .mermaid(let chart, let source):
+            MermaidView(chart: chart, source: source)
         case .html(let raw):
             Text(raw)
                 .noteFont(.noteDetail, design: .monospaced)
