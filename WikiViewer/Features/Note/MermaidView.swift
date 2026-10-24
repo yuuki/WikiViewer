@@ -5,7 +5,8 @@
 //  Draws a Mermaid flowchart natively: MermaidLayout places it, a Canvas
 //  draws it. Labels are measured with the platform font they are drawn in.
 //  A chart wider than the page is scaled down to fit, to a limit, and
-//  scrolls sideways beyond it.
+//  scrolls sideways beyond it. A tap opens the whole chart full screen,
+//  where it zooms and pans like an image.
 //
 
 import SwiftUI
@@ -22,6 +23,7 @@ struct MermaidView: View {
     let chart: MermaidFlowchart
     let source: String
     @State private var availableWidth: CGFloat?
+    @State private var showingFullScreen = false
 
     /// Smaller than this, labels get hard to read: scroll instead.
     static let minimumScale: CGFloat = 0.7
@@ -38,11 +40,25 @@ struct MermaidView: View {
                 diagram.frame(maxWidth: .infinity)
             } else {
                 HorizontalScroll { diagram }
+                    .overlay(alignment: .topTrailing) {
+                        // Says that part of the chart is out of view.
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .noteFont(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(6)
+                            .background(.regularMaterial, in: .circle)
+                            .accessibilityHidden(true)
+                    }
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
         .padding(.vertical, 4)
+        .contentShape(.rect)
+        .onTapGesture { showingFullScreen = true }
         .contextMenu {
+            Button("Show Whole Chart", systemImage: "arrow.up.left.and.arrow.down.right") {
+                showingFullScreen = true
+            }
             Button("Copy Mermaid Source", systemImage: "doc.on.doc") {
                 Pasteboard.copy(source)
             }
@@ -50,6 +66,74 @@ struct MermaidView: View {
         .accessibilityElement()
         .accessibilityLabel(Text("Flowchart"))
         .accessibilityValue(Text(verbatim: chart.plainText))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Text("Shows the whole chart"))
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showingFullScreen) {
+            MermaidViewer(layout: layout, fontSize: fontSize, source: source)
+        }
+        #else
+        .sheet(isPresented: $showingFullScreen) {
+            MermaidViewer(layout: layout, fontSize: fontSize, source: source)
+                .frame(minWidth: 600, idealWidth: 900, minHeight: 450, idealHeight: 700)
+        }
+        #endif
+    }
+}
+
+/// The whole chart, fitted to the screen: pinch or double-tap to zoom in,
+/// drag to pan. Drawn once into an image, so zooming stays smooth.
+private struct MermaidViewer: View {
+    let layout: MermaidLayout
+    let fontSize: CGFloat
+    let source: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var image: CGImage?
+
+    /// Sharp at 3× zoom, bounded so a huge chart never becomes a huge bitmap.
+    static let maxPixelSize: CGFloat = 6144
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let image {
+                    ZoomableImage(image: image, scale: renderScale, label: String(localized: "Flowchart"))
+                        .padding()
+                } else {
+                    ProgressView()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.platformBackground)
+            .navigationTitle("Flowchart")
+            .inlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", systemImage: "xmark") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Copy Mermaid Source", systemImage: "doc.on.doc") {
+                        Pasteboard.copy(source)
+                    }
+                }
+            }
+        }
+        .task(id: colorScheme) { render() }
+    }
+
+    private var renderScale: CGFloat {
+        let side = max(layout.size.width, layout.size.height, 1)
+        return min(displayScale * 3, Self.maxPixelSize / side)
+    }
+
+    private func render() {
+        let renderer = ImageRenderer(content: MermaidCanvas(layout: layout, fontSize: fontSize, scale: 1)
+            .frame(width: layout.size.width, height: layout.size.height)
+            .environment(\.colorScheme, colorScheme))
+        renderer.scale = renderScale
+        image = renderer.cgImage
     }
 }
 
@@ -153,8 +237,10 @@ private struct MermaidCanvas: View {
     }
 
     private func draw(_ node: MermaidLayout.Node, in context: GraphicsContext) {
-        let fill = GraphicsContext.Shading.color(Color.accentColor.opacity(0.12))
-        let stroke = GraphicsContext.Shading.color(Color.accentColor.opacity(0.7))
+        // The asset itself: ImageRenderer (MermaidViewer) does not resolve
+        // Color.accentColor to the app's accent.
+        let fill = GraphicsContext.Shading.color(Color("AccentColor").opacity(0.12))
+        let stroke = GraphicsContext.Shading.color(Color("AccentColor").opacity(0.7))
         // Opaque under the tint, so edges and clusters do not show through.
         let background = GraphicsContext.Shading.color(Color.platformBackground)
         let (outline, detail) = Self.shape(node.shape, in: node.frame, unit: unit)
