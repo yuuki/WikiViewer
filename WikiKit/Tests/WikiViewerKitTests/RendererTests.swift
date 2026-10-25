@@ -339,6 +339,43 @@ import WikiShared
         #expect(rendered.blocks.allSatisfy { math(in: ($0.kind.paragraphText ?? AttributedString())).isEmpty })
     }
 
+    @Test func footnotes() throws {
+        let body = """
+        Lost events are not reported[^profinfer]. See also [^rdmatracer][^profinfer].
+        Undefined [^nope] and `code [^profinfer]` stay text.
+
+        ## 出典
+
+        [^rdmatracer]: [[RDMATracer]]
+        [^profinfer]: ProfInfer, *MLSys* 2026
+        [^unused]: Never cited
+        ```
+        [^profinfer]: in code
+        ```
+        """
+        let rendered = NoteRenderer.render(body: body, noteID: 7, links: [link(0, "RDMATracer", note: 3)])
+        let text = paragraphs(rendered)[0]
+        #expect(String(text.characters) == "Lost events are not reported[1]. See also [2][1]. Undefined [^nope] and code [^profinfer] stay text.")
+        #expect(text.runs.compactMap { $0[FootnoteAttribute.self] } == [1, 2, 1])
+        let refs = links(in: text)
+        #expect(refs.map(\.0) == ["[1]", "[2]", "[1]"])
+        #expect(refs[0].1 == .note(id: 7, heading: nil, blockID: "fn:profinfer"))
+        #expect(refs[1].1 == .note(id: 7, heading: nil, blockID: "fn:rdmatracer"))
+
+        let items = rendered.blocks.compactMap { block -> (ListMarker, String, Int)? in
+            guard case .listItem(let marker, _, let blocks) = block.kind else { return nil }
+            return (marker, blocks.map(\.plainText).joined(), block.id)
+        }
+        #expect(items.map(\.0) == [.number(2), .number(1), .number(3)], "numbered in order of first reference")
+        #expect(items.map(\.1) == ["RDMATracer ↩\u{FE0E}", "ProfInfer, MLSys 2026 ↩\u{FE0E}", "Never cited"])
+        #expect(rendered.blockAnchors["fn:profinfer"] == items[1].2)
+        #expect(rendered.blockAnchors["fnref:profinfer"] == rendered.blocks.first?.id)
+        guard case .listItem(_, _, let first) = rendered.blocks.first(where: { $0.id == items[0].2 })?.kind,
+              case .paragraph(let definition) = first.first?.kind else { Issue.record("definition"); return }
+        #expect(links(in: definition).map(\.1) == [.note(id: 3, heading: nil, blockID: nil), .note(id: 7, heading: nil, blockID: "fnref:rdmatracer")])
+        #expect(rendered.blocks.last.map { if case .code(_, let code, _) = $0.kind { code } else { "" } } == "[^profinfer]: in code")
+    }
+
     @Test func urlRoundTrip() {
         for action: WikiLinkAction in [.note(id: 3, heading: "日本 語", blockID: nil), .note(id: 4, heading: nil, blockID: "b-1"), .missing(target: "a/b c#?"), .missing(target: "Tom & Jerry = x+y"), .note(id: 5, heading: "Q&A", blockID: nil), .tag("タグ/x"), .asset(id: 9)] {
             #expect(WikiLinkAction(url: action.url) == action)
