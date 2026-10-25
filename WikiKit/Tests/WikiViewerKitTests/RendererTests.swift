@@ -374,6 +374,12 @@ import WikiShared
               case .paragraph(let definition) = first.first?.kind else { Issue.record("definition"); return }
         #expect(links(in: definition).map(\.1) == [.note(id: 3, heading: nil, blockID: nil), .note(id: 7, heading: nil, blockID: "fnref:rdmatracer")])
         #expect(rendered.blocks.last.map { if case .code(_, let code, _) = $0.kind { code } else { "" } } == "[^profinfer]: in code")
+
+        let preview = try #require(rendered.footnoteDefinition(for: refs[1].1!.url, noteID: 7))
+        #expect(preview.map(\.plainText) == ["RDMATracer"], "without the link back")
+        #expect(links(in: try #require(preview.first?.kind.paragraphText)).map(\.1) == [.note(id: 3, heading: nil, blockID: nil)])
+        #expect(rendered.footnoteDefinition(for: refs[1].1!.url, noteID: 8) == nil, "another note's footnote")
+        #expect(rendered.footnoteDefinition(for: WikiLinkAction.note(id: 7, heading: nil, blockID: nil).url, noteID: 7) == nil)
     }
 
     @Test func urlRoundTrip() {

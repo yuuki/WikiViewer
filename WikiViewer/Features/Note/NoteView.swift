@@ -319,6 +319,7 @@ struct NoteView: View {
                     if let position { history.setPosition(position, of: path) }
                 }
                 .environment(\.embeddedAssets, model.embeddedAssets)
+                .environment(\.footnoteDefinitions, model.footnotes)
                 .environment(\.openURL, linkAction(session: session, detail: detail))
             }
         }
@@ -351,7 +352,11 @@ final class NoteModel {
 
     private(set) var phase: Phase = .loading
     private(set) var detail: NoteDetail?
-    private(set) var rendered: RenderedNote?
+    private(set) var rendered: RenderedNote? {
+        didSet { footnotes = rendered.flatMap { FootnoteDefinitions(noteID: detail?.id, rendered: $0) } }
+    }
+    /// Made once per rendering: views compare it by identity.
+    private(set) var footnotes: FootnoteDefinitions?
     private(set) var tags: [TagSummary] = []
     /// Outgoing link rows; the header resolves frontmatter wikilinks with them.
     private(set) var links: [OutgoingLink] = []

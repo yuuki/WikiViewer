@@ -45,6 +45,29 @@ extension RenderedNote {
         return blocks.filter { $0.plainText.range(of: needle, options: Self.matchOptions) != nil }.map(\.id)
     }
 
+    /// The definition a footnote reference links to (`url`), without its
+    /// link back to the reference: what a preview of the footnote shows.
+    /// Nil if `url` is not a footnote link of note `noteID`.
+    public func footnoteDefinition(for url: URL, noteID: Int64) -> [RenderBlock]? {
+        guard case .note(noteID, nil, let anchor?) = WikiLinkAction(url: url), anchor.hasPrefix("fn:"),
+              let id = blockAnchors[anchor], let block = blocks.first(where: { $0.id == id }),
+              case .listItem(_, _, let content) = block.kind else { return nil }
+        return content.map { block in
+            guard case .paragraph(var text) = block.kind else { return block }
+            for run in text.runs.reversed() {
+                if let link = run.link, case .note(_, _, let b?) = WikiLinkAction(url: link), b.hasPrefix("fnref:") {
+                    text.removeSubrange(run.range)
+                }
+            }
+            while let last = text.characters.last, last.isWhitespace {
+                text.removeSubrange(text.index(beforeCharacter: text.endIndex)..<text.endIndex)
+            }
+            var block = block
+            block.kind = .paragraph(text)
+            return block
+        }
+    }
+
     /// How find in note and search matches compare text.
     public static let matchOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
 }
