@@ -125,9 +125,12 @@ build_settings() {
 
 # Moves Xcode's cached Personal Team profiles for this app ID aside, so the
 # build asks Apple for a new 7-day profile instead of reusing one that has
-# only days left. Moved, not deleted: they are under $STATE_DIR/old-profiles.
+# only days left. Moved, not deleted: they are under $STATE_DIR/old-profiles,
+# and RETIRED lists them for restore_profiles.
+RETIRED=()
 retire_profiles() {
   local app_id="$1" dir f id
+  RETIRED=()
   mkdir -p "$STATE_DIR/old-profiles"
   for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
              "$HOME/Library/MobileDevice/Provisioning Profiles"; do
@@ -138,10 +141,23 @@ retire_profiles() {
         plutil -extract Entitlements.application-identifier raw -o - - 2>/dev/null) || continue
       if [ "$id" = "$app_id" ]; then
         mv "$f" "$STATE_DIR/old-profiles/"
+        RETIRED+=("$f")
         log "retired cached profile $(basename "$f")"
       fi
     done
   done
+}
+
+# Puts the profiles retire_profiles moved back, after a build that got no
+# new one: the old profile may still have days left, and without it
+# Xcode (and scripts/device.sh) cannot sign the app at all.
+restore_profiles() {
+  local f
+  for f in ${RETIRED[@]+"${RETIRED[@]}"}; do
+    [ -e "$f" ] && continue
+    mv "$STATE_DIR/old-profiles/$(basename "$f")" "$f" && log "restored cached profile $(basename "$f")"
+  done
+  RETIRED=()
 }
 
 build() {
@@ -168,6 +184,10 @@ build() {
       build > "$blog" 2>&1; then
     log "error: xcodebuild failed; see $blog"
     grep -E 'error:|Signing|provisioning' "$blog" | tail -5 | sed 's/^/  /' | tee -a "$LOG" >&2
+    if grep -q 'No Accounts' "$blog"; then
+      log "error: Xcode is signed out; sign in under Xcode > Settings > Accounts"
+    fi
+    restore_profiles
     return 1
   fi
   ls -1t "$LOG_DIR"/build-*.log | tail -n +11 | while read -r f; do rm -f "$f"; done
