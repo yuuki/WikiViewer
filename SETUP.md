@@ -407,7 +407,13 @@ The iPhone must be paired, on the same network and **unlocked since it last
 locked recently**: iOS refuses an install to a phone that has stayed locked
 ("The device has not been unlocked recently"). Such a run fails and the next
 one retries with the app it already built; a notification appears when less
-than a day is left. Logs and the xcodebuild output of each build are in
+than a day is left.
+
+Xcode sometimes removes its Apple account by itself, a few days after you
+sign in, and then no renewal can sign the app. Every run checks for this, due
+or not, and posts one notification when the account is gone; sign in again
+under **Xcode → Settings → Accounts**. `scripts/resign.sh status` shows the
+account state too. Logs and the xcodebuild output of each build are in
 `~/Library/Logs/WikiViewerResign/`; the state and the build worktree are in
 `~/Library/Application Support/WikiViewerResign/`.
 
