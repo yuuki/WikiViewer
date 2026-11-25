@@ -128,14 +128,14 @@ struct TagRow: View {
                 Text(name)
                 if hasChildren {
                     Text("Has nested tags")
-                        .font(.caption)
+                        .chromeFont(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             Spacer()
             if count > 0 {
                 Text("\(count)")
-                    .font(.footnote.monospacedDigit())
+                    .chromeFont(.footnote).monospacedDigit()
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(Text("^[\(count) note](inflect: true)"))
             }
@@ -171,7 +171,7 @@ struct TagNotesView: View {
                             Text(note.title)
                             if !note.folderPath.isEmpty {
                                 Text(note.folderPath)
-                                    .font(.caption)
+                                    .chromeFont(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }

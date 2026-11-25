@@ -14,6 +14,10 @@ import WikiViewerKit
 
 @MainActor
 final class MacAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NoteTextScaleKeys.install()
+    }
+
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         guard let history = DockMenu.history else { return nil }
         let menu = NSMenu()

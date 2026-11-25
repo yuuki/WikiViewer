@@ -159,7 +159,7 @@ struct NotePreviewCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.title3.bold())
+            Text(title).chromeFont(.title3, weight: .bold)
             if let blocks {
                 ForEach(blocks.prefix(Self.maxBlocks)) { BlockView(block: $0) }
             } else {
@@ -168,7 +168,7 @@ struct NotePreviewCard: View {
             Spacer(minLength: 0)
         }
         .padding(16)
-        .frame(width: 340, height: 420, alignment: .topLeading)
+        .frame(width: ChromeTextScale.zoomed(340), height: ChromeTextScale.zoomed(420), alignment: .topLeading)
         .clipped()
         .task {
             guard let session, let id = try? await session.notes.noteID(path: path),

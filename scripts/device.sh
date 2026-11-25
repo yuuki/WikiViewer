@@ -21,7 +21,7 @@ devices() {
   xcrun devicectl list devices -q --json-output /dev/stdout 2>/dev/null | python3 -c '
 import json, sys
 devs = [d for d in json.load(sys.stdin)["result"]["devices"]
-        if d["hardwareProperties"].get("reality") == "physical"
+        if d["hardwareProperties"].get("reality") != "simulated"
         and d["connectionProperties"].get("pairingState") == "paired"]
 devs.sort(key=lambda d: d["connectionProperties"].get("tunnelState") != "connected")
 for d in devs:
@@ -47,7 +47,7 @@ build() {
   udid=$(find_udid)
   xcodebuild -project WikiViewer.xcodeproj -scheme WikiViewer \
     -destination "id=$udid" -derivedDataPath "$DERIVED" \
-    -allowProvisioningUpdates -quiet build
+    -allowProvisioningUpdates -allowProvisioningDeviceRegistration -quiet build
   echo "$APP"
 }
 

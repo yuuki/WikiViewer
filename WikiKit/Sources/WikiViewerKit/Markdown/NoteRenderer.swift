@@ -45,6 +45,29 @@ extension RenderedNote {
         return blocks.filter { $0.plainText.range(of: needle, options: Self.matchOptions) != nil }.map(\.id)
     }
 
+    /// The definition a footnote reference links to (`url`), without its
+    /// link back to the reference: what a preview of the footnote shows.
+    /// Nil if `url` is not a footnote link of note `noteID`.
+    public func footnoteDefinition(for url: URL, noteID: Int64) -> [RenderBlock]? {
+        guard case .note(noteID, nil, let anchor?) = WikiLinkAction(url: url), anchor.hasPrefix("fn:"),
+              let id = blockAnchors[anchor], let block = blocks.first(where: { $0.id == id }),
+              case .listItem(_, _, let content) = block.kind else { return nil }
+        return content.map { block in
+            guard case .paragraph(var text) = block.kind else { return block }
+            for run in text.runs.reversed() {
+                if let link = run.link, case .note(_, _, let b?) = WikiLinkAction(url: link), b.hasPrefix("fnref:") {
+                    text.removeSubrange(run.range)
+                }
+            }
+            while let last = text.characters.last, last.isWhitespace {
+                text.removeSubrange(text.index(beforeCharacter: text.endIndex)..<text.endIndex)
+            }
+            var block = block
+            block.kind = .paragraph(text)
+            return block
+        }
+    }
+
     /// How find in note and search matches compare text.
     public static let matchOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
 }
@@ -56,6 +79,7 @@ extension RenderBlock {
         case .heading(_, let text), .paragraph(let text): String(text.characters)
         case .code(_, let code, _): code
         case .math(let latex): latex
+        case .mermaid(let chart, _): chart.plainText
         case .quote(let children): children.map(\.plainText).joined(separator: "\n")
         case .callout(_, let title, _, let children): ([String(title.characters)] + children.map(\.plainText)).joined(separator: "\n")
         case .listItem(_, _, let blocks): blocks.map(\.plainText).joined(separator: "\n")
@@ -89,6 +113,9 @@ public struct RenderBlock: Identifiable, Sendable {
         case embed(EmbedTarget)
         /// `$$…$$` display math, as LaTeX source.
         case math(String)
+        /// A ```` ```mermaid ```` flowchart, with its source (for copying,
+        /// and for when it cannot be drawn).
+        case mermaid(MermaidFlowchart, source: String)
         case html(String)
     }
 }
@@ -97,6 +124,13 @@ public enum ListMarker: Sendable, Equatable {
     case bullet
     case number(Int)
     case task(done: Bool)
+}
+
+/// Marks a footnote reference in a paragraph's AttributedString, with its
+/// number. The run's characters are "[1]"; the view sets it superscript.
+public enum FootnoteAttribute: AttributedStringKey {
+    public typealias Value = Int
+    public static let name = "WikiViewer.footnote"
 }
 
 /// Marks inline `$…$` math in a paragraph's AttributedString. The run's
@@ -119,16 +153,18 @@ public enum NoteRenderer {
     public static func render(body: String, noteID: Int64, links: [OutgoingLink], allowEmbeds: Bool = true) -> RenderedNote {
         let pre = Preprocessor.run(body: body, noteID: noteID, links: links, allowEmbeds: allowEmbeds)
         let document = Document(parsing: pre.text)
-        var builder = BlockBuilder(embeds: pre.embeds, math: pre.math)
+        var builder = BlockBuilder(embeds: pre.embeds, math: pre.math, footnotes: pre.footnotes)
         var blocks: [RenderBlock] = []
         for child in document.children {
             blocks.append(contentsOf: builder.blocks(for: child))
         }
-        // Each ^block-id belongs to the last top-level block starting at or
-        // before its line. Both sequences are in document order: one linear pass.
+        // Each ^block-id (and footnote anchor) belongs to the last top-level
+        // block starting at or before its line. Both sequences are in
+        // document order: one linear pass.
         var blockAnchors: [String: Int] = [:]
         var owner = 0
-        for (line, blockID) in pre.blockIDsByLine.sorted(by: { $0.key < $1.key }) where !blocks.isEmpty {
+        let lineAnchors = pre.blockIDsByLine.map { (line: $0.key, id: $0.value) } + pre.footnoteAnchors
+        for (line, blockID) in lineAnchors.sorted(by: { $0.line < $1.line }) where !blocks.isEmpty {
             while owner + 1 < blocks.count, blocks[owner + 1].line <= line { owner += 1 }
             blockAnchors[blockID] = blockAnchors[blockID] ?? blocks[owner].id
         }
@@ -300,10 +336,19 @@ struct Preprocessor {
         var embeds: [Int: EmbedTarget]
         var math: [Int: ScannedMath]
         var blockIDsByLine: [Int: String]
+        var footnotes: [Int: FootnoteMark] = [:]
+        /// Block anchors of footnote definitions and first references, by line.
+        var footnoteAnchors: [(line: Int, id: String)] = []
     }
 
     static let embedPrefix = "wikiviewer://embed/"
     static let mathPrefix = "wikiviewer://math/"
+    static let footnotePrefix = "wikiviewer://footnote/"
+
+    /// Block anchor of footnote `label`'s definition, and of its first
+    /// reference. Obsidian block IDs have no ":", so these cannot clash.
+    static func footnoteAnchor(_ label: String) -> String { "fn:" + label }
+    static func footnoteReferenceAnchor(_ label: String) -> String { "fnref:" + label }
 
     static func run(body: String, noteID: Int64, links: [OutgoingLink], allowEmbeds: Bool) -> Output {
         let scanned = ObsidianScanner().scan(body)
@@ -340,6 +385,42 @@ struct Preprocessor {
         for block in scanned.blockIDs {
             edits.append((block.range, .remove))
             blockIDsByLine[block.line] = block.id
+        }
+        // Footnotes are numbered in the order of their first reference, then
+        // unreferenced definitions in order. A reference becomes a "[1]"
+        // placeholder image linking to its definition; a definition becomes
+        // a numbered list item, ending with a link back to the reference.
+        let scannedFootnotes = FootnoteScanner().scan(body)
+        var footnotes: [Int: FootnoteMark] = [:]
+        var footnoteAnchors: [(line: Int, id: String)] = []
+        var numbers: [String: Int] = [:]
+        for label in scannedFootnotes.references.map(\.label) + scannedFootnotes.definitions.map(\.label) where numbers[label] == nil {
+            numbers[label] = numbers.count + 1
+        }
+        var referenced: Set<String> = []
+        for reference in scannedFootnotes.references {
+            guard let number = numbers[reference.label] else { continue }
+            if referenced.insert(reference.label).inserted {
+                footnoteAnchors.append((reference.line, footnoteReferenceAnchor(reference.label)))
+            }
+            let index = footnotes.count
+            let url = WikiLinkAction.note(id: noteID, heading: nil, blockID: footnoteAnchor(reference.label)).url
+            footnotes[index] = .reference(number: number, url: url)
+            edits.append((reference.range, .replace("![](\(footnotePrefix)\(index))")))
+        }
+        var defined: Set<String> = []
+        for definition in scannedFootnotes.definitions {
+            guard let number = numbers[definition.label] else { continue }
+            if defined.insert(definition.label).inserted {
+                footnoteAnchors.append((definition.line, footnoteAnchor(definition.label)))
+            }
+            let index = footnotes.count
+            footnotes[index] = .definition(number: number)
+            edits.append((definition.range, .replace("- ![](\(footnotePrefix)\(index)) ")))
+            if referenced.contains(definition.label) {
+                let back = WikiLinkAction.note(id: noteID, heading: nil, blockID: footnoteReferenceAnchor(definition.label)).url
+                edits.append((definition.lineEnd..<definition.lineEnd, .replace(" [↩\u{FE0E}](<\(back.absoluteString)>)")))
+            }
         }
         for tag in scanned.tags {
             let label = escape("#" + tag.name)
@@ -394,7 +475,8 @@ struct Preprocessor {
             cursor = range.upperBound
         }
         out.append(contentsOf: bytes[cursor...])
-        return Output(text: String(decoding: out, as: UTF8.self), embeds: embeds, math: math, blockIDsByLine: blockIDsByLine)
+        return Output(text: String(decoding: out, as: UTF8.self), embeds: embeds, math: math, blockIDsByLine: blockIDsByLine,
+                      footnotes: footnotes, footnoteAnchors: footnoteAnchors)
     }
 
     static func resolve(_ row: OutgoingLink?, token: ScannedLink, noteID: Int64) -> WikiLinkAction {
@@ -438,14 +520,23 @@ struct Preprocessor {
 
 // MARK: - AST → blocks
 
+/// A footnote placeholder image in the rewritten text.
+enum FootnoteMark: Sendable {
+    case reference(number: Int, url: URL)
+    /// Starts the list item a definition becomes.
+    case definition(number: Int)
+}
+
 struct BlockBuilder {
     let embeds: [Int: EmbedTarget]
     let math: [Int: ScannedMath]
+    let footnotes: [Int: FootnoteMark]
     var nextID = 0
 
-    init(embeds: [Int: EmbedTarget], math: [Int: ScannedMath] = [:]) {
+    init(embeds: [Int: EmbedTarget], math: [Int: ScannedMath] = [:], footnotes: [Int: FootnoteMark] = [:]) {
         self.embeds = embeds
         self.math = math
+        self.footnotes = footnotes
     }
 
     mutating func makeID() -> Int {
@@ -475,6 +566,10 @@ struct BlockBuilder {
             var text = code.code
             if text.hasSuffix("\n") { text.removeLast() }
             let language = code.language.flatMap { $0.isEmpty ? nil : $0 }
+            if language?.lowercased() == "mermaid", let chart = MermaidFlowchart(source: text),
+               chart.nodes.count <= MermaidLayout.maxNodes, chart.edges.count <= MermaidLayout.maxEdges {
+                return [RenderBlock(id: makeID(), kind: .mermaid(chart, source: text))]
+            }
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
             guard lines.count > Self.codeLinesPerBlock else {
                 return [RenderBlock(id: makeID(), kind: .code(language: language, code: text, continuation: false))]
@@ -519,10 +614,14 @@ struct BlockBuilder {
         var number = start
         for child in children {
             guard let item = child as? ListItem else { continue }
-            let marker: ListMarker = switch item.checkbox {
+            var marker: ListMarker = switch item.checkbox {
             case .checked: .task(done: true)
             case .unchecked: .task(done: false)
             case nil: ordered ? .number(number) : .bullet
+            }
+            if let image = (item.child(at: 0) as? Paragraph)?.child(at: 0) as? Markdown.Image,
+               case .definition(let footnote) = footnoteMark(image) {
+                marker = .number(footnote)
             }
             number += 1
             var content: [RenderBlock] = []
@@ -596,6 +695,12 @@ struct BlockBuilder {
         guard let source = image.source, source.hasPrefix(Preprocessor.mathPrefix),
               let index = Int(source.dropFirst(Preprocessor.mathPrefix.count)) else { return nil }
         return math[index]
+    }
+
+    func footnoteMark(_ image: Markdown.Image) -> FootnoteMark? {
+        guard let source = image.source, source.hasPrefix(Preprocessor.footnotePrefix),
+              let index = Int(source.dropFirst(Preprocessor.footnotePrefix.count)) else { return nil }
+        return footnotes[index]
     }
 
     func embedTarget(_ image: Markdown.Image) -> EmbedTarget? {
@@ -699,6 +804,12 @@ struct BlockBuilder {
             let latex = mathSource(image)?.latex ?? ""
             var s = styled(latex, intent)
             s[MathAttribute.self] = latex
+            return s
+        case let image as Markdown.Image where footnoteMark(image) != nil:
+            guard case .reference(let number, let url) = footnoteMark(image) else { return AttributedString() }
+            var s = styled("[\(number)]", intent)
+            s.link = url
+            s[FootnoteAttribute.self] = number
             return s
         case let image as Markdown.Image:
             // Non-embed images (e.g. remote URLs) are not fetched: privacy and

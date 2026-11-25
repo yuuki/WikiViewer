@@ -26,7 +26,7 @@ struct GraphScene {
         enum Style {
             /// A note: a filled dot of constant screen size.
             case dot
-            /// The note a local graph is centred on.
+            /// The note a local graph is centred on, or a cluster is named after.
             case center
             /// A link target that does not exist: a dashed ring.
             case missing
@@ -369,6 +369,7 @@ struct GraphCanvas: View {
     /// scroll pans, and zooms with ⌘ or ⌥ held (the pinch zooms too).
     private func watchScrolling() {
         guard scrollMonitor == nil else { return }
+        HistorySwipeClaims.count += 1
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
             guard let pointer, gestureBase == nil, size != .zero else { return event }
             if let animation {
@@ -391,8 +392,10 @@ struct GraphCanvas: View {
     }
 
     private func stopWatchingScrolling() {
-        if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
-        scrollMonitor = nil
+        guard let scrollMonitor else { return }
+        NSEvent.removeMonitor(scrollMonitor)
+        HistorySwipeClaims.count -= 1
+        self.scrollMonitor = nil
     }
     #endif
 
@@ -550,8 +553,8 @@ struct GraphCanvas: View {
                 context.fill(circle, with: .color(node.color.opacity(alpha)))
                 context.stroke(circle, with: .color(background.opacity(alpha)), lineWidth: 0.8)
             case .center:
-                context.fill(circle, with: .color(node.color))
-                context.stroke(Path(ellipseIn: rect.insetBy(dx: -3, dy: -3)), with: .color(.primary.opacity(0.8)), lineWidth: 2)
+                context.fill(circle, with: .color(node.color.opacity(alpha)))
+                context.stroke(Path(ellipseIn: rect.insetBy(dx: -3, dy: -3)), with: .color(.primary.opacity(0.8 * alpha)), lineWidth: 2)
             case .missing:
                 context.fill(circle, with: .color(background.opacity(alpha)))
                 context.stroke(circle, with: .color(node.color.opacity(alpha)), style: StrokeStyle(lineWidth: 1.5, dash: [3, 2]))

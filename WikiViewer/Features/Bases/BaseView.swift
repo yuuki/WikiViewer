@@ -55,7 +55,7 @@ struct BaseView: View {
             if let error = model.info?.document.error {
                 Section {
                     Label {
-                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                        Text(error).chromeFont(.footnote).foregroundStyle(.secondary)
                     } icon: {
                         Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
                     }
@@ -134,7 +134,7 @@ struct BaseRowView: View {
             Text(row.name).lineLimit(2)
             if let details {
                 details
-                    .font(.caption)
+                    .chromeFont(.caption)
                     .lineLimit(3)
             }
         }

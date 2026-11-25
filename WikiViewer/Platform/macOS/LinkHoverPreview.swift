@@ -3,12 +3,10 @@
 //  WikiViewer
 //
 //  ⌘ over a link in a note's text shows the linked note in a popover, as
-//  Obsidian's page preview does, and a right-click on a link offers to open
-//  it in a new tab or window, edit it in Obsidian or copy it. SwiftUI does
-//  not say which link of a Text is under the pointer, so the text is built
-//  with each link run marked (`Text(math:markingLinks:)`), a TextRenderer
-//  records where those runs were laid out, and the pointer is looked up
-//  among them.
+//  Obsidian's page preview does (over a footnote reference, the footnote),
+//  and a right-click on a link offers to open it in a new tab or window,
+//  edit it in Obsidian or copy it. The link under the pointer is found with
+//  LinkRunLayout.
 //
 
 #if os(macOS)
@@ -16,34 +14,6 @@ import AppKit
 import SwiftUI
 import WikiShared
 import WikiViewerKit
-
-/// Where the marked link runs of one Text were drawn, in its own
-/// coordinates. Written while drawing, read on hover.
-final class LinkRunLayout: @unchecked Sendable {
-    var runs: [(url: URL, rect: CGRect)] = []
-
-    func link(at point: CGPoint) -> (url: URL, rect: CGRect)? {
-        runs.first { $0.rect.insetBy(dx: -1, dy: -2).contains(point) }
-    }
-}
-
-/// Draws the text unchanged and records its marked link runs.
-struct LinkRunRecorder: TextRenderer {
-    let layout: LinkRunLayout
-
-    func draw(layout textLayout: Text.Layout, in context: inout GraphicsContext) {
-        var runs: [(url: URL, rect: CGRect)] = []
-        for line in textLayout {
-            for run in line {
-                if let mark = run[LinkRunAttribute.self] {
-                    runs.append((mark.url, run.typographicBounds.rect))
-                }
-            }
-            context.draw(line)
-        }
-        layout.runs = runs
-    }
-}
 
 extension View {
     /// ⌘-hover previews for the links of a Text built with `markingLinks`.
@@ -56,16 +26,21 @@ private struct LinkHoverPreview: ViewModifier {
     @Environment(Library.self) private var library
     @Environment(\.openURL) private var openURL
     @Environment(\.openRoute) private var openRoute
+    @Environment(\.footnoteDefinitions) private var footnotes
     @State private var layout = LinkRunLayout()
     @State private var hovered: (url: URL, rect: CGRect)?
     @State private var preview: Preview?
     @State private var monitor: Any?
     @State private var hold: Task<Void, Never>?
 
-    struct Preview: Equatable {
-        var path: String
-        var title: String
+    struct Preview {
+        var content: Content
         var rect: CGRect
+
+        enum Content {
+            case note(path: String, title: String)
+            case footnote([RenderBlock])
+        }
     }
 
     func body(content: Content) -> some View {
@@ -87,8 +62,13 @@ private struct LinkHoverPreview: ViewModifier {
             }
             .popover(isPresented: Binding { preview != nil } set: { if !$0 { dismissed() } },
                      attachmentAnchor: .rect(.rect(preview?.rect ?? .zero)), arrowEdge: .bottom) {
-                if let preview {
-                    NotePreviewCard(path: preview.path, title: preview.title, session: library.session)
+                switch preview?.content {
+                case .note(let path, let title):
+                    NotePreviewCard(path: path, title: title, session: library.session)
+                case .footnote(let blocks):
+                    FootnoteCard(blocks: blocks) { preview = nil }
+                case nil:
+                    EmptyView()
                 }
             }
             .onDisappear(perform: stopWatching)
@@ -98,17 +78,27 @@ private struct LinkHoverPreview: ViewModifier {
     /// pointer leaves the link.
     private func update() {
         guard let hovered, preview == nil, CommandHold.isCommandAlone else { return cancelHold() }
-        guard hold == nil, case .note(let id, _, _) = WikiLinkAction(url: hovered.url),
-              let session = library.session else { return }
+        guard hold == nil else { return }
         let rect = hovered.rect
         let url = hovered.url
+        if let footnote = footnotes?.definition(for: url) {
+            hold = Task {
+                try? await Task.sleep(for: CommandHold.delay)
+                if Task.isCancelled { return }
+                hold = nil
+                guard self.hovered?.url == url, CommandHold.isCommandAlone else { return }
+                preview = Preview(content: .footnote(footnote), rect: rect)
+            }
+            return
+        }
+        guard case .note(let id, _, _) = WikiLinkAction(url: url), let session = library.session else { return }
         hold = Task {
             try? await Task.sleep(for: CommandHold.delay)
             if Task.isCancelled { return }
             hold = nil
             guard self.hovered?.url == url, CommandHold.isCommandAlone,
                   let note = try? await session.notes.summary(id: id), self.hovered?.url == url else { return }
-            preview = Preview(path: note.path, title: note.title, rect: rect)
+            preview = Preview(content: .note(path: note.path, title: note.title), rect: rect)
         }
     }
 

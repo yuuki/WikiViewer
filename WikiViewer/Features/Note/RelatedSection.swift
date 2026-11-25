@@ -16,27 +16,27 @@ struct RelatedSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Related")
-                .font(.headline)
+                .chromeFont(.headline)
                 .accessibilityAddTraits(.isHeader)
             if groups.isEmpty {
                 Text("No related notes for this note.")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
             }
             ForEach(groups) { group in
                 VStack(alignment: .leading, spacing: 4) {
                     Label(Self.title(group.role), systemImage: Self.symbol(group.role))
-                        .font(.subheadline.weight(.semibold))
+                        .chromeFont(.subheadline, weight: .semibold)
                         .foregroundStyle(Self.tint(group.role))
                     ForEach(group.items) { item in
                         RouteLink(Route.note(path: item.note.path, anchor: nil)) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.note.title)
-                                    .font(.body)
+                                    .chromeFont(.body)
                                     .lineLimit(2)
                                 if let why = item.why {
                                     Text(LearningPath.readable(why))
-                                        .font(.footnote)
+                                        .chromeFont(.footnote)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
                                 }

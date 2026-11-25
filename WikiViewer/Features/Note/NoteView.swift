@@ -148,7 +148,7 @@ struct NoteView: View {
                         Color.clear
                     }
                 }
-                .inspectorColumnWidth(min: 220, ideal: 280, max: 420)
+                .inspectorColumnWidth(min: ChromeTextScale.zoomed(220), ideal: ChromeTextScale.zoomed(280), max: 1000)
             }
             #endif
             .task(id: library.session?.id) {
@@ -322,6 +322,9 @@ struct NoteView: View {
                 // Only blocks have Int ids: with the header or backlinks at
                 // the top the position is nil.
                 .scrollPosition(id: $position, anchor: .top)
+                #if os(macOS)
+                .pinchToScaleNoteText()
+                #endif
                 .onAppear {
                     guard let target = initialPosition else { return }
                     initialPosition = nil
@@ -332,6 +335,7 @@ struct NoteView: View {
                     if let position { history.setPosition(position, of: path) }
                 }
                 .environment(\.embeddedAssets, model.embeddedAssets)
+                .environment(\.footnoteDefinitions, model.footnotes)
                 .environment(\.openURL, linkAction(session: session, detail: detail))
             }
         }
@@ -364,7 +368,11 @@ final class NoteModel {
 
     private(set) var phase: Phase = .loading
     private(set) var detail: NoteDetail?
-    private(set) var rendered: RenderedNote?
+    private(set) var rendered: RenderedNote? {
+        didSet { footnotes = rendered.flatMap { FootnoteDefinitions(noteID: detail?.id, rendered: $0) } }
+    }
+    /// Made once per rendering: views compare it by identity.
+    private(set) var footnotes: FootnoteDefinitions?
     private(set) var tags: [TagSummary] = []
     /// Outgoing link rows; the header resolves frontmatter wikilinks with them.
     private(set) var links: [OutgoingLink] = []
@@ -632,11 +640,11 @@ struct BacklinksSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Linked Mentions (\(model.backlinkTotalLabel))")
-                .font(.headline)
+                .chromeFont(.headline)
                 .accessibilityAddTraits(.isHeader)
             if model.backlinks.isEmpty {
                 Text("No other notes link here.")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
             }
             ForEach(model.backlinks) { backlink in
@@ -666,22 +674,22 @@ struct BacklinkRow: View {
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(backlink.note.title)
-                        .font(.body.weight(.medium))
+                        .chromeFont(.body, weight: .medium)
                     if let context, !context.isEmpty {
                         Text(context)
-                            .font(.footnote)
+                            .chromeFont(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
                     if !backlink.note.folderPath.isEmpty {
                         Text("\(Image(systemName: "folder")) \(backlink.note.folderPath)")
-                            .font(.caption)
+                            .chromeFont(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
+                    .chromeFont(.footnote, weight: .semibold)
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
@@ -724,7 +732,7 @@ struct MissingNoteView: View {
         List {
             Section {
                 Text("“\(target)” does not exist in the vault snapshot. Obsidian would create it when the link is clicked; this viewer is read-only.")
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .foregroundStyle(.secondary)
             }
             Section("Linked from") {

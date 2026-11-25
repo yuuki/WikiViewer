@@ -182,10 +182,10 @@ struct LocalGraphView: View {
                 GraphCard(onClose: { withAnimation(.snappy) { self.selection = nil } }) {
                     HStack(spacing: 10) {
                         Circle().strokeBorder(GraphPalette.missing, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2])).frame(width: 12, height: 12)
-                        Text(target).font(.headline).lineLimit(2).padding(.trailing, 28)
+                        Text(target).chromeFont(.headline).lineLimit(2).padding(.trailing, 28)
                     }
                     Text("Linked from this note, but there is no note by that name yet.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .chromeFont(.caption).foregroundStyle(.secondary)
                     Button("Show Details", systemImage: "doc.questionmark") {
                         openRoute(.missing(target: target))
                     }

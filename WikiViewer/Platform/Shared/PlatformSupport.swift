@@ -129,12 +129,14 @@ struct RouteLink<Label: View>: View {
         #if os(macOS)
         if selectsRows {
             label
+                .listRowFont()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(.rect)
                 .tag(ListRowTag(section: rowSection, route: route))
         } else {
             Button { openRoute(route) } label: {
                 label
+                    .listRowFont()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(.rect)
             }

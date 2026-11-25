@@ -20,6 +20,10 @@
 # away from Wi-Fi, locked since it restarted) fails, and the next run tries
 # again, reusing the app it already built.
 #
+# Every run, due or not, also checks that Xcode still has its Apple account.
+# Xcode drops it by itself every few days, and a renewal cannot sign without
+# it, so the first run that finds it gone posts a notification.
+#
 # It builds the local "main" branch in its own worktree
 # (~/Library/Application Support/WikiViewerResign/checkout), so uncommitted
 # work in the main checkout never reaches the phone, and it never builds in a
@@ -125,9 +129,12 @@ build_settings() {
 
 # Moves Xcode's cached Personal Team profiles for this app ID aside, so the
 # build asks Apple for a new 7-day profile instead of reusing one that has
-# only days left. Moved, not deleted: they are under $STATE_DIR/old-profiles.
+# only days left. Moved, not deleted: they are under $STATE_DIR/old-profiles,
+# and RETIRED lists them for restore_profiles.
+RETIRED=()
 retire_profiles() {
   local app_id="$1" dir f id
+  RETIRED=()
   mkdir -p "$STATE_DIR/old-profiles"
   for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" \
              "$HOME/Library/MobileDevice/Provisioning Profiles"; do
@@ -138,10 +145,23 @@ retire_profiles() {
         plutil -extract Entitlements.application-identifier raw -o - - 2>/dev/null) || continue
       if [ "$id" = "$app_id" ]; then
         mv "$f" "$STATE_DIR/old-profiles/"
+        RETIRED+=("$f")
         log "retired cached profile $(basename "$f")"
       fi
     done
   done
+}
+
+# Puts the profiles retire_profiles moved back, after a build that got no
+# new one: the old profile may still have days left, and without it
+# Xcode (and scripts/device.sh) cannot sign the app at all.
+restore_profiles() {
+  local f
+  for f in ${RETIRED[@]+"${RETIRED[@]}"}; do
+    [ -e "$f" ] && continue
+    mv "$STATE_DIR/old-profiles/$(basename "$f")" "$f" && log "restored cached profile $(basename "$f")"
+  done
+  RETIRED=()
 }
 
 build() {
@@ -168,6 +188,10 @@ build() {
       build > "$blog" 2>&1; then
     log "error: xcodebuild failed; see $blog"
     grep -E 'error:|Signing|provisioning' "$blog" | tail -5 | sed 's/^/  /' | tee -a "$LOG" >&2
+    if grep -q 'No Accounts' "$blog"; then
+      report_signed_out
+    fi
+    restore_profiles
     return 1
   fi
   ls -1t "$LOG_DIR"/build-*.log | tail -n +11 | while read -r f; do rm -f "$f"; done
@@ -226,15 +250,52 @@ reusable_build() {
   [ "$expiry" -gt $(( $(now) + MARGIN_HOURS * 3600 + 86400 )) ]
 }
 
+notify() {
+  osascript -e "display notification \"$1\" with title \"WikiViewer signing\"" 2>/dev/null || true
+}
+
 notify_if_urgent() {
   local expiry
   expiry=$(get profile_expiry)
   [ -n "$expiry" ] && [ "$expiry" -lt $(( $(now) + 86400 )) ] || return 0
-  osascript -e "display notification \"Renewal failed; the app expires $(fmt "$expiry"). See $LOG\" with title \"WikiViewer signing\"" 2>/dev/null || true
+  notify "Renewal failed; the app expires $(fmt "$expiry"). See $LOG"
+}
+
+# Number of Apple accounts Xcode has, from its preferences; empty if unknown.
+# Xcode removes an account by itself when Apple rejects its saved session.
+xcode_accounts() {
+  defaults export com.apple.dt.Xcode - 2>/dev/null | python3 -c '
+import plistlib, sys
+lists = plistlib.loads(sys.stdin.buffer.read()).get("DVTDeveloperAccountManagerAppleIDLists")
+print("" if lists is None else sum(len(v) for v in lists.values()))' 2>/dev/null || true
+}
+
+# Logs and notifies once per sign-out, so the account can be added back
+# before the profile runs out rather than when a renewal fails.
+report_signed_out() {
+  [ -z "$(get signed_out_since)" ] || return 0
+  put signed_out_since "$(now)"
+  log "error: Xcode is signed out; sign in under Xcode > Settings > Accounts"
+  notify "Xcode is signed out, so the app cannot be re-signed. Sign in under Xcode > Settings > Accounts."
+}
+
+# Runs on every launchd run, due or not.
+check_account() {
+  case "$(xcode_accounts)" in
+    0) report_signed_out ;;
+    "") ;;
+    *)
+      if [ -n "$(get signed_out_since)" ]; then
+        log "Xcode is signed in again (signed out since $(fmt "$(get signed_out_since)"))"
+        put signed_out_since ""
+      fi
+      ;;
+  esac
 }
 
 run() {
   local force="${1:-}" wait device name udid
+  check_account
   wait=$(due_in)
   if [ "$force" != --force ] && [ "$wait" -gt 0 ]; then
     echo "not due; next renewal in $(( wait / 3600 ))h ($(fmt $(( $(now) + wait ))))"
@@ -273,6 +334,11 @@ status() {
   echo "profile expiry: $(fmt "$(get profile_expiry)")"
   echo "last attempt:   $(fmt "$(get last_attempt)")"
   if [ -n "$(get last_error)" ]; then echo "last error:     $(get last_error)"; fi
+  case "$(xcode_accounts)" in
+    0) echo "xcode account:  signed out (noticed $(fmt "$(get signed_out_since)"))" ;;
+    "") echo "xcode account:  unknown" ;;
+    *) echo "xcode account:  signed in" ;;
+  esac
   if [ "$wait" -gt 0 ]; then
     echo "next renewal:   $(fmt $(( $(now) + wait )))"
   else

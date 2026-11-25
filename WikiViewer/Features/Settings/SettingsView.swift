@@ -44,7 +44,7 @@ struct SettingsView: View {
 
             Section {
                 Button("Choose Folder…", systemImage: "folder") { pickingFolder = true }
-                if let folderError { Text(folderError).font(.footnote).foregroundStyle(.red) }
+                if let folderError { Text(folderError).chromeFont(.footnote).foregroundStyle(.red) }
                 // A label, so the field lines up with Choose Folder above it.
                 Label {
                     HStack {
@@ -68,7 +68,7 @@ struct SettingsView: View {
                 // is not yet wrong.
                 if showsURLError {
                     Text("Enter an address starting with https:// (or http://) and a host name.")
-                        .font(.footnote)
+                        .chromeFont(.footnote)
                         .foregroundStyle(.red)
                 }
             } header: {
@@ -83,7 +83,7 @@ struct SettingsView: View {
 
             #if os(macOS)
             Section {
-                Picker("Text Size", selection: $noteTextScale) {
+                Picker("Zoom", selection: $noteTextScale) {
                     ForEach(NoteTextScale.steps, id: \.self) { step in
                         Text(step.formatted(.percent.precision(.fractionLength(0)))).tag(step)
                     }
@@ -91,7 +91,7 @@ struct SettingsView: View {
             } header: {
                 Text("Reading")
             } footer: {
-                Text("The size of note text. View > Bigger (⌘=) and Smaller (⌘-) change it too.")
+                Text("The size of text and panels throughout the app. View > Bigger (⌘+) and Smaller (⌘-) change it too.")
             }
             #endif
 
@@ -161,7 +161,7 @@ struct SettingsView: View {
         case .failed(let message):
             VStack(alignment: .leading) {
                 Text("Last update failed").foregroundStyle(.red)
-                Text(message).font(.footnote).foregroundStyle(.secondary)
+                Text(message).chromeFont(.footnote).foregroundStyle(.secondary)
             }
         }
     }

@@ -92,7 +92,7 @@ struct NoteFindBar: View {
                     if !find.query.isEmpty {
                         Text(find.matches.isEmpty ? String(localized: "Not found")
                                                   : String(localized: "\(find.current + 1) of \(find.matches.count)"))
-                            .font(.caption)
+                            .chromeFont(.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }

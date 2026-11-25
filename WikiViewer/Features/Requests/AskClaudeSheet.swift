@@ -40,7 +40,7 @@ struct AskClaudeSheet: View {
                     }
                     if let excerpt = draft.excerpt {
                         Text(excerpt)
-                            .font(.footnote)
+                            .chromeFont(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(8)
                     }
@@ -140,7 +140,7 @@ struct AskSelectionBar: View {
         HStack(spacing: 12) {
             Image(systemName: purpose == .ask ? "sparkles" : "wand.and.sparkles").foregroundStyle(.tint)
             Text(prompt)
-                .font(.subheadline)
+                .chromeFont(.subheadline)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button("Cancel", action: onCancel)
             Button(actionTitle, action: onAsk)

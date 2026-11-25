@@ -54,10 +54,10 @@ struct AppCommands: Commands {
             .keyboardShortcut("r", modifiers: [.command, .control])
             .disabled(app == nil)
             Divider()
-            // ⌘=: the key ⌘+ is typed on; a "+" equivalent is not matched
-            // without Shift.
+            // ⌘+ is matched by NoteTextScaleKeys on any keyboard layout;
+            // the menu item only shows it.
             Button("Bigger") { NoteTextScale.step(1) }
-                .keyboardShortcut("=", modifiers: .command)
+                .keyboardShortcut("+", modifiers: .command)
                 .disabled(!NoteTextScale.canEnlarge)
             Button("Smaller") { NoteTextScale.step(-1) }
                 .keyboardShortcut("-", modifiers: .command)

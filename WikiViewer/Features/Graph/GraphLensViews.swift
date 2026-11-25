@@ -23,27 +23,27 @@ struct ClusterLensSection: View {
         if let note {
             if let summary = note.summary {
                 Text(summary)
-                    .font(.footnote)
+                    .chromeFont(.footnote)
                     .lineLimit(showsAllQuestions ? nil : 4)
                 if note.isStale {
                     Label("Written before the cluster changed", systemImage: "clock.arrow.circlepath")
-                        .font(.caption2)
+                        .chromeFont(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
             if !note.questions.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Open Questions").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Text("Open Questions").chromeFont(.caption, weight: .semibold).foregroundStyle(.secondary)
                     ForEach(Array(note.questions.prefix(showsAllQuestions ? 10 : 2).enumerated()), id: \.offset) { _, question in
                         Label {
-                            Text(question).font(.footnote).lineLimit(showsAllQuestions ? nil : 2)
+                            Text(question).chromeFont(.footnote).lineLimit(showsAllQuestions ? nil : 2)
                         } icon: {
                             Image(systemName: "questionmark.circle").foregroundStyle(.orange)
                         }
                     }
                     if note.questions.count > 2 || (note.summary?.count ?? 0) > 120 {
                         Button(showsAllQuestions ? "Less" : "More") { showsAllQuestions.toggle() }
-                            .font(.caption)
+                            .chromeFont(.caption)
                     }
                 }
             }
@@ -52,7 +52,7 @@ struct ClusterLensSection: View {
             Button(action: onShowGaps) {
                 Label("Gaps: \(gaps.count)", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
             }
-            .font(.footnote)
+            .chromeFont(.footnote)
             .buttonStyle(.bordered)
             .controlSize(.small)
             .tint(.orange)
@@ -72,9 +72,9 @@ struct GapListView: View {
                     GapDetailView(gap: gap)
                 } label: {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(gap.title).font(.body.weight(.medium))
+                        Text(gap.title).chromeFont(.body, weight: .medium)
                         Text([gap.noteA?.title, gap.noteB?.title].compactMap { $0 }.joined(separator: " ⇢ "))
-                            .font(.caption)
+                            .chromeFont(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -107,7 +107,7 @@ struct GapDetailView: View {
     var body: some View {
         List {
             Section {
-                Text(gap.title).font(.headline)
+                Text(gap.title).chromeFont(.headline)
                 if let verdict = gap.verdict {
                     LabeledContent("Verdict", value: verdict)
                 }
@@ -125,14 +125,14 @@ struct GapDetailView: View {
             if !gap.detail.isEmpty {
                 Section("Why It Is a Gap") {
                     ForEach(Array(gap.detail.split(separator: "\n").enumerated()), id: \.offset) { _, line in
-                        Text(LearningPath.readable(String(line))).font(.footnote)
+                        Text(LearningPath.readable(String(line))).chromeFont(.footnote)
                     }
                 }
             }
             if !gap.recommendations.isEmpty {
                 Section("Bridging Literature") {
                     ForEach(gap.recommendations, id: \.self) { recommendation in
-                        Text(recommendation).font(.footnote).textSelection(.enabled)
+                        Text(recommendation).chromeFont(.footnote).textSelection(.enabled)
                     }
                 }
             }

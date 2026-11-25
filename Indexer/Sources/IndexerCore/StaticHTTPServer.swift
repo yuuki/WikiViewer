@@ -55,8 +55,20 @@ public final class StaticHTTPServer: Sendable {
         listener = try NWListener(using: parameters)
     }
 
+    /// Lets this process read files that iCloud Drive has evicted ("dataless"
+    /// files, left as placeholders when the Mac runs short of space): a read
+    /// then downloads the content instead of failing. A background process
+    /// such as a LaunchAgent may not do so by default, and the publish
+    /// directory is often an iCloud Drive folder.
+    static func allowMaterializingDatalessFiles() {
+        if setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, IOPOL_SCOPE_PROCESS, IOPOL_MATERIALIZE_DATALESS_FILES_ON) != 0 {
+            Log.warning("cannot allow reading files evicted by iCloud Drive: \(String(cString: strerror(errno)))")
+        }
+    }
+
     /// Starts listening; returns the bound port once ready.
     public func start() async throws -> UInt16 {
+        Self.allowMaterializingDatalessFiles()
         let root = root
         let queue = queue
         let active = activeConnections
@@ -243,28 +255,48 @@ final class HTTPConnection: Sendable {
     }
 
     private func sendFile(_ url: URL, head: Bool, keepAlive: Bool, leftover: Data, extraHeaders: String) {
-        // The size comes from the opened file, and exactly that many bytes are
-        // sent: `manifest.json` may be replaced (renamed over) meanwhile, and
-        // on a persistent connection a length mismatch would corrupt the
-        // next response.
-        guard let handle = try? FileHandle(forReadingFrom: url),
-              let end = try? handle.seekToEnd(), (try? handle.seek(toOffset: 0)) != nil else {
-            sendStatus(404, "Not Found", keepAlive: keepAlive, leftover: leftover)
-            return
-        }
-        let size = Int64(end)
-        let contentType = url.pathExtension == "json" ? "application/json" : "application/octet-stream"
-        let cache = url.lastPathComponent == "manifest.json" ? "no-cache" : "public, max-age=31536000, immutable"
-        let header = "HTTP/1.1 200 OK\r\nContent-Length: \(size)\r\nContent-Type: \(contentType)\r\nCache-Control: \(cache)\r\n\(extraHeaders)Connection: \(keepAlive ? "keep-alive" : "close")\r\n\r\n"
-        connection.send(content: Data(header.utf8), completion: .contentProcessed { [self] error in
-            guard error == nil, !head else {
-                try? handle.close()
-                finish(error == nil && keepAlive, leftover: leftover)
+        // Opened and first read off the server's queue: reading a file that
+        // iCloud Drive evicted downloads it first, and that must not stall
+        // every other connection.
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            // The size comes from the opened file, and exactly that many bytes
+            // are sent: `manifest.json` may be replaced (renamed over)
+            // meanwhile, and on a persistent connection a length mismatch
+            // would corrupt the next response.
+            guard let handle = try? FileHandle(forReadingFrom: url),
+                  let end = try? handle.seekToEnd(), (try? handle.seek(toOffset: 0)) != nil else {
+                sendStatus(404, "Not Found", keepAlive: keepAlive, leftover: leftover)
                 return
             }
-            sendBody(handle, remaining: size, keepAlive: keepAlive, leftover: leftover)
-        })
+            let size = Int64(end)
+            // The first block is read before the status line, so a file that
+            // cannot be read (evicted and not downloadable) is answered with
+            // an error instead of a connection dropped mid-body.
+            var first = Data()
+            if !head, size > 0 {
+                guard let block = try? handle.read(upToCount: Int(min(size, Self.blockSize))), !block.isEmpty else {
+                    try? handle.close()
+                    Log.warning("cannot read \(url.path)")
+                    sendStatus(503, "Service Unavailable", keepAlive: keepAlive, leftover: leftover)
+                    return
+                }
+                first = block
+            }
+            let contentType = url.pathExtension == "json" ? "application/json" : "application/octet-stream"
+            let cache = url.lastPathComponent == "manifest.json" ? "no-cache" : "public, max-age=31536000, immutable"
+            let header = "HTTP/1.1 200 OK\r\nContent-Length: \(size)\r\nContent-Type: \(contentType)\r\nCache-Control: \(cache)\r\n\(extraHeaders)Connection: \(keepAlive ? "keep-alive" : "close")\r\n\r\n"
+            connection.send(content: Data(header.utf8) + first, completion: .contentProcessed { [self] error in
+                guard error == nil, !head else {
+                    try? handle.close()
+                    finish(error == nil && keepAlive, leftover: leftover)
+                    return
+                }
+                sendBody(handle, remaining: size - Int64(first.count), keepAlive: keepAlive, leftover: leftover)
+            })
+        }
     }
+
+    static let blockSize: Int64 = 256 * 1024
 
     private func sendBody(_ handle: FileHandle, remaining: Int64, keepAlive: Bool, leftover: Data) {
         guard remaining > 0 else {
@@ -272,7 +304,7 @@ final class HTTPConnection: Sendable {
             finish(keepAlive, leftover: leftover)
             return
         }
-        let chunk = (try? handle.read(upToCount: Int(min(remaining, 256 * 1024)))) ?? nil
+        let chunk = (try? handle.read(upToCount: Int(min(remaining, Self.blockSize)))) ?? nil
         guard let chunk, !chunk.isEmpty else {
             // Shorter than announced (truncated underneath): the response
             // cannot be completed, so the connection must not be reused.

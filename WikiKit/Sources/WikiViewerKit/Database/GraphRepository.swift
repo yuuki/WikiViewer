@@ -72,6 +72,8 @@ public struct ClusterGraph: Sendable {
     public var edges: [GraphEdge]
     /// The strongest links to other clusters, for leaving this one.
     public var neighbours: [(cluster: GraphCluster, weight: Int)]
+    /// The note the cluster is named after (its label), always in `nodes`.
+    public var centerID: Int64?
 
     public var isTruncated: Bool { nodes.count < cluster.size }
 }
@@ -191,7 +193,9 @@ public struct GraphRepository: Sendable {
     public func clusterGraph(id: Int64, limit: Int = clusterNodeLimit) async throws -> ClusterGraph? {
         try await database.reader.read { db in
             guard let cluster = try Row.fetchOne(db, sql: "SELECT * FROM graph_clusters WHERE id = ?", arguments: [id]).map(Self.cluster) else { return nil }
-            let nodes = try Self.members(db, cluster: id, limit: min(max(limit, 1), Self.clusterNodeLimit))
+            var nodes = try Self.members(db, cluster: id, limit: min(max(limit, 1), Self.clusterNodeLimit))
+            let center = try Self.center(db, of: cluster)
+            if let center, !nodes.contains(where: { $0.id == center.id }) { nodes.append(center) }
             let edges = try Self.edges(db, among: nodes.map(\.id))
             let neighbourLinks = try Row.fetchAll(db, sql: """
                 SELECT cluster_b AS other, weight FROM graph_cluster_links WHERE cluster_a = ?
@@ -205,7 +209,7 @@ public struct GraphRepository: Sendable {
                     neighbours.append((other, row["weight"]))
                 }
             }
-            return ClusterGraph(cluster: cluster, nodes: nodes, edges: edges, neighbours: neighbours)
+            return ClusterGraph(cluster: cluster, nodes: nodes, edges: edges, neighbours: neighbours, centerID: center?.id)
         }
     }
 
@@ -322,6 +326,15 @@ public struct GraphRepository: Sendable {
             SELECT \(nodeColumns) FROM graph_nodes g JOIN notes n ON n.id = g.note_id
             WHERE g.cluster_id = ? ORDER BY g.weight DESC, g.note_id DESC LIMIT ?
             """, arguments: [cluster, limit]).map(node)
+    }
+
+    /// The note the builder named the cluster after: its label is that
+    /// note's title (GraphBuilder.label). Of namesakes, the most linked.
+    static func center(_ db: Database, of cluster: GraphCluster) throws -> GraphNode? {
+        try Row.fetchOne(db, sql: """
+            SELECT \(nodeColumns) FROM graph_nodes g JOIN notes n ON n.id = g.note_id
+            WHERE g.cluster_id = ? AND n.title = ? ORDER BY g.weight DESC, g.note_id DESC LIMIT 1
+            """, arguments: [cluster.id, cluster.label]).map(node)
     }
 
     /// Notes by id (primary keys), with their graph data if they have any.

@@ -115,7 +115,9 @@ small edit is published 3 s after the vault is quiet (was 20 s, and Obsidian's
 own `.obsidian/` writes reset the timer); an open app learns of a publication
 over HTTP within about a second (long poll; test: under 5 s from publication
 to the new generation being open, on localhost) or by polling a folder every
-30 s; failed updates are retried with backoff.
+30 s; failed updates are retried with backoff. On the iPhone this holds for a
+few minutes after opening or after an update; later checks come every
+2–5 minutes, to save power.
 
 ### Effect of measured optimizations (20k notes)
 

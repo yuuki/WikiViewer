@@ -43,15 +43,15 @@ struct UpdateFailureBanner: View {
                         .foregroundStyle(.orange)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Couldn't Update")
-                            .font(.subheadline.weight(.semibold))
+                            .chromeFont(.subheadline, weight: .semibold)
                         Text("Showing the last downloaded snapshot. \(message)")
-                            .font(.footnote)
+                            .chromeFont(.footnote)
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.forward")
-                        .font(.footnote)
+                        .chromeFont(.footnote)
                         .foregroundStyle(.tertiary)
                 }
                 .contentShape(.rect)
@@ -78,9 +78,9 @@ struct DemoVaultBanner: View {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Demo Vault")
-                                .font(.subheadline.weight(.semibold))
+                                .chromeFont(.subheadline, weight: .semibold)
                             Text("Connect Your Vault")
-                                .font(.footnote)
+                                .chromeFont(.footnote)
                                 .foregroundStyle(.tint)
                         }
                     } icon: {
@@ -89,7 +89,7 @@ struct DemoVaultBanner: View {
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.forward")
-                        .font(.footnote)
+                        .chromeFont(.footnote)
                         .foregroundStyle(.tertiary)
                 }
                 .contentShape(.rect)

@@ -60,7 +60,7 @@ struct OutlineList: View {
                 } label: {
                     HStack {
                         Text(heading.text)
-                            .font(heading.level <= 1 ? .body.weight(.semibold) : .body)
+                            .chromeFont(.body, weight: heading.level <= 1 ? .semibold : nil)
                             .foregroundStyle(heading.level <= 2 ? .primary : .secondary)
                             .padding(.leading, CGFloat(min(max(heading.level - 1, 0), 5)) * 14)
                         Spacer()

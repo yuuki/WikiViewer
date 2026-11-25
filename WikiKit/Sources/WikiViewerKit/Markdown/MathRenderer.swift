@@ -106,8 +106,9 @@ extension Text {
     /// `mathSize` points. A formula SwiftMath cannot parse stays as source.
     /// Inline code gets a tinted background and a slightly smaller
     /// monospaced face: monospaced glyphs look larger than the text around
-    /// them. `mathSize` is that text's point size. With `markingLinks`, each
-    /// link run carries a `LinkRunAttribute`.
+    /// them. Footnote references are superscript. `mathSize` is that
+    /// text's point size. With `markingLinks`, each link run carries a
+    /// `LinkRunAttribute`.
     @MainActor
     public init(math source: AttributedString, mathSize: CGFloat, markingLinks: Bool = false) {
         let text = Self.styledCode(source, size: mathSize)
@@ -150,6 +151,10 @@ extension Text {
         for run in text.runs where run.inlinePresentationIntent?.contains(.code) == true {
             styled[run.range].font = .system(size: (size * 0.88).rounded(), design: .monospaced)
             styled[run.range].backgroundColor = codeBackground
+        }
+        for run in text.runs where run[FootnoteAttribute.self] != nil {
+            styled[run.range].font = .system(size: (size * 0.72).rounded())
+            styled[run.range].baselineOffset = (size * 0.33).rounded()
         }
         return styled
     }

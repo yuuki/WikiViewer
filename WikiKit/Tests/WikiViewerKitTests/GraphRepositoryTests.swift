@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Testing
 import WikiShared
 @testable import WikiViewerKit
@@ -39,6 +40,7 @@ import WikiShared
         #expect(graph.nodes.count == 6)
         #expect(!graph.isTruncated)
         #expect(graph.nodes.first?.path == "Projects/Beta.md", "most linked first")
+        #expect(graph.centerID == graph.nodes.first?.id, "the note the cluster is named after")
         #expect(graph.nodes.allSatisfy { $0.x * $0.x + $0.y * $0.y <= 1.0003 })
         let ids = Set(graph.nodes.map(\.id))
         #expect(!graph.edges.isEmpty)
@@ -47,6 +49,29 @@ import WikiShared
         let truncated = try #require(try await session.graph.clusterGraph(id: big.id, limit: 2))
         #expect(truncated.isTruncated)
         #expect(truncated.edges.allSatisfy { Set(truncated.nodes.map(\.id)).contains($0.a) })
+    }
+
+    /// The note a cluster is named after is drawn even when it is not among
+    /// the most linked notes loaded.
+    @Test func clusterCenterIsLoadedWhenTruncated() async throws {
+        let tmp = TempDir()
+        var clusterID: Int64 = 0
+        var centerID: Int64 = 0
+        let manifest = try makeArtifact(at: tmp.url, generation: 3) { db in
+            let row = try #require(try Row.fetchOne(db, sql: """
+                SELECT g.cluster_id, n.id, n.title FROM graph_nodes g JOIN notes n ON n.id = g.note_id
+                WHERE g.cluster_id = (SELECT id FROM graph_clusters ORDER BY size DESC LIMIT 1)
+                ORDER BY g.weight, g.note_id LIMIT 1
+                """))
+            clusterID = row[0]
+            centerID = row[1]
+            try db.execute(sql: "UPDATE graph_clusters SET label = ? WHERE id = ?", arguments: [row[2] as String, clusterID])
+        }
+        let database = try ViewerDatabase(url: tmp.url.appendingPathComponent(manifest.database.path), options: .init(immutable: true))
+        let graph = try #require(try await GraphRepository(database: database).clusterGraph(id: clusterID, limit: 2))
+        #expect(graph.centerID == centerID)
+        #expect(graph.nodes.map(\.id).contains(centerID))
+        #expect(graph.nodes.count == 3)
     }
 
     @Test func nodesAndNeighbours() async throws {

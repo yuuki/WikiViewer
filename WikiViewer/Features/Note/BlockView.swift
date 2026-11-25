@@ -31,13 +31,15 @@ struct BlockView: View {
                 .textSelection(.enabled)
                 .accessibilityAddTraits(.isHeader)
         case .paragraph(let text):
+            let hasFootnotes = text.runs.contains { $0[FootnoteAttribute.self] != nil }
             Text(math: text.highlightingMatches(of: findHighlight), mathSize: NoteTextScale.mathSize(.body, typeSize, scale: noteTextScale),
-                 markingLinks: Self.previewsLinks)
+                 markingLinks: Self.previewsLinks || hasFootnotes)
                 .noteFont(.body)
                 .lineSpacing(NoteTextScale.lineSpacing(scale: noteTextScale))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .linkPreviewsOnHover()
+                .footnotePreviews(hasFootnotes)
         case .code(let language, let code, let continuation):
             CodeBlockView(language: continuation ? nil : language, code: code)
         case .quote(let children):
@@ -68,6 +70,8 @@ struct BlockView: View {
             EmbedView(target: target)
         case .math(let latex):
             MathBlockView(latex: latex)
+        case .mermaid(let chart, let source):
+            MermaidView(chart: chart, source: source)
         case .html(let raw):
             Text(raw)
                 .noteFont(.noteDetail, design: .monospaced)

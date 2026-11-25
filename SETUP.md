@@ -273,9 +273,14 @@ In the app, enter `https://<HOST>.<TAILNET>.ts.net` under **Settings →
 Update Source** and tap **Use**.
 
 While the app is open it keeps a request to `wikiindex serve` waiting
-(`manifest.json?wait=N`, up to 25 s at a time); the server answers as soon as a
+(`manifest.json?wait=N`, up to 55 s at a time); the server answers as soon as a
 new generation is published, so the app starts downloading within about a
-second. `tailscale serve` passes these requests through unchanged.
+second. `tailscale serve` passes these requests through unchanged. On the
+iPhone this lasts 5 minutes after the app opens or an update arrives (2 over
+cellular, longer while a request waits for the Mac); then the app checks every
+2–5 minutes, and every 15 in Low Power Mode or Low Data Mode, so that neither
+the app nor Tailscale keeps waking the radio. Pull the latest at any time with
+*Check for Updates*.
 
 `tailscale serve` only proxies. It stops working when `wikiindex serve` stops.
 To stop exposing the snapshot:
@@ -402,7 +407,13 @@ The iPhone must be paired, on the same network and **unlocked since it last
 locked recently**: iOS refuses an install to a phone that has stayed locked
 ("The device has not been unlocked recently"). Such a run fails and the next
 one retries with the app it already built; a notification appears when less
-than a day is left. Logs and the xcodebuild output of each build are in
+than a day is left.
+
+Xcode sometimes removes its Apple account by itself, a few days after you
+sign in, and then no renewal can sign the app. Every run checks for this, due
+or not, and posts one notification when the account is gone; sign in again
+under **Xcode → Settings → Accounts**. `scripts/resign.sh status` shows the
+account state too. Logs and the xcodebuild output of each build are in
 `~/Library/Logs/WikiViewerResign/`; the state and the build worktree are in
 `~/Library/Application Support/WikiViewerResign/`.
 
@@ -499,18 +510,31 @@ inbox outside it (`<PUBLISH>/inbox/`), and only the runner,
 `wiki/` and no web access (THREAT_MODEL.md, "Requests from the app").
 
 1. Log in to Claude Code once in the Mac's user session (`claude`, then
-   `/login`); the runner uses that login. Check with
-   `claude -p "hi" --output-format json`: an expired login shows up as
-   `"is_error": true`.
-2. Run the request worker next to `watch` (a second LaunchAgent with the
-   same shape as the indexer's, see README):
+   `/login`) with the Claude subscription (Pro or Max). The runner uses that
+   login and never an API key: it removes `ANTHROPIC_API_KEY`,
+   `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL` and the Bedrock, Vertex and
+   Foundry switches before it starts `claude -p`, so requests count against
+   the subscription's usage limits, not API billing. Check with
+   `scripts/requests-agent.sh check`: an expired login shows up as an error.
+2. Run the request worker next to `watch`, as a second LaunchAgent:
+
+   ```sh
+   scripts/requests-agent.sh install
+   ```
+
+   It takes the vault, publish and state folders from the indexer's agent
+   (`local.wikiindex`; `WV_VAULT`, `WV_PUBLISH` and `WV_STATE` override
+   them), copies the runner to `~/Library/Application Support/WikiIndexer/`
+   and loads `local.wikiindex-requests`, which runs
 
    ```sh
    $BIN requests --publish "<PUBLISH>" --vault "<VAULT>" \
-        --runner "$PWD/scripts/claude-request.py" --log "<STATE>/requests.jsonl"
+        --runner "<runner copy>" --log "<STATE>/requests.jsonl"
    ```
 
-   It checks the inbox every 5 seconds, handles one request at a time
+   Run `install` again after changing `scripts/claude-request.py`;
+   `status` shows the agent and its log (`~/Library/Logs/wikiindex-requests.log`).
+   The worker checks the inbox every 5 seconds, handles one request at a time
    (`--timeout`, default 30 minutes) and writes progress to
    `<PUBLISH>/requests/`, with the skills it offers in
    `<PUBLISH>/requests/skills.json`. `--once` handles what is waiting and
@@ -559,8 +583,9 @@ Xcode says only "The app failed to launch".
 | `invalid code signature, inadequate entitlements or its profile has not been explicitly trusted` | The developer certificate is not trusted on the device | **Settings → General → VPN & Device Management → Trust** |
 | Folder picker shows only `assets` | iCloud Drive has not finished syncing to the phone | Wait for the upload to finish (section 4A), then refresh in the Files app |
 | HTTP URL rejected or fails | App Transport Security blocks plain HTTP | Use HTTPS, e.g. with Tailscale (section 4B) |
+| Over HTTPS: `The network connection was lost` (-1005) or `HTTP 503` | `<PUBLISH>` is in iCloud Drive and macOS evicted files to save space (`ls -lO` shows `dataless`); an old `serve` running as a LaunchAgent cannot read them | Update `wikiindex` and restart `serve`; keep the folder downloaded (Finder → **Keep Downloaded**) or free disk space |
 | *Check for Updates* says up to date, but the vault changed | Nothing was published | Run `build` again, or check the `watch` log |
-| A request stays *Queued* | `wikiindex requests` is not running | Start it (section 8) |
+| A request stays *Queued* | `wikiindex requests` is not running | `scripts/requests-agent.sh install`, then `status` (section 8) |
 | A request *Failed*: `claude exited with 1: Failed to authenticate` | The Claude Code login on the Mac expired | Run `claude` and `/login` in the Mac's user session |
 | A request *Failed*: refused, check the request token | The token in the app differs from `--token-file` | Enter the token again under Settings → Requests to Claude |
 

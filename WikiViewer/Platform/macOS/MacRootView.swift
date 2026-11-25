@@ -53,15 +53,15 @@ struct MacRootView: View {
                         openDocument(route, fromSelection: true)
                     }
                         .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
-                        .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 280)
+                        .navigationSplitViewColumnWidth(min: ChromeTextScale.zoomed(160), ideal: ChromeTextScale.zoomed(190), max: ChromeTextScale.zoomed(280))
                 } content: {
                     ListColumn(tab: app.tab, navigation: list, openRoute: OpenRouteAction(handler: openFromList), selection: selection)
-                        .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 420)
+                        .navigationSplitViewColumnWidth(min: ChromeTextScale.zoomed(220), ideal: ChromeTextScale.zoomed(260), max: ChromeTextScale.zoomed(420))
                 } detail: {
                     // The note is what the window is for: the other columns
                     // give way before it gets too narrow to read.
                     documentColumn
-                        .navigationSplitViewColumnWidth(min: 380, ideal: 680)
+                        .navigationSplitViewColumnWidth(min: ChromeTextScale.zoomed(380), ideal: ChromeTextScale.zoomed(680))
                 }
             }
         }
@@ -78,6 +78,7 @@ struct MacRootView: View {
                     } onClose: {
                         app.showingQuickOpen = false
                     }
+                    .chromeBodyFont()
                     .padding(.top, 80)
                 }
             }
@@ -130,6 +131,8 @@ struct MacRootView: View {
 
     private var documentColumn: some View {
         DocumentColumn(navigation: documents)
+            .historySwipe(documents)
+            .chromeBodyFont()
             .environment(\.noteTextScale, noteTextScale * NoteTextScale.readingSize)
             .environment(documents)
             .environment(\.openRoute, OpenRouteAction(handler: openFromDocument))
@@ -381,7 +384,7 @@ private struct UpdateStatusFooter: View {
             text().lineLimit(1)
             Spacer(minLength: 0)
         }
-        .font(.caption)
+        .chromeFont(.caption)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -522,6 +525,7 @@ private extension View {
         environment(navigation)
             .environment(\.openRoute, openRoute)
             .environment(\.listSelection, selection)
+            .chromeBodyFont()
     }
 }
 #endif

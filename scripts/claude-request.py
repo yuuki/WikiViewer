@@ -56,6 +56,14 @@ def web_allowed(req):
     WebSearch; questions and learning paths never do."""
     return req.get("kind") == "skill" and os.environ.get("WIKIVIEWER_SKILL_WEB") == "1"
 
+# Variables that make `claude -p` bill an API key or use another provider
+# instead of the subscription login. CLAUDE_CODE_OAUTH_TOKEN (from
+# `claude setup-token`) is a subscription login and is kept.
+API_BILLING_ENV = [
+    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+]
+
 RESULT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -200,6 +208,11 @@ vault の CLAUDE.md と wiki/CLAUDE.md の規約(既存ノートを書き換え�
 PROMPTS = {"ask": ask_prompt, "path": path_prompt, "skill": skill_prompt}
 
 
+def subscription_env():
+    """This process's environment without the API-billing variables."""
+    return {k: v for k, v in os.environ.items() if k not in API_BILLING_ENV}
+
+
 def run_claude(prompt, web=False):
     claude = os.environ.get("CLAUDE_BIN") or shutil.which("claude")
     if not claude:
@@ -219,7 +232,7 @@ def run_claude(prompt, web=False):
         print(prompt, file=sys.stderr)
         print(cmd[:2] + ["<prompt>"] + cmd[3:], file=sys.stderr)
         return {"answer_path": None, "message": "dry run"}
-    proc = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    proc = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, env=subscription_env())
     sys.stderr.write(proc.stderr[-4000:])
     if proc.returncode != 0:
         # With --output-format json the reason (e.g. an expired login) is

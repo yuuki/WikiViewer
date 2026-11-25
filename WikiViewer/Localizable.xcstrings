@@ -616,6 +616,16 @@
         }
       }
     },
+    "Copy Mermaid Source": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mermaid のソースをコピー"
+          }
+        }
+      }
+    },
     "Copy Note Text": {
       "localizations": {
         "ja": {
@@ -962,6 +972,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "タイトル・別名・本文でノートを探せます。"
+          }
+        }
+      }
+    },
+    "Flowchart": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フローチャート"
           }
         }
       }
@@ -2499,6 +2519,16 @@
         }
       }
     },
+    "Show Whole Chart": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "図全体を表示"
+          }
+        }
+      }
+    },
     "Show in Cluster": {
       "localizations": {
         "ja": {
@@ -2515,6 +2545,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "最後にダウンロードしたスナップショットを表示しています。%@"
+          }
+        }
+      }
+    },
+    "Shows the whole chart": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "図全体を表示します"
           }
         }
       }

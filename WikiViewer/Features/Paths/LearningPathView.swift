@@ -27,10 +27,10 @@ struct LearningPathSection: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Label("Learning Path", systemImage: "map")
-                    .font(.headline)
+                    .chromeFont(.headline)
                 Spacer()
                 Text("\(done) of \(readable.count) read")
-                    .font(.subheadline)
+                    .chromeFont(.subheadline)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
@@ -39,8 +39,8 @@ struct LearningPathSection: View {
                 RouteLink(Route.note(path: note.path, anchor: next.heading.map { NoteAnchor(heading: $0) })) {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Read Next").font(.caption).foregroundStyle(.secondary)
-                            Text(note.title).font(.body.weight(.semibold))
+                            Text("Read Next").chromeFont(.caption).foregroundStyle(.secondary)
+                            Text(note.title).chromeFont(.body, weight: .semibold)
                         }
                     } icon: {
                         Image(systemName: "arrow.right.circle.fill").foregroundStyle(.tint)
@@ -92,14 +92,14 @@ struct LearningPathSection: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 if step.isGap {
-                    Text("Bridge needed").font(.caption.weight(.semibold)).foregroundStyle(.orange)
-                    Text(step.detail.isEmpty ? step.text : step.detail).font(.subheadline)
+                    Text("Bridge needed").chromeFont(.caption, weight: .semibold).foregroundStyle(.orange)
+                    Text(step.detail.isEmpty ? step.text : step.detail).chromeFont(.subheadline)
                 } else if let id = step.noteID, let note = notes[id] {
                     RouteLink(Route.note(path: note.path, anchor: step.heading.map { NoteAnchor(heading: $0) })) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("\(step.number). \(note.title)").font(.subheadline.weight(.medium))
+                            Text("\(step.number). \(note.title)").chromeFont(.subheadline, weight: .medium)
                             if !step.detail.isEmpty {
-                                Text(step.detail).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                                Text(step.detail).chromeFont(.footnote).foregroundStyle(.secondary).lineLimit(3)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
