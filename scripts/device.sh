@@ -47,7 +47,7 @@ build() {
   udid=$(find_udid)
   xcodebuild -project WikiViewer.xcodeproj -scheme WikiViewer \
     -destination "id=$udid" -derivedDataPath "$DERIVED" \
-    -allowProvisioningUpdates -quiet build
+    -allowProvisioningUpdates -allowProvisioningDeviceRegistration -quiet build
   echo "$APP"
 }
 
