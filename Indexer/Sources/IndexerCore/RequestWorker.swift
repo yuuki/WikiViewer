@@ -37,6 +37,9 @@ public struct RequestWorkerConfiguration: Sendable {
     public var log: URL?
     /// Reading signals (#42) are stored here; nil refuses them.
     public var signals: SignalStore?
+    /// The vault's skills offered to the app (`<publish>/requests/skills.json`);
+    /// nil offers none and refuses every `skill` request.
+    public var skills: SkillScanner?
 
     public init(inbox: URL, publishDirectory: URL, vault: URL) {
         self.inbox = inbox
@@ -94,6 +97,7 @@ public final class RequestWorker: Sendable {
     public func run(interval: Duration = .seconds(5)) async throws {
         Log.info("requests: watching \(configuration.inbox.path)")
         while !Task.isCancelled {
+            publishSkills()
             _ = await processPending()
             removeExpiredStatuses()
             try await Task.sleep(for: interval)
@@ -167,6 +171,21 @@ public final class RequestWorker: Sendable {
                 return HostRequestStatus(id: id, kind: request.kind, state: .failed, message: "Could not store reading history: \(error)")
             }
         }
+        var environment = ["WIKIVIEWER_VAULT": configuration.vault.path]
+        if request.kind == .skill {
+            // The catalog may have changed since the app read it.
+            guard let scanner = configuration.skills, let name = request.skill, let skill = scanner.entry(named: name) else {
+                return HostRequestStatus(id: id, kind: request.kind, state: .failed,
+                                         message: "This Mac does not offer the skill \(request.skill ?? "").")
+            }
+            // Where the skill is, for the runner: a skill only in
+            // .agents/skills is not one Claude Code can invoke by name.
+            environment["WIKIVIEWER_SKILL_FILE"] = skill.file.path
+            environment["WIKIVIEWER_SKILL_INVOCABLE"] = skill.isClaudeSkill ? "1" : "0"
+            // Only a skill the Mac lets use the web gets it; the device
+            // cannot ask for it.
+            environment["WIKIVIEWER_SKILL_WEB"] = skill.skill.usesWeb == true ? "1" : "0"
+        }
         guard let runner = configuration.runner else {
             return HostRequestStatus(id: id, kind: request.kind, state: .failed, message: "No runner is configured on the Mac (wikiindex requests --runner).")
         }
@@ -179,7 +198,7 @@ public final class RequestWorker: Sendable {
         do {
             try RequestInbox.writeAtomically(try request.encoded(), to: copy)
             let output = try await ProcessRunner.run(runner, arguments: [copy.path], directory: configuration.vault,
-                                                     environment: ["WIKIVIEWER_VAULT": configuration.vault.path],
+                                                     environment: environment,
                                                      timeout: configuration.runnerTimeout)
             guard output.status == 0, let result = RunnerResult.parse(output.stdout), result.error == nil else {
                 let reason = RunnerResult.parse(output.stdout)?.error ?? output.stderr.split(whereSeparator: \.isNewline).last.map(String.init) ?? "exit status \(output.status)"
@@ -207,6 +226,30 @@ public final class RequestWorker: Sendable {
               !path.split(separator: "/").contains(where: { $0.hasPrefix(".") }) else { return nil }
         guard let meta = VaultWalker.meta(vault: configuration.vault, relativePath: path), !meta.isDirectory else { return nil }
         return path
+    }
+
+    // MARK: Skill catalog
+
+    /// Writes `<publish>/requests/skills.json` when the vault's skills
+    /// changed (or removes it when none are offered). Returns the catalog.
+    @discardableResult
+    public func publishSkills(now: Date = Date()) -> SkillCatalog? {
+        let url = configuration.publishDirectory.appendingPathComponent(SkillCatalog.publishedPath)
+        guard let scanner = configuration.skills else {
+            try? FileManager.default.removeItem(at: url)
+            return nil
+        }
+        let catalog = scanner.scan(now: now)
+        if let data = try? Data(contentsOf: url), let old = try? SkillCatalog.decode(data), old.skills == catalog.skills {
+            return old
+        }
+        do {
+            try RequestInbox.writeAtomically(try catalog.encoded(), to: url)
+            Log.info("requests: offering \(catalog.skills.count) skills")
+        } catch {
+            Log.warning("requests: cannot write the skill catalog: \(error)")
+        }
+        return catalog
     }
 
     // MARK: Status files

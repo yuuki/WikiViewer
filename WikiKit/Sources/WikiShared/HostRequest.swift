@@ -31,6 +31,9 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
         case explain
         /// A two-voice audio episode about a note (#44).
         case podcast
+        /// One of the vault's own agent skills, chosen from the catalog the
+        /// Mac publishes (`SkillCatalog`), optionally about a note.
+        case skill
         /// Reading history, dwell times and pins (#42). Stored on the Mac
         /// outside the vault; never passed to Claude as a prompt.
         case signals
@@ -69,10 +72,13 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
     /// The notes pinned on the device when the signals were sent (the whole
     /// list, so an unpinned note drops out).
     public var pins: [String]?
+    /// The skill a `skill` request runs (a name from the Mac's catalog).
+    public var skill: String?
 
     public init(id: UUID = UUID(), kind: Kind, createdAt: Date = Date(), device: String? = nil,
                 notePath: String? = nil, noteTitle: String? = nil, heading: String? = nil, excerpt: String? = nil,
-                question: Question? = nil, text: String? = nil, signals: [ReadingSignal]? = nil, pins: [String]? = nil) {
+                question: Question? = nil, text: String? = nil, signals: [ReadingSignal]? = nil, pins: [String]? = nil,
+                skill: String? = nil) {
         version = Self.currentVersion
         self.id = id
         self.kind = kind
@@ -87,6 +93,7 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
         self.text = text
         self.signals = signals
         self.pins = pins
+        self.skill = skill
     }
 
     // MARK: Limits
@@ -101,6 +108,7 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
         case tooLarge(String)
         case unsafePath(String)
         case missing(String)
+        case unsafeSkill(String)
 
         public var description: String {
             switch self {
@@ -108,6 +116,7 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
             case .tooLarge(let field): "\(field) is too long"
             case .unsafePath(let p): "unsafe note path \(p)"
             case .missing(let field): "\(field) is required"
+            case .unsafeSkill(let name): "not a skill name: \(name)"
             }
         }
     }
@@ -138,6 +147,9 @@ public struct HostRequest: Codable, Sendable, Equatable, Identifiable {
             guard hasText else { throw .missing("text") }
         case .podcast:
             guard notePath != nil || hasText else { throw .missing("notePath") }
+        case .skill:
+            guard let skill else { throw .missing("skill") }
+            guard SkillCatalog.isValidName(skill) else { throw .unsafeSkill(skill) }
         case .signals:
             guard let signals else { throw .missing("signals") }
             guard signals.count <= Self.maximumSignals else { throw .tooLarge("signals") }

@@ -109,7 +109,8 @@ struct SettingsView: View {
                         .onSubmit { library.setRequestToken(requestToken) }
                         .onDisappear { library.setRequestToken(requestToken) }
                 }
-                NavigationLink("Requests") { RequestsView() }
+                // Settings has no tab's navigation; RequestsView's list needs one.
+                NavigationLink("Requests") { RequestsView().environment(NavigationModel()) }
             } header: {
                 Text("Requests to Claude")
             } footer: {
